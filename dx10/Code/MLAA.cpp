@@ -107,7 +107,7 @@ MLAA::MLAA(ID3D10Device *device, int width, int height, const ExternalStorage &s
     if (storage.edgesRTV != NULL && storage.edgesSRV != NULL)
         edgeRenderTarget = new RenderTarget(device, storage.edgesRTV, storage.edgesSRV);
     else
-        edgeRenderTarget = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8_UNORM);
+        edgeRenderTarget = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
     
     // Same for blending weights.
     if (storage.weightsRTV != NULL && storage.weightsSRV != NULL)
@@ -115,7 +115,7 @@ MLAA::MLAA(ID3D10Device *device, int width, int height, const ExternalStorage &s
     else
         blendRenderTarget = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
 
-    // Load the AreaMap pre-computed texture.
+    // Load the pre-computed areas texture.
     wstringstream ss;
     ss << L"AreaMap" << MAX_DISTANCE << L".dds";
 
@@ -123,11 +123,16 @@ MLAA::MLAA(ID3D10Device *device, int width, int height, const ExternalStorage &s
     info.MipLevels = 1;
     info.Format = DXGI_FORMAT_R8G8_UNORM;
     V(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(NULL), ss.str().c_str(), &info, NULL, &areaMapView, NULL));
+    
+    // Load the pre-computed search length texture.
+    info.Format = DXGI_FORMAT_R8_UNORM;
+    V(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(NULL), L"SearchLengthMap.dds", &info, NULL, &searchLengthMapView, NULL));
 
     // Create some handles for techniques and variables.
     thresholdVariable = effect->GetVariableByName("threshold")->AsScalar();
     maxSearchStepsVariable = effect->GetVariableByName("maxSearchSteps")->AsScalar();
     areaTexVariable = effect->GetVariableByName("areaTex")->AsShaderResource();
+    searchLengthTexVariable = effect->GetVariableByName("searchLengthTex")->AsShaderResource();
     colorTexVariable = effect->GetVariableByName("colorTex")->AsShaderResource();
     colorGammaTexVariable = effect->GetVariableByName("colorGammaTex")->AsShaderResource();
     depthTexVariable = effect->GetVariableByName("depthTex")->AsShaderResource();
@@ -146,6 +151,7 @@ MLAA::~MLAA() {
     SAFE_DELETE(edgeRenderTarget);
     SAFE_DELETE(blendRenderTarget);
     SAFE_RELEASE(areaMapView);
+    SAFE_RELEASE(searchLengthMapView);
     SAFE_DELETE(backbufferRenderTarget);
 }
 
@@ -181,6 +187,7 @@ MLAA::~MLAA() {
     V(edgesTexVariable->SetResource(*edgeRenderTarget));
     V(blendTexVariable->SetResource(*blendRenderTarget));
     V(areaTexVariable->SetResource(areaMapView));
+    V(searchLengthTexVariable->SetResource(searchLengthMapView));
     if (isDepth) {
         V(depthTexVariable->SetResource(srcEdges));
     } else {

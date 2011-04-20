@@ -60,7 +60,8 @@ Texture2D colorGammaTex;
 Texture2D<float> depthTex;
 Texture2D edgesTex;
 Texture2D blendTex;
-Texture2D areaTex;
+Texture2D<float2> areaTex;
+Texture2D<float> searchLengthTex;
 
 
 /**
@@ -95,7 +96,7 @@ float4 mad(float4 m, float4 a, float4 b) {
  */
 
 float2 Area(float2 distance, float e1, float e2) {
-     // * By dividing by areaSize - 1.0 below we are implicitely offsetting to
+     // * By dividing by areaSize - 1.0 below we are implicitly offsetting to
      //   always fall inside of a pixel
      // * Rounding prevents bilinear access precision problems
     float areaSize = MAX_DISTANCE * 5;
@@ -106,7 +107,7 @@ float2 Area(float2 distance, float e1, float e2) {
 
 
 /**
- *  ~ L A M E   V E R T E X   S H A D E R ~
+ *  ~ D U M M Y   V E R T E X   S H A D E R ~
  */
 
 struct PassV2P {
@@ -141,11 +142,26 @@ float4 ColorEdgeDetectionPS(float4 position : SV_POSITION,
     float Lright = dot(colorGammaTex.SampleLevel(PointSampler, texcoord, 0, int2(1, 0)).rgb, weights);
     float Lbottom  = dot(colorGammaTex.SampleLevel(PointSampler, texcoord, 0, int2(0, 1)).rgb, weights);
 
+    // We do the usual threshold
     float4 delta = abs(L.xxxx - float4(Lleft, Ltop, Lright, Lbottom));
     float4 edges = step(threshold.xxxx, delta);
 
+    // Then discard if there is no edge
     if (dot(edges, 1.0) == 0.0)
         discard;
+
+    /**
+     * Each edge with a delta in luma of less than 50% of the maximum luma
+     * surrounding this pixel is discarded. This allows to eliminate spurious
+     * crossing edges, and is based on the fact that, if there is too much
+     * contrast in a direction, that will hide contrast in the other
+     * neighbors.
+     * This is done after the discard intentionally as this situation doesn't
+     * happen too frequently (but it's important to do as it prevents some 
+     * edges from going undetected).
+     */
+    float maxDelta = max(max(max(delta.x, delta.y), delta.z), delta.w);
+    edges *= step(0.5 * maxDelta, delta);
 
     return edges;
 }
@@ -174,55 +190,93 @@ float4 DepthEdgeDetectionPS(float4 position : SV_POSITION,
 
 
 /**
+ * This allows to determine how much length should add the last step of the
+ * searchs. It takes the bilinearly interpolated value and returns 0, 1 or 2,
+ * depending on which edges and crossing edges are active. 
+ * "e.g" contains the bilinearly interpolated value for the edges and "e.r" for
+ * the crossing edges.
+ */
+
+float DetermineLength(float2 e) {
+	return 255.0 * searchLengthTex.SampleLevel(PointSampler, e, 0);
+}
+
+
+/**
  * Search functions for the 2nd pass.
  */
 
 float SearchXLeft(float2 texcoord) {
-    texcoord -= float2(1.5, 0.0) * PIXEL_SIZE;
-    float e = 0.0;
-    // We offset by 0.5 to sample between edgels, thus fetching two in a row
+    float2 e = edgesTex.SampleLevel(LinearSampler, texcoord - float2(0.0, 0.5) * PIXEL_SIZE, 0).rg;
+    if (e.r > 0.25)
+        return 0.0;
+
+    // We offset by (1.25, 0.125) to sample between edgels, thus fetching four
+    // in a row.
+    // Sampling with different offsets in each direction allows to disambiguate
+    // which edges are active from the four fetched ones.
+    texcoord -= float2(1.25, 0.125) * PIXEL_SIZE;
+
     for (int i = 0; i < maxSearchSteps; i++) {
-        e = edgesTex.SampleLevel(LinearSampler, texcoord, 0).g;
-        // We compare with 0.9 to prevent bilinear access precision problems
-        [flatten] if (e < 0.9) break;
+        e = edgesTex.SampleLevel(LinearSampler, texcoord, 0).rg;
+
+        // Is there some edge non activated? (e.g < 0.8281)
+        // Or is there a crossing edge that breaks the line? (e.r > 0.0)
+        // We refer you to the paper to discover where this magic number comes
+        // from.
+        [flatten] if (e.g < 0.8281 || e.r > 0.0) break;
+
         texcoord -= float2(2.0, 0.0) * PIXEL_SIZE;
     }
+
     // When we exit the loop without founding the end, we want to return
     // -2 * maxSearchSteps
-    return max(-2.0 * i - 2.0 * e, -2.0 * maxSearchSteps);
+    return max(-2.0 * i - DetermineLength(e), -2.0 * maxSearchSteps);
 }
 
 float SearchXRight(float2 texcoord) {
-    texcoord += float2(1.5, 0.0) * PIXEL_SIZE;
-    float e = 0.0;
+    float2 e = edgesTex.SampleLevel(LinearSampler, texcoord - float2(0.0, 0.5) * PIXEL_SIZE, 0).bg;
+    if (e.r > 0.25)
+        return 0.0;
+
+    texcoord += float2(1.25, -0.125) * PIXEL_SIZE;
     for (int i = 0; i < maxSearchSteps; i++) {
-        e = edgesTex.SampleLevel(LinearSampler, texcoord, 0).g;
-        [flatten] if (e < 0.9) break;
+        e = edgesTex.SampleLevel(LinearSampler, texcoord, 0).bg;
+        [flatten] if (e.g < 0.8281 || e.r > 0.0) break;
         texcoord += float2(2.0, 0.0) * PIXEL_SIZE;
     }
-    return min(2.0 * i + 2.0 * e, 2.0 * maxSearchSteps);
+
+    return min(2.0 * i + DetermineLength(e), 2.0 * maxSearchSteps);
 }
 
 float SearchYUp(float2 texcoord) {
-    texcoord -= float2(0.0, 1.5) * PIXEL_SIZE;
-    float e = 0.0;
+    float2 e = edgesTex.SampleLevel(LinearSampler, texcoord - float2(0.5, 0.0) * PIXEL_SIZE, 0).rg;
+    if (e.g > 0.25)
+        return 0.0;
+
+    texcoord -= float2(0.125, 1.25) * PIXEL_SIZE;
     for (int i = 0; i < maxSearchSteps; i++) {
-        e = edgesTex.SampleLevel(LinearSampler, texcoord, 0).r;
-        [flatten] if (e < 0.9) break;
+        e = edgesTex.SampleLevel(LinearSampler, texcoord, 0).rg;
+        [flatten] if (e.r < 0.8281 || e.g > 0.0) break;
         texcoord -= float2(0.0, 2.0) * PIXEL_SIZE;
     }
-    return max(-2.0 * i - 2.0 * e, -2.0 * maxSearchSteps);
+
+    return max(-2.0 * i - DetermineLength(e.gr), -2.0 * maxSearchSteps);
 }
 
 float SearchYDown(float2 texcoord) {
-    texcoord += float2(0.0, 1.5) * PIXEL_SIZE;
-    float e = 0.0;
+    float2 e = edgesTex.SampleLevel(LinearSampler, texcoord - float2(0.5, 0.0) * PIXEL_SIZE, 0).ra;
+    if (e.g > 0.25)
+        return 0.0;
+
+    texcoord += float2(-0.125, 1.25) * PIXEL_SIZE;
     for (int i = 0; i < maxSearchSteps; i++) {
-        e = edgesTex.SampleLevel(LinearSampler, texcoord, 0).r;
-        [flatten] if (e < 0.9) break;
+        e = edgesTex.SampleLevel(LinearSampler, texcoord, 0).ra;
+        [flatten] if (e.r < 0.8281 || e.g > 0.0) break;
         texcoord += float2(0.0, 2.0) * PIXEL_SIZE;
     }
-    return min(2.0 * i + 2.0 * e, 2.0 * maxSearchSteps);
+
+    return min(2.0 * i + DetermineLength(e.gr), 2.0 * maxSearchSteps);
 }
 
 
@@ -243,7 +297,7 @@ float4 BlendingWeightCalculationPS(float4 position : SV_POSITION,
         float2 d = float2(SearchXLeft(texcoord), SearchXRight(texcoord));
 
         // Now fetch the crossing edges. Instead of sampling between edgels, we
-        // sample at -0.25, to be able to discern what value has each edgel:
+        // sample at -0.25, to be able to discern what value each edgel has:
         float4 coords = mad(float4(d.x, -0.25, d.y + 1.0, -0.25),
                             PIXEL_SIZE.xyxy, texcoord.xyxy);
         float e1 = edgesTex.SampleLevel(LinearSampler, coords.xy, 0).r;
@@ -291,14 +345,14 @@ float4 NeighborhoodBlendingPS(float4 position : SV_POSITION,
     // favors blending and works well in practice.
     float4 w = a * a * a;
 
-    // There is some blending weight with a value greater than 0.0?
+    // Is there any blending weight with a value greater than 0.0?
     float sum = dot(w, 1.0);
     if (sum < 1e-5)
         discard;
 
     float4 color = 0.0;
 
-    // Add the contributions of the possible 4 lines that can cross this
+    // Add the contributions of the 4 possible lines that can cross this
     // pixel:
     float4 coords = mad(float4( 0.0, -a.r, 0.0,  a.g), PIXEL_SIZE.yyyy, texcoord.xyxy);
     color = mad(colorTex.SampleLevel(LinearSampler, coords.xy, 0), w.r, color);

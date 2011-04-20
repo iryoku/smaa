@@ -153,10 +153,11 @@ class MLAA {
         RenderTarget *blendRenderTarget;
         BackbufferRenderTarget *backbufferRenderTarget;
         ID3D10ShaderResourceView *areaMapView;
+        ID3D10ShaderResourceView *searchLengthMapView;
 
         ID3D10EffectScalarVariable *thresholdVariable;
         ID3D10EffectScalarVariable *maxSearchStepsVariable;
-        ID3D10EffectShaderResourceVariable *areaTexVariable,
+        ID3D10EffectShaderResourceVariable *areaTexVariable, *searchLengthTexVariable,
                                            *colorTexVariable, *colorGammaTexVariable, *depthTexVariable,
                                            *edgesTexVariable, *blendTexVariable;
         
