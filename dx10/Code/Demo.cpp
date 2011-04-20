@@ -28,6 +28,7 @@
  * policies, either expressed or implied, of the copyright holders.
  */
 
+
 #include "DXUT.h"
 #include "DXUTgui.h"
 #include "DXUTsettingsDlg.h"
@@ -265,7 +266,7 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
     device->ClearRenderTargetView(*backbufferRenderTarget, clearColor);
     device->ClearDepthStencilView(*depthStencil, D3D10_CLEAR_STENCIL, 1.0, 0);
 
-    // This is the equivalent to the main render pass
+    // This is our simulated main render-to-backbuffer pass
     D3D10_VIEWPORT viewport = Utils::viewportFromView(testView);
     Copy::go(testView, *backbufferRenderTarget, &viewport);
     Copy::go(testDepthView, *depthBufferRenderTarget, &viewport);
@@ -283,9 +284,11 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
         }
         timer->clock(L"MLAA");
     }
-    
+
+    DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats"); // These events are to help PIX identify what the code is doing
     drawTextures(device);
     drawHud(device, elapsedTime);
+    DXUT_EndPerfEvent();
 }
 
 
@@ -414,6 +417,9 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 if (int(hud.GetComboBox(IDC_VIEWMODE)->GetSelectedData()) > 0) {
                     hud.GetCheckBox(IDC_ANTIALIASING)->SetChecked(true);
                 }
+
+                bool viewEdges = int(hud.GetComboBox(IDC_VIEWMODE)->GetSelectedData()) == 1;
+                mlaa->setStopAtEdgeDetection(viewEdges);
             }
             break;
         case IDC_INPUT:

@@ -28,31 +28,71 @@
  * policies, either expressed or implied, of the copyright holders.
  */
 
-#include <DXUT.h>
+
 #include "timer.h"
 using namespace std;
 
 
-Timer::Timer(ID3D10Device *device) : device(device), enabled(true), flushEnabled(true), windowSize(1000) {
-    D3D10_QUERY_DESC desc;
-    desc.Query = D3D10_QUERY_EVENT;
-    desc.MiscFlags = 0; 
-    device->CreateQuery(&desc, &event);
+#pragma region Useful Macros from DXUT (copy-pasted here as we prefer this to be as self-contained as possible)
+#if defined(DEBUG) || defined(_DEBUG)
+#ifndef V
+#define V(x) { hr = (x); if (FAILED(hr)) { DXTrace(__FILE__, (DWORD)__LINE__, hr, L#x, true); } }
+#endif
+#ifndef V_RETURN
+#define V_RETURN(x) { hr = (x); if (FAILED(hr)) { return DXTrace(__FILE__, (DWORD)__LINE__, hr, L#x, true); } }
+#endif
+#else
+#ifndef V
+#define V(x) { hr = (x); }
+#endif
+#ifndef V_RETURN
+#define V_RETURN(x) { hr = (x); if( FAILED(hr) ) { return hr; } }
+#endif
+#endif
+
+#ifndef SAFE_DELETE
+#define SAFE_DELETE(p) { if (p) { delete (p); (p) = NULL; } }
+#endif
+#ifndef SAFE_DELETE_ARRAY
+#define SAFE_DELETE_ARRAY(p) { if (p) { delete[] (p); (p) = NULL; } }
+#endif
+#ifndef SAFE_RELEASE
+#define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = NULL; } }
+#endif
+#pragma endregion
+
+
+#ifdef TIMER_USE_DIRECTX_9
+Timer::Timer(IDirect3DDevice9 *device) : enabled(true), flushEnabled(true), windowSize(1000) {
+    HRESULT hr;
+
+    V(device->CreateQuery(D3DQUERYTYPE_EVENT, &event));
 
     start();
 }
+#else
+Timer::Timer(ID3D10Device *device) : enabled(true), flushEnabled(true), windowSize(1000) {
+    HRESULT hr;
+
+    D3D10_QUERY_DESC desc;
+    desc.Query = D3D10_QUERY_EVENT;
+    desc.MiscFlags = 0; 
+    V(device->CreateQuery(&desc, &event));
+
+    start();
+}
+#endif
 
 
 Timer::~Timer() {
-    SAFE_RELEASE(event);
+    SAFE_RELEASE(event); 
 }
 
 
-void Timer::start(const wstring &msg) {
+void Timer::start() {
     if (enabled) {
-        if (flushEnabled) {
+        if (flushEnabled)
             flush();
-        }
 
         QueryPerformanceCounter((LARGE_INTEGER*) &t0);
         accum = 0.0f;
@@ -62,9 +102,8 @@ void Timer::start(const wstring &msg) {
 
 float Timer::clock(const wstring &msg) {
     if (enabled) {
-        if (flushEnabled) {
+        if (flushEnabled)
             flush();
-        }
 
         __int64 t1, freq;
         QueryPerformanceCounter((LARGE_INTEGER*) &t1);
@@ -100,9 +139,8 @@ float Timer::mean(const std::wstring &msg, float t) {
         }
         section.mean /= n;
 
-        if (section.completed < 1.0f) {
+        if (section.completed < 1.0f)
             section.completed = float(section.pos - 1) / windowSize;
-        }
 
         return section.mean;
     } else {
@@ -113,12 +151,15 @@ float Timer::mean(const std::wstring &msg, float t) {
 
 
 void Timer::flush() {
+    #ifdef TIMER_USE_DIRECTX_9
+    event->Issue(D3DISSUE_END);
+    while (event->GetData(NULL, 0, D3DGETDATA_FLUSH) == S_FALSE);
+    #else
     event->End();
 
     BOOL queryData;
-    while (event->GetData(&queryData, sizeof(BOOL), 0) != S_OK) {
-        ;
-    }
+    while (event->GetData(&queryData, sizeof(BOOL), 0) != S_OK);
+    #endif
 }
 
 

@@ -34,16 +34,22 @@
  * policies, either expressed or implied, of the copyright holders.
  */
 
+
 // For checking syntax at compile time
 #if !defined(PIXEL_SIZE)
 #define PIXEL_SIZE float2(1.0 / 1280.0, 1.0 / 720.0)
+#define MAX_DISTANCE 32
 #endif
 
-#define NUM_DISTANCES 32
-#define AREA_SIZE (NUM_DISTANCES * 5)
+
+/**
+ * Input vars and textures.
+ */
 
 cbuffer UpdatedOncePerFrame {
-    // For maximum performance maxDistance should be defined as a macro
+    /**
+     * IMPORTANT: For maximum performance, 'maxSearchSteps' should be defined as a macro.
+     */
     int maxSearchSteps;
     float threshold;
 }
@@ -54,6 +60,10 @@ Texture2D edgesTex;
 Texture2D blendTex;
 Texture2D areaTex;
 
+
+/**
+ * Some sampler states ahead.
+ */
 
 SamplerState LinearSampler {
     Filter = MIN_MAG_LINEAR_MIP_POINT;
@@ -68,20 +78,34 @@ SamplerState PointSampler {
 };
 
 
+/**
+ * Typical Multiply-Add operation to ease translation to assembly code.
+ */
+
 float4 mad(float4 m, float4 a, float4 b) {
     return m * a + b;
 }
 
 
+/** 
+ * Ok, we have the distance and both crossing edges, can you please return 
+ * the float2 blending weights?
+ */
+
 float2 Area(float2 distance, float e1, float e2) {
-     // * By dividing by AREA_SIZE - 1.0 below we are implicitely offsetting to
+     // * By dividing by areaSize - 1.0 below we are implicitely offsetting to
      //   always fall inside of a pixel
      // * Rounding prevents bilinear access precision problems
-    float2 pixcoord = NUM_DISTANCES * round(4.0 * float2(e1, e2)) + distance;
-    float2 texcoord = pixcoord / (AREA_SIZE - 1.0);
+    float areaSize = MAX_DISTANCE * 5;
+    float2 pixcoord = MAX_DISTANCE * round(4.0 * float2(e1, e2)) + distance;
+    float2 texcoord = pixcoord / (areaSize - 1.0);
     return areaTex.SampleLevel(PointSampler, texcoord, 0).rg;
 }
 
+
+/**
+ *  ~ L A M E   V E R T E X   S H A D E R ~
+ */
 
 struct PassV2P {
     float4 position : SV_POSITION;
@@ -97,7 +121,11 @@ PassV2P PassVS(float4 position : POSITION,
 }
 
 
-float4 EdgeDetectionPS(float4 position : SV_POSITION,
+/**
+ *  1 S T   P A S S   ~   C O L O R   V E R S I O N
+ */
+
+float4 ColorEdgeDetectionPS(float4 position : SV_POSITION,
                        float2 texcoord : TEXCOORD0) : SV_TARGET {
     float3 weights = float3(0.2126,0.7152, 0.0722);
 
@@ -123,7 +151,11 @@ float4 EdgeDetectionPS(float4 position : SV_POSITION,
 }
 
 
-float4 EdgeDetectionDepthPS(float4 position : SV_POSITION,
+/**
+ *  1 S T   P A S S   ~   D E P T H   V E R S I O N
+ */
+
+float4 DepthEdgeDetectionPS(float4 position : SV_POSITION,
                             float2 texcoord : TEXCOORD0) : SV_TARGET {
     float D = depthTex.SampleLevel(PointSampler, texcoord, 0);
     float Dleft = depthTex.SampleLevel(PointSampler, texcoord, 0, -int2(1, 0));
@@ -132,8 +164,7 @@ float4 EdgeDetectionDepthPS(float4 position : SV_POSITION,
     float Dbottom  = depthTex.SampleLevel(PointSampler, texcoord, 0, int2(0, 1));
 
     float4 delta = abs(D.xxxx - float4(Dleft, Dtop, Dright, Dbottom));
-    // Dividing by 10 give us results similar to the color-based detection
-    float4 edges = step(threshold.xxxx / 10.0, delta);
+    float4 edges = step(threshold.xxxx / 10.0, delta); // Dividing by 10 give us results similar to the color-based detection.
 
     if (dot(edges, 1.0) == 0.0) {
         discard;
@@ -142,6 +173,10 @@ float4 EdgeDetectionDepthPS(float4 position : SV_POSITION,
     return edges;
 }
 
+
+/**
+ * Search functions for the 2nd pass.
+ */
 
 float SearchXLeft(float2 texcoord) {
     texcoord -= float2(1.5, 0.0) * PIXEL_SIZE;
@@ -191,6 +226,21 @@ float SearchYDown(float2 texcoord) {
     return min(2.0 * i + 2.0 * e, 2.0 * maxSearchSteps);
 }
 
+
+/**
+ * Checks if the crossing edges e1 and e2 correspond to a _U_ shape.
+ */
+
+bool IsUShape(float e1, float e2) {
+    float t = e1 + e2;
+    return abs(t - 1.5) < 0.1 || abs(t - 0.5) < 0.1;
+}
+
+
+/**
+ *  S E C O N D   P A S S
+ */
+
 float4 BlendingWeightCalculationPS(float4 position : SV_POSITION,
                                    float2 texcoord : TEXCOORD0) : SV_TARGET {
     float4 weights = 0.0;
@@ -199,55 +249,82 @@ float4 BlendingWeightCalculationPS(float4 position : SV_POSITION,
 
     [branch]
     if (e.g) { // Edge at north
+
+        // Search distances to the left and to the right:
         float2 d = float2(SearchXLeft(texcoord), SearchXRight(texcoord));
-        
-        // Instead of sampling between edgels, we sample at -0.25,
-        // to be able to discern what value each edgel has.
+
+        // Now fetch the crossing edges. Instead of sampling between edgels, we
+        // sample at -0.25, to be able to discern what value has each edgel:
         float4 coords = mad(float4(d.x, -0.25, d.y + 1.0, -0.25),
                             PIXEL_SIZE.xyxy, texcoord.xyxy);
         float e1 = edgesTex.SampleLevel(LinearSampler, coords.xy, 0).r;
         float e2 = edgesTex.SampleLevel(LinearSampler, coords.zw, 0).r;
-        weights.rg = Area(abs(d), e1, e2);
+        
+        if (-d.r + d.g + 1 > 1 || IsUShape(e1, e2)) {
+            // Ok, we know how this pattern looks like, now it is time for getting
+            // the actual area:
+            weights.rg = Area(abs(d), e1, e2);
+        }
     }
 
     [branch]
     if (e.r) { // Edge at west
-        float2 d = float2(SearchYUp(texcoord), SearchYDown(texcoord));
 
+        // Search distances to the top and to the bottom:
+        float2 d = float2(SearchYUp(texcoord), SearchYDown(texcoord));
+        
+        // Now fetch the crossing edges (yet again):
         float4 coords = mad(float4(-0.25, d.x, -0.25, d.y + 1.0),
                             PIXEL_SIZE.xyxy, texcoord.xyxy);
         float e1 = edgesTex.SampleLevel(LinearSampler, coords.xy, 0).g;
         float e2 = edgesTex.SampleLevel(LinearSampler, coords.zw, 0).g;
-        weights.ba = Area(abs(d), e1, e2);
+
+        if (-d.r + d.g + 1 > 1 || IsUShape(e1, e2)) {
+            // Get the area for this direction:
+            weights.ba = Area(abs(d), e1, e2);
+        }
     }
 
-    return weights;
+    return saturate(weights);
 }
 
 
+/**
+ *  T H I R D   P A S S
+ */
+
 float4 NeighborhoodBlendingPS(float4 position : SV_POSITION,
                               float2 texcoord : TEXCOORD0) : SV_TARGET {
+    // Fetch the blending weights for current pixel:
     float4 topLeft = blendTex.SampleLevel(PointSampler, texcoord, 0);
-    float right = blendTex.SampleLevel(PointSampler, texcoord, 0, int2(0, 1)).g;
-    float bottom = blendTex.SampleLevel(PointSampler, texcoord, 0, int2(1, 0)).a;
-    float4 a = float4(topLeft.r, right, topLeft.b, bottom);
+    float bottom = blendTex.SampleLevel(PointSampler, texcoord, 0, int2(0, 1)).g;
+    float right = blendTex.SampleLevel(PointSampler, texcoord, 0, int2(1, 0)).a;
+    float4 a = float4(topLeft.r, bottom, topLeft.b, right);
 
+    // There is some blending weight with a value greater than 0.0?
     float sum = dot(a, 1.0);
-
     [branch]
     if (sum > 0.0) {
         float4 o = a * PIXEL_SIZE.yyxx;
         float4 color = 0.0;
+        
+        // Add the contributions of the possible 4 lines that can cross this pixel:
         color = mad(colorTex.SampleLevel(LinearSampler, texcoord + float2( 0.0, -o.r), 0), a.r, color);
         color = mad(colorTex.SampleLevel(LinearSampler, texcoord + float2( 0.0,  o.g), 0), a.g, color);
         color = mad(colorTex.SampleLevel(LinearSampler, texcoord + float2(-o.b,  0.0), 0), a.b, color);
         color = mad(colorTex.SampleLevel(LinearSampler, texcoord + float2( o.a,  0.0), 0), a.a, color);
+
+        // Normalize the resulting color and we are finished!
         return color / sum;
     } else {
         return colorTex.SampleLevel(LinearSampler, texcoord, 0);
     }
 }
 
+
+/**
+ * DepthStencilState's and company.
+ */
 
 DepthStencilState DisableDepthStencil {
     DepthEnable = FALSE;
@@ -272,22 +349,26 @@ BlendState NoBlending {
 };
 
 
-technique10 EdgeDetection {
-    pass EdgeDetection {
+/**
+ * Time for some techniques!
+ */
+
+technique10 ColorEdgeDetection {
+    pass ColorEdgeDetection {
         SetVertexShader(CompileShader(vs_4_0, PassVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_4_0, EdgeDetectionPS()));
+        SetPixelShader(CompileShader(ps_4_0, ColorEdgeDetectionPS()));
 
         SetDepthStencilState(DisableDepthReplaceStencil, 1);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
     }
 }
 
-technique10 EdgeDetectionDepth {
-    pass EdgeDetectionDepth {
+technique10 DepthEdgeDetection {
+    pass DepthEdgeDetection {
         SetVertexShader(CompileShader(vs_4_0, PassVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_4_0, EdgeDetectionDepthPS()));
+        SetPixelShader(CompileShader(ps_4_0, DepthEdgeDetectionPS()));
 
         SetDepthStencilState(DisableDepthReplaceStencil, 1);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);

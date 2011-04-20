@@ -28,6 +28,7 @@
  * policies, either expressed or implied, of the copyright holders.
  */
 
+
 #ifndef RENDERTARGET_H
 #define RENDERTARGET_H
 
@@ -51,7 +52,18 @@ class RenderTarget {
     public:
         RenderTarget(ID3D10Device *device, int width, int height,
             DXGI_FORMAT format,
-            const DXGI_SAMPLE_DESC &sampleDesc=NoMSAA());
+            const DXGI_SAMPLE_DESC &sampleDesc=NoMSAA(),
+            bool typeless=true);
+
+        /**
+         * These two are just convenience constructors to build from existing
+         * resources.
+         */
+        RenderTarget(ID3D10Device *device, ID3D10Texture2D *texture2D, DXGI_FORMAT format);
+        RenderTarget(ID3D10Device *device,
+            ID3D10RenderTargetView *renderTargetView,
+            ID3D10ShaderResourceView *shaderResourceView);
+
         ~RenderTarget();
 
         operator ID3D10Texture2D * () const { return texture2D; }
@@ -61,10 +73,14 @@ class RenderTarget {
 
         int getWidth() const { return width; }
         int getHeight() const { return height; }
-        
+
         void setViewport(float minDepth=0.0f, float maxDepth=1.0f) const;
 
+        static DXGI_FORMAT makeTypeless(DXGI_FORMAT format);
+
     private:
+        void createViews(ID3D10Device *device, D3D10_TEXTURE2D_DESC desc, DXGI_FORMAT format);
+
         ID3D10Device *device;
         int width, height;
         ID3D10Texture2D *texture2D;
@@ -110,7 +126,11 @@ class BackbufferRenderTarget {
         operator ID3D10RenderTargetView *const * () const { return &renderTargetView; }
         operator ID3D10ShaderResourceView * () const { return shaderResourceView; }
 
+        int getWidth() const { return width; }
+        int getHeight() const { return height; }
+
     private:
+        int width, height;
         ID3D10Texture2D *texture2D;
         ID3D10RenderTargetView *renderTargetView;
         ID3D10ShaderResourceView *shaderResourceView;
@@ -173,4 +193,3 @@ class Utils {
 };
 
 #endif
-

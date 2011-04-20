@@ -28,39 +28,42 @@
  * policies, either expressed or implied, of the copyright holders.
  */
 
+
+#include <stdexcept>
 #include "RenderTarget.h"
+using namespace std;
 
 
-#pragma region Useful Macros from DXUT (copy-pasted here as we prefer this to be self-contained)
+#pragma region Useful Macros from DXUT (copy-pasted here as we prefer this to be as self-contained as possible)
 #if defined(DEBUG) || defined(_DEBUG)
 #ifndef V
-#define V(x)           { hr = (x); if( FAILED(hr) ) { DXTrace( __FILE__, (DWORD)__LINE__, hr, L#x, true ); } }
+#define V(x) { hr = (x); if (FAILED(hr)) { DXTrace(__FILE__, (DWORD)__LINE__, hr, L#x, true); } }
 #endif
 #ifndef V_RETURN
-#define V_RETURN(x)    { hr = (x); if( FAILED(hr) ) { return DXTrace( __FILE__, (DWORD)__LINE__, hr, L#x, true ); } }
+#define V_RETURN(x) { hr = (x); if (FAILED(hr)) { return DXTrace(__FILE__, (DWORD)__LINE__, hr, L#x, true); } }
 #endif
 #else
 #ifndef V
-#define V(x)           { hr = (x); }
+#define V(x) { hr = (x); }
 #endif
 #ifndef V_RETURN
-#define V_RETURN(x)    { hr = (x); if( FAILED(hr) ) { return hr; } }
+#define V_RETURN(x) { hr = (x); if( FAILED(hr) ) { return hr; } }
 #endif
 #endif
 
 #ifndef SAFE_DELETE
-#define SAFE_DELETE(p)       { if (p) { delete (p);     (p)=NULL; } }
-#endif    
+#define SAFE_DELETE(p) { if (p) { delete (p); (p) = NULL; } }
+#endif
 #ifndef SAFE_DELETE_ARRAY
-#define SAFE_DELETE_ARRAY(p) { if (p) { delete[] (p);   (p)=NULL; } }
-#endif    
+#define SAFE_DELETE_ARRAY(p) { if (p) { delete[] (p); (p) = NULL; } }
+#endif
 #ifndef SAFE_RELEASE
-#define SAFE_RELEASE(p)      { if (p) { (p)->Release(); (p)=NULL; } }
+#define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = NULL; } }
 #endif
 #pragma endregion
 
 
-RenderTarget::RenderTarget(ID3D10Device *device, int width, int height, DXGI_FORMAT format, const DXGI_SAMPLE_DESC &sampleDesc)
+RenderTarget::RenderTarget(ID3D10Device *device, int width, int height, DXGI_FORMAT format, const DXGI_SAMPLE_DESC &sampleDesc, bool typeless)
         : device(device), width(width), height(height) {
     HRESULT hr;
 
@@ -70,15 +73,57 @@ RenderTarget::RenderTarget(ID3D10Device *device, int width, int height, DXGI_FOR
     desc.Height = height;
     desc.MipLevels = 1;
     desc.ArraySize = 1;
-    desc.Format = format;
+    desc.Format = typeless? makeTypeless(format) : format;
     desc.SampleDesc = sampleDesc;
     desc.Usage = D3D10_USAGE_DEFAULT;
     desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
     V(device->CreateTexture2D(&desc, NULL, &texture2D));
+    
+    createViews(device, desc, format);
+}
+
+
+RenderTarget::RenderTarget(ID3D10Device *device, ID3D10Texture2D *texture2D, DXGI_FORMAT format)
+        : device(device), texture2D(texture2D) {
+    D3D10_TEXTURE2D_DESC desc;
+    texture2D->GetDesc(&desc);
+    width = desc.Width;
+    height = desc.Height;
+
+    // Increase the count as it is shared between two RenderTargets.
+    texture2D->AddRef();
+
+    createViews(device, desc, format);
+}
+
+
+RenderTarget::RenderTarget(ID3D10Device *device, ID3D10RenderTargetView *renderTargetView, ID3D10ShaderResourceView *shaderResourceView) 
+        : device(device), renderTargetView(renderTargetView), shaderResourceView(shaderResourceView) {
+    ID3D10Texture2D *t;
+    renderTargetView->GetResource(reinterpret_cast<ID3D10Resource **>(&texture2D));
+    shaderResourceView->GetResource(reinterpret_cast<ID3D10Resource **>(&t));
+    if (t != texture2D) {
+        throw logic_error("'renderTargetView' and 'shaderResourceView' ID3D10Texture2Ds should match");
+    }
+    SAFE_RELEASE(t);
+
+    D3D10_TEXTURE2D_DESC desc;
+    texture2D->GetDesc(&desc);
+    width = desc.Width;
+    height = desc.Height;
+
+    // We are going to safe release later, so increase references.
+    renderTargetView->AddRef();
+    shaderResourceView->AddRef();
+}
+
+
+void RenderTarget::createViews(ID3D10Device *device, D3D10_TEXTURE2D_DESC desc, DXGI_FORMAT format) {
+    HRESULT hr;
 
     D3D10_RENDER_TARGET_VIEW_DESC rtdesc;
-    rtdesc.Format = desc.Format;
-    if (sampleDesc.Count == 1) {
+    rtdesc.Format = format;
+    if (desc.SampleDesc.Count == 1) {
         rtdesc.ViewDimension = D3D10_RTV_DIMENSION_TEXTURE2D;
     } else {
         rtdesc.ViewDimension = D3D10_RTV_DIMENSION_TEXTURE2DMS;
@@ -87,8 +132,8 @@ RenderTarget::RenderTarget(ID3D10Device *device, int width, int height, DXGI_FOR
     V(device->CreateRenderTargetView(texture2D, &rtdesc, &renderTargetView));
 
     D3D10_SHADER_RESOURCE_VIEW_DESC srdesc;
-    srdesc.Format = desc.Format;
-    if (sampleDesc.Count == 1) {
+    srdesc.Format = format;
+    if (desc.SampleDesc.Count == 1) {
         srdesc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
     } else {
         srdesc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2DMS;
@@ -115,6 +160,30 @@ void RenderTarget::setViewport(float minDepth, float maxDepth) const {
     viewport.MinDepth = minDepth;
     viewport.MaxDepth = maxDepth;
     device->RSSetViewports(1, &viewport);
+}
+
+
+DXGI_FORMAT RenderTarget::makeTypeless(DXGI_FORMAT format) {
+    switch(format) {
+        case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+        case DXGI_FORMAT_R8G8B8A8_UNORM:
+        case DXGI_FORMAT_R8G8B8A8_UINT:
+        case DXGI_FORMAT_R8G8B8A8_SNORM:
+        case DXGI_FORMAT_R8G8B8A8_SINT:
+            return DXGI_FORMAT_R8G8B8A8_TYPELESS;
+
+        case DXGI_FORMAT_BC1_UNORM_SRGB:
+        case DXGI_FORMAT_BC1_UNORM:
+            return DXGI_FORMAT_BC1_TYPELESS;
+        case DXGI_FORMAT_BC2_UNORM_SRGB:
+        case DXGI_FORMAT_BC2_UNORM:
+            return DXGI_FORMAT_BC2_TYPELESS;
+        case DXGI_FORMAT_BC3_UNORM_SRGB:
+        case DXGI_FORMAT_BC3_UNORM:
+            return DXGI_FORMAT_BC3_TYPELESS;
+    };
+
+    return format;
 }
 
 
@@ -202,6 +271,9 @@ BackbufferRenderTarget::BackbufferRenderTarget(ID3D10Device *device, IDXGISwapCh
     srdesc.TextureCube.MostDetailedMip = 0;
     srdesc.TextureCube.MipLevels = 1;
     V(device->CreateShaderResourceView(texture2D, &srdesc, &shaderResourceView));
+
+    width = desc.Width;
+    height = desc.Height;
 }
 
 

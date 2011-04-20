@@ -28,6 +28,7 @@
  * policies, either expressed or implied, of the copyright holders.
  */
 
+
 #ifndef TIMER_H
 #define TIMER_H
 
@@ -36,13 +37,29 @@
 #include <map>
 #include <vector>
 
+// Use DX9 or DX10 for flushing the pipeline?
+//#define TIMER_USE_DIRECTX_9
+
+
+#ifdef TIMER_USE_DIRECTX_9
+#include <d3d9.h>
+#else
+#include <d3d10.h>
+#endif
+#include <dxerr.h>
+
+
 class Timer {
     public:
+        #ifdef TIMER_USE_DIRECTX_9
+        Timer(IDirect3DDevice9 *device);
+        #else
         Timer(ID3D10Device *device);
+        #endif
         ~Timer();
 
         void reset() { sections.clear(); }
-        void start(const std::wstring &msg=L"");
+        void start();
         float clock(const std::wstring &msg=L"");
         float accumulated() const { return accum; }
 
@@ -61,8 +78,11 @@ class Timer {
         float mean(const std::wstring &msg, float t);
         void flush();
 
-        ID3D10Device *device;
+        #ifdef TIMER_USE_DIRECTX_9
+        IDirect3DQuery9 *event;
+        #else
         ID3D10Query *event;
+        #endif
 
         __int64 t0;
         float accum;

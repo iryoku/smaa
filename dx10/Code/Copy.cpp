@@ -28,6 +28,7 @@
  * policies, either expressed or implied, of the copyright holders.
  */
 
+
 #include <DXUT.h>
 #include <string>
 #include "Copy.h"
