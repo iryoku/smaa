@@ -63,9 +63,10 @@ class MLAA {
          * MLAA processing using color-based edge detection
          * ************************************************
          *
-         * 'src' should be a sRGB view of the src texture, for blending the
-         * neighborhood of each pixel in linear space. Note that 'src' and
-         * 'dst' can be associated to the same buffer.
+         * 'src' and 'srcSRGB' should be views of the src texture, for 
+         * detecting edges in gamma space and for blending the neighborhood of
+         * each pixel in linear space, respectively. Note that 'src' and 'dst'
+         * cannot be associated to the same buffer.
          *
          * IMPORTANT: The stencil component of 'depthStencil' is used to mask
          * the zones to be processed. It is assumed to be already cleared to 
@@ -76,9 +77,11 @@ class MLAA {
          * and restored accordingly. However, we modify but not restore the
          * depth-stencil and blend states.
          */
-        void go(ID3D10ShaderResourceView *src,
-                ID3D10RenderTargetView *dst,
-                ID3D10DepthStencilView *depthStencil) { go(src, dst, depthStencil, NULL); }
+        void goColor(ID3D10ShaderResourceView *src,
+                     ID3D10ShaderResourceView *srcSRGB,
+                     ID3D10RenderTargetView *dst,
+                     ID3D10DepthStencilView *depthStencil)
+            { go(src, srcSRGB, dst, depthStencil, false); }
 
         /**
          * MLAA processing using depth-based edge detection
@@ -87,32 +90,15 @@ class MLAA {
          * Same as above, but in this case a depth-based edge detection will be
          * performed.
          *
-         * 'depthResource' should contain the linearized depth buffer to be
-         * used for edge detection. Some people seem to work better with
-         * non-linearized buffers, so you may want to try that as well.
+         * 'depth' should contain the linearized depth buffer to be used for
+         * edge detection. Some people seem to work better with non-linearized
+         * buffers, so you may want to try that as well.
          */
-        void go(ID3D10ShaderResourceView *src,
-                ID3D10RenderTargetView *dst,
-                ID3D10DepthStencilView *depthStencil,
-                ID3D10ShaderResourceView *depthResource);
-
-        /**
-         * MLAA processing using color-based edge detection (Backbuffer Version)
-         * *********************************************************************
-         *
-         * This is a convenience function, that uses the backbuffer as 'src'
-         * and 'dst'.
-         */
-        void go(IDXGISwapChain *swapChain, ID3D10DepthStencilView *depthStencil) { go(swapChain, depthStencil, NULL); }
-
-        /**
-         * MLAA processing using depth-based edge detection (Backbuffer Version)
-         * *********************************************************************
-         *
-         * This is a convenience function, that uses the backbuffer as 'src'
-         * and 'dst'.
-         */
-        void go(IDXGISwapChain *swapChain, ID3D10DepthStencilView *depthStencil, ID3D10ShaderResourceView *depthResource);
+        void goDepth(ID3D10ShaderResourceView *depth,
+                     ID3D10ShaderResourceView *srcSRGB,
+                     ID3D10RenderTargetView *dst,
+                     ID3D10DepthStencilView *depthStencil)
+            { go(depth, srcSRGB, dst, depthStencil, true); }
 
         /**
          * Maximum length to search for patterns. Each step is two pixels wide.
@@ -127,8 +113,7 @@ class MLAA {
         void setThreshold(float threshold) { this->threshold = threshold; }
 
         /**
-         * These two are just for debugging purposes. See also
-         * 'setStopAtEdgeDetection' below.
+         * These two are just for debugging purposes.
          */
         RenderTarget *getEdgeRenderTarget() { return edgeRenderTarget; }
         RenderTarget *getBlendRenderTarget() { return blendRenderTarget; }
@@ -151,19 +136,12 @@ class MLAA {
             ID3D10RenderTargetView *edgesRTV, *weightsRTV;
         };
 
-        /**
-         * 'stopAtEdgeDetection' should be 'true' if you are going to use
-         * 'getEdgeRenderTarget' for debugging purposes, and 'false' otherwise.
-         *  It defaults to 'false'. See 'MLAAQ::go' body for more details.
-         */
-        void setStopAtEdgeDetection(bool stopAtEdgeDetection) { this->stopAtEdgeDetection = stopAtEdgeDetection; };
-        bool getStopAtEdgeDetection() const { return stopAtEdgeDetection; }
-
     private:
-        void edgesDetectionPass(ID3D10ShaderResourceView *src, ID3D10ShaderResourceView *depth, ID3D10DepthStencilView *depthStencil);
+        void go(ID3D10ShaderResourceView *srcEdges, ID3D10ShaderResourceView *srcSRGB, ID3D10RenderTargetView *dst, ID3D10DepthStencilView *depthStencil, bool isDepth);
+        void edgesDetectionPass(ID3D10DepthStencilView *depthStencil, bool isDepth);
         void blendingWeightsCalculationPass(ID3D10DepthStencilView *depthStencil);
-        void neighborhoodBlendingPass(ID3D10RenderTargetView *dst, ID3D10DepthStencilView *depthStencil);
-        void copy(ID3D10ShaderResourceView *src);
+        void neighborhoodBlendingPass(ID3D10ShaderResourceView *src, ID3D10RenderTargetView *dst, ID3D10DepthStencilView *depthStencil);
+        void copy(ID3D10ShaderResourceView *src, ID3D10RenderTargetView *dst);
 
         static const int MAX_DISTANCE = 33; // We have precomputed textures for 9, 17, 33, 65 and 129.
 
@@ -172,7 +150,6 @@ class MLAA {
         Quad *quad;
 
         RenderTarget *edgeRenderTarget;
-        RenderTarget *edgeRenderSRGBTarget;
         RenderTarget *blendRenderTarget;
         BackbufferRenderTarget *backbufferRenderTarget;
         ID3D10ShaderResourceView *areaMapView;
@@ -180,7 +157,7 @@ class MLAA {
         ID3D10EffectScalarVariable *thresholdVariable;
         ID3D10EffectScalarVariable *maxSearchStepsVariable;
         ID3D10EffectShaderResourceVariable *areaTexVariable,
-                                           *colorTexVariable, *depthTexVariable,
+                                           *colorTexVariable, *colorGammaTexVariable, *depthTexVariable,
                                            *edgesTexVariable, *blendTexVariable;
         
         ID3D10EffectTechnique *colorEdgeDetectionTechnique,
@@ -190,8 +167,6 @@ class MLAA {
 
         int maxSearchSteps;
         float threshold;
-
-        bool stopAtEdgeDetection;
 };
 
 #endif

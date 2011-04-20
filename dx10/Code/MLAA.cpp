@@ -73,8 +73,7 @@ MLAA::MLAA(ID3D10Device *device, int width, int height, const ExternalStorage &s
         : device(device),
           maxSearchSteps(8),
           threshold(0.1f),
-          backbufferRenderTarget(NULL),
-          stopAtEdgeDetection(false) {
+          backbufferRenderTarget(NULL) {
     HRESULT hr;
     
     // Setup the defines for compiling the effect.
@@ -108,15 +107,13 @@ MLAA::MLAA(ID3D10Device *device, int width, int height, const ExternalStorage &s
     if (storage.edgesRTV != NULL && storage.edgesSRV != NULL)
         edgeRenderTarget = new RenderTarget(device, storage.edgesRTV, storage.edgesSRV);
     else
-        edgeRenderTarget = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
+        edgeRenderTarget = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8_UNORM);
     
     // Same for blending weights.
     if (storage.weightsRTV != NULL && storage.weightsSRV != NULL)
         blendRenderTarget = new RenderTarget(device, storage.weightsRTV, storage.weightsSRV);
     else
         blendRenderTarget = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
-
-    edgeRenderSRGBTarget = new RenderTarget(device, *edgeRenderTarget, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB); // This is just a view of the same resource.
 
     // Load the AreaMap pre-computed texture.
     wstringstream ss;
@@ -132,6 +129,7 @@ MLAA::MLAA(ID3D10Device *device, int width, int height, const ExternalStorage &s
     maxSearchStepsVariable = effect->GetVariableByName("maxSearchSteps")->AsScalar();
     areaTexVariable = effect->GetVariableByName("areaTex")->AsShaderResource();
     colorTexVariable = effect->GetVariableByName("colorTex")->AsShaderResource();
+    colorGammaTexVariable = effect->GetVariableByName("colorGammaTex")->AsShaderResource();
     depthTexVariable = effect->GetVariableByName("depthTex")->AsShaderResource();
     edgesTexVariable = effect->GetVariableByName("edgesTex")->AsShaderResource();
     blendTexVariable = effect->GetVariableByName("blendTex")->AsShaderResource();
@@ -146,17 +144,19 @@ MLAA::~MLAA() {
     SAFE_RELEASE(effect);
     SAFE_DELETE(quad);
     SAFE_DELETE(edgeRenderTarget);
-    SAFE_DELETE(edgeRenderSRGBTarget);
     SAFE_DELETE(blendRenderTarget);
     SAFE_RELEASE(areaMapView);
     SAFE_DELETE(backbufferRenderTarget);
 }
 
 
-void MLAA::go(ID3D10ShaderResourceView *src,
-              ID3D10RenderTargetView *dst, 
-              ID3D10DepthStencilView *depthStencil, 
-              ID3D10ShaderResourceView *depthResource) {
+ void MLAA::go(ID3D10ShaderResourceView *srcEdges,
+               ID3D10ShaderResourceView *srcSRGB,
+               ID3D10RenderTargetView *dst,
+               ID3D10DepthStencilView *depthStencil,
+               bool isDepth) {
+    HRESULT hr;
+
     // Save the state.
     SaveViewportsScope saveViewport(device);
     SaveRenderTargetsScope saveRenderTargets(device);
@@ -174,64 +174,35 @@ void MLAA::go(ID3D10ShaderResourceView *src,
     device->ClearRenderTargetView(*edgeRenderTarget, clearColor);
     device->ClearRenderTargetView(*blendRenderTarget, clearColor);
 
-    /**
-     * We first detect edges in 'src' and store them into 'edgeRenderTarget'.
-     */
-    edgesDetectionPass(src, depthResource, depthStencil);
-
-    /**
-     * As we will overwrite edges below, if 'stopAtEdgeDetection' is true we will
-     * stop at this point. This is useful for displaying the edge render
-     * target for debugging purposes.
-     */
-    if (stopAtEdgeDetection)
-        return;
-
-    /**
-     * Using the detected edges in 'edgeRenderTarget', we calculate the weights
-     * and store them into 'blendRenderTarget'.
-     */
-    blendingWeightsCalculationPass(depthStencil);
-
-    /**
-     * We copy 'src' into 'edgeRenderSRGBTarget', to use it in the next pass 
-     * as: 
-     *    a) We cannot sample from 'src' at the same we write to 'dst', as
-     *       they are usually the same resource (the backbuffer).
-     *    b) We don't need the edges anymore.
-     */
-    copy(src);
-
-    /**
-     * Reading the copied pixel colors from 'edgeRenderSRGBTarget', we blend
-     * neighborhood pixels using the weights stored in 'blendRenderTarget'.
-     */
-    neighborhoodBlendingPass(dst, depthStencil);
-}
-
-
-void MLAA::go(IDXGISwapChain *swapChain, ID3D10DepthStencilView *depthStencil, ID3D10ShaderResourceView *depthResource) {
-    if (backbufferRenderTarget == NULL)
-        backbufferRenderTarget = new BackbufferRenderTarget(device, swapChain);
-    go(*backbufferRenderTarget, *backbufferRenderTarget, depthStencil, depthResource);
-}
-
-
-void MLAA::edgesDetectionPass(ID3D10ShaderResourceView *src, ID3D10ShaderResourceView *depthResource, ID3D10DepthStencilView *depthStencil) {
-    HRESULT hr;
-
     // Setup variables.
     V(thresholdVariable->SetFloat(threshold));
-    V(colorTexVariable->SetResource(src));
-    V(depthTexVariable->AsShaderResource()->SetResource(depthResource));
-    
-    // Depending on the resources that are available, select the technique accordingly.
-    if (depthResource != NULL) {
+    V(maxSearchStepsVariable->SetInt(maxSearchSteps));
+    V(colorTexVariable->SetResource(srcSRGB));
+    V(edgesTexVariable->SetResource(*edgeRenderTarget));
+    V(blendTexVariable->SetResource(*blendRenderTarget));
+    V(areaTexVariable->SetResource(areaMapView));
+    if (isDepth) {
+        V(depthTexVariable->SetResource(srcEdges));
+    } else {
+        V(colorGammaTexVariable->SetResource(srcEdges));
+    }
+
+    // And here we go!
+    edgesDetectionPass(depthStencil, isDepth);
+    blendingWeightsCalculationPass(depthStencil);
+    neighborhoodBlendingPass(srcSRGB, dst, depthStencil);
+}
+
+
+void MLAA::edgesDetectionPass(ID3D10DepthStencilView *depthStencil, bool isDepth) {
+    HRESULT hr;
+
+    // Select the technique accordingly.
+    if (isDepth) {
         V(depthEdgeDetectionTechnique->GetPassByIndex(0)->Apply(0));
-    } else if (src != NULL) {
+    } else {
         V(colorEdgeDetectionTechnique->GetPassByIndex(0)->Apply(0));
-    } else
-        throw logic_error("unexpected error");
+    }
 
     // Do it!
     device->OMSetRenderTargets(1, *edgeRenderTarget, depthStencil);
@@ -243,10 +214,7 @@ void MLAA::edgesDetectionPass(ID3D10ShaderResourceView *src, ID3D10ShaderResourc
 void MLAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *depthStencil) {
     HRESULT hr;
 
-    // Setup the variables and the technique (yet again).
-    V(maxSearchStepsVariable->SetInt(maxSearchSteps));
-    V(edgesTexVariable->SetResource(*edgeRenderTarget));
-    V(areaTexVariable->SetResource(areaMapView));
+    // Setup the technique (again).
     V(blendWeightCalculationTechnique->GetPassByIndex(0)->Apply(0));
 
     // And here we go!
@@ -256,12 +224,14 @@ void MLAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *depthStencil) 
 }
 
 
-void MLAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dst, ID3D10DepthStencilView *depthStencil) {
+void MLAA::neighborhoodBlendingPass(ID3D10ShaderResourceView *src, ID3D10RenderTargetView *dst, ID3D10DepthStencilView *depthStencil) {
     HRESULT hr;
 
-    // Blah blah blah
-    V(colorTexVariable->SetResource(*edgeRenderSRGBTarget));
-    V(blendTexVariable->SetResource(*blendRenderTarget));
+    // We have to copy the src image to the destination, as we will only update the pixels marked as edges.
+    // So, we copy it first here, then update the pixels using the stencil buffer in this last pass.
+    copy(src, dst);
+
+    // Setup the technique (once again).
     V(neighborhoodBlendingTechnique->GetPassByIndex(0)->Apply(0));
     
     // Yeah! We will finally have the antialiased image :D
@@ -271,9 +241,15 @@ void MLAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dst, ID3D10DepthSten
 }
 
 
-void MLAA::copy(ID3D10ShaderResourceView *src) {
+void MLAA::copy(ID3D10ShaderResourceView *src, ID3D10RenderTargetView *dst) {
     ID3D10Texture2D *srcTexture2D;
     src->GetResource(reinterpret_cast<ID3D10Resource **>(&srcTexture2D));
-    device->CopyResource(*edgeRenderSRGBTarget, srcTexture2D);
+
+    ID3D10Texture2D *dstTexture2D;
+    dst->GetResource(reinterpret_cast<ID3D10Resource **>(&dstTexture2D));
+
+    device->CopyResource(dstTexture2D, srcTexture2D);
+
     srcTexture2D->Release();
+    dstTexture2D->Release();
 }

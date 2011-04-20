@@ -48,13 +48,15 @@
 
 cbuffer UpdatedOncePerFrame {
     /**
-     * IMPORTANT: For maximum performance, 'maxSearchSteps' should be defined as a macro.
+     * IMPORTANT: For maximum performance, 'maxSearchSteps' should be defined
+     *            as a macro.
      */
     int maxSearchSteps;
     float threshold;
 }
 
 Texture2D colorTex;
+Texture2D colorGammaTex;
 Texture2D<float> depthTex;
 Texture2D edgesTex;
 Texture2D blendTex;
@@ -126,26 +128,24 @@ PassV2P PassVS(float4 position : POSITION,
  */
 
 float4 ColorEdgeDetectionPS(float4 position : SV_POSITION,
-                       float2 texcoord : TEXCOORD0) : SV_TARGET {
+                            float2 texcoord : TEXCOORD0) : SV_TARGET {
     float3 weights = float3(0.2126,0.7152, 0.0722);
 
-    float L = dot(colorTex.SampleLevel(PointSampler, texcoord, 0).rgb, weights);
-    float Lleft = dot(colorTex.SampleLevel(PointSampler, texcoord, 0, -int2(1, 0)).rgb, weights);
-    float Ltop  = dot(colorTex.SampleLevel(PointSampler, texcoord, 0, -int2(0, 1)).rgb, weights);
-    float Lright = dot(colorTex.SampleLevel(PointSampler, texcoord, 0, int2(1, 0)).rgb, weights);
-    float Lbottom  = dot(colorTex.SampleLevel(PointSampler, texcoord, 0, int2(0, 1)).rgb, weights);
-
     /**
-     * We detect edges in gamma 1.0/2.0 space. Gamma space boosts the contrast
-     * of the blacks, where the human vision system is more sensitive to small
-     * gradations of intensity.
+     * Luma calculation requires gamma-corrected colors, and thus 'colorGammaTex' should
+     * be a non-sRGB texture.
      */
-    float4 delta = abs(sqrt(L).xxxx - sqrt(float4(Lleft, Ltop, Lright, Lbottom)));
+    float L = dot(colorGammaTex.SampleLevel(PointSampler, texcoord, 0).rgb, weights);
+    float Lleft = dot(colorGammaTex.SampleLevel(PointSampler, texcoord, 0, -int2(1, 0)).rgb, weights);
+    float Ltop  = dot(colorGammaTex.SampleLevel(PointSampler, texcoord, 0, -int2(0, 1)).rgb, weights);
+    float Lright = dot(colorGammaTex.SampleLevel(PointSampler, texcoord, 0, int2(1, 0)).rgb, weights);
+    float Lbottom  = dot(colorGammaTex.SampleLevel(PointSampler, texcoord, 0, int2(0, 1)).rgb, weights);
+
+    float4 delta = abs(L.xxxx - float4(Lleft, Ltop, Lright, Lbottom));
     float4 edges = step(threshold.xxxx, delta);
 
-    if (dot(edges, 1.0) == 0.0) {
+    if (dot(edges, 1.0) == 0.0)
         discard;
-    }
 
     return edges;
 }
@@ -166,9 +166,8 @@ float4 DepthEdgeDetectionPS(float4 position : SV_POSITION,
     float4 delta = abs(D.xxxx - float4(Dleft, Dtop, Dright, Dbottom));
     float4 edges = step(threshold.xxxx / 10.0, delta); // Dividing by 10 give us results similar to the color-based detection.
 
-    if (dot(edges, 1.0) == 0.0) {
+    if (dot(edges, 1.0) == 0.0)
         discard;
-    }
 
     return edges;
 }
@@ -228,16 +227,6 @@ float SearchYDown(float2 texcoord) {
 
 
 /**
- * Checks if the crossing edges e1 and e2 correspond to a _U_ shape.
- */
-
-bool IsUShape(float e1, float e2) {
-    float t = e1 + e2;
-    return abs(t - 1.5) < 0.1 || abs(t - 0.5) < 0.1;
-}
-
-
-/**
  *  S E C O N D   P A S S
  */
 
@@ -259,12 +248,10 @@ float4 BlendingWeightCalculationPS(float4 position : SV_POSITION,
                             PIXEL_SIZE.xyxy, texcoord.xyxy);
         float e1 = edgesTex.SampleLevel(LinearSampler, coords.xy, 0).r;
         float e2 = edgesTex.SampleLevel(LinearSampler, coords.zw, 0).r;
-        
-        if (-d.r + d.g + 1 > 1 || IsUShape(e1, e2)) {
-            // Ok, we know how this pattern looks like, now it is time for getting
-            // the actual area:
-            weights.rg = Area(abs(d), e1, e2);
-        }
+
+        // Ok, we know how this pattern looks like, now it is time for getting
+        // the actual area:
+        weights.rg = Area(abs(d), e1, e2);
     }
 
     [branch]
@@ -279,10 +266,8 @@ float4 BlendingWeightCalculationPS(float4 position : SV_POSITION,
         float e1 = edgesTex.SampleLevel(LinearSampler, coords.xy, 0).g;
         float e2 = edgesTex.SampleLevel(LinearSampler, coords.zw, 0).g;
 
-        if (-d.r + d.g + 1 > 1 || IsUShape(e1, e2)) {
-            // Get the area for this direction:
-            weights.ba = Area(abs(d), e1, e2);
-        }
+        // Get the area for this direction:
+        weights.ba = Area(abs(d), e1, e2);
     }
 
     return saturate(weights);
@@ -301,24 +286,30 @@ float4 NeighborhoodBlendingPS(float4 position : SV_POSITION,
     float right = blendTex.SampleLevel(PointSampler, texcoord, 0, int2(1, 0)).a;
     float4 a = float4(topLeft.r, bottom, topLeft.b, right);
 
-    // There is some blending weight with a value greater than 0.0?
-    float sum = dot(a, 1.0);
-    [branch]
-    if (sum > 0.0) {
-        float4 o = a * PIXEL_SIZE.yyxx;
-        float4 color = 0.0;
-        
-        // Add the contributions of the possible 4 lines that can cross this pixel:
-        color = mad(colorTex.SampleLevel(LinearSampler, texcoord + float2( 0.0, -o.r), 0), a.r, color);
-        color = mad(colorTex.SampleLevel(LinearSampler, texcoord + float2( 0.0,  o.g), 0), a.g, color);
-        color = mad(colorTex.SampleLevel(LinearSampler, texcoord + float2(-o.b,  0.0), 0), a.b, color);
-        color = mad(colorTex.SampleLevel(LinearSampler, texcoord + float2( o.a,  0.0), 0), a.a, color);
+    // Up to 4 lines can be crossing a pixel (one in each edge). So, we perform
+    // a weighted average, where the weight of each line is 'a' cubed, which
+    // favors blending and works well in practice.
+    float4 w = a * a * a;
 
-        // Normalize the resulting color and we are finished!
-        return color / sum;
-    } else {
-        return colorTex.SampleLevel(LinearSampler, texcoord, 0);
-    }
+    // There is some blending weight with a value greater than 0.0?
+    float sum = dot(w, 1.0);
+    if (sum < 1e-5)
+        discard;
+
+    float4 color = 0.0;
+
+    // Add the contributions of the possible 4 lines that can cross this
+    // pixel:
+    float4 coords = mad(float4( 0.0, -a.r, 0.0,  a.g), PIXEL_SIZE.yyyy, texcoord.xyxy);
+    color = mad(colorTex.SampleLevel(LinearSampler, coords.xy, 0), w.r, color);
+    color = mad(colorTex.SampleLevel(LinearSampler, coords.zw, 0), w.g, color);
+
+    coords = mad(float4(-a.b,  0.0, a.a,  0.0), PIXEL_SIZE.xxxx, texcoord.xyxy);
+    color = mad(colorTex.SampleLevel(LinearSampler, coords.xy, 0), w.b, color);
+    color = mad(colorTex.SampleLevel(LinearSampler, coords.zw, 0), w.a, color);
+
+    // Normalize the resulting color and we are finished!
+    return color / sum;
 }
 
 

@@ -1396,6 +1396,8 @@ bool CDXUTDialog::MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
                     return false;
 
                 POINT mousePoint = { short( LOWORD( lParam ) ), short( HIWORD( lParam ) ) };
+                if (uMsg == WM_MOUSEWHEEL) // <IRYOKU>: this fixes the mouse wheel events
+                    ScreenToClient(DXUTGetHWND(), &mousePoint);
                 mousePoint.x -= m_x;
                 mousePoint.y -= m_y;
 

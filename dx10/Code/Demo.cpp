@@ -60,11 +60,20 @@ MLAA *mlaa = NULL;
 DepthStencil *depthStencil = NULL;
 RenderTarget *depthBufferRenderTarget = NULL;
 BackbufferRenderTarget *backbufferRenderTarget = NULL;
+RenderTarget *finalRenderTargetSRGB = NULL;
+RenderTarget *finalRenderTarget = NULL;
 
 ID3D10ShaderResourceView *testView = NULL;
 ID3D10ShaderResourceView *testDepthView = NULL;
 
 bool showHud = true;
+
+struct {
+    float threshold;
+    int distance;
+    wstring src;
+    wstring dst;
+} commandlineOptions = {0.1f, 8, L"", L""};
 
 
 #define IDC_TOGGLEFULLSCREEN      1
@@ -107,13 +116,19 @@ void loadImage() {
         loadInfo.Filter = D3DX10_FILTER_POINT;
 
         wstring path = wstring(text).substr(0, wstring(text).find_last_of('.')) + L".dds";
-        if (FindResource(GetModuleHandle(NULL), path.c_str(), RT_RCDATA) != NULL) {
+        if (FindResource(GetModuleHandle(NULL), path.c_str(), RT_RCDATA) != NULL)
             V(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), path.c_str(), &loadInfo, NULL, &testDepthView, NULL));
-        }
     } else { // ... search for it in the file system
         ID3D10ShaderResourceView *view= NULL;
         if (FAILED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), text, &loadInfo, NULL, &view, NULL))) {
             MessageBox(NULL, L"Unable to open selected file", L"ERROR", MB_OK | MB_SETFOREGROUND | MB_TOPMOST);
+            hud.GetComboBox(IDC_INPUT)->RemoveItem(hud.GetComboBox(IDC_INPUT)->FindItem(text));
+            if (commandlineOptions.src != L"") {
+                exit(1);
+            } else {
+                loadImage(); // Fallback to previous image
+            }
+            return;
         } else {
             SAFE_RELEASE(testView);
             SAFE_RELEASE(testDepthView);
@@ -122,16 +137,14 @@ void loadImage() {
 
             ID3D10ShaderResourceView *depthView;
             wstring path = wstring(text).substr(0, wstring(text).find_last_of('.')) + L".dds";
-            if (SUCCEEDED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), path.c_str(), &loadInfo, NULL, &depthView, NULL))) {
+            if (SUCCEEDED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), path.c_str(), &loadInfo, NULL, &depthView, NULL)))
                 testDepthView = depthView;
-            }
         }
     }
 
     hud.GetComboBox(IDC_DETECTIONMODE)->SetEnabled(testDepthView != NULL);
-    if (testDepthView == NULL) {
+    if (testDepthView == NULL)
         hud.GetComboBox(IDC_DETECTIONMODE)->SetSelectedByIndex(0);
-    }
 }
 
 
@@ -161,14 +174,14 @@ HRESULT CALLBACK onCreateDevice(ID3D10Device *device, const DXGI_SURFACE_DESC *d
 
     timer = new Timer(device);
     timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
+    timer->setRepetitionsCount(100);
 
     Copy::init(device);
 
     loadImage();
 
-    if (testDepthView != NULL) {
+    if (testDepthView != NULL)
         hud.GetComboBox(IDC_DETECTIONMODE)->SetSelectedByIndex(1);
-    }
 
     return S_OK;
 }
@@ -192,6 +205,22 @@ void CALLBACK onDestroyDevice(void *context) {
 }
 
 
+void initMLAA() {
+    int min, max;
+    float scale;
+
+    CDXUTSlider *slider = hud.GetSlider(IDC_MAXSEARCHSTEPS);
+    slider->GetRange(min, max);
+    scale = float(slider->GetValue()) / (max - min);
+    mlaa->setMaxSearchSteps(int(scale * 16.0f));
+
+    slider = hud.GetSlider(IDC_THRESHOLD);
+    slider->GetRange(min, max);
+    scale = float(slider->GetValue()) / (max - min);
+    mlaa->setThreshold(scale * 0.5f);
+}
+
+
 HRESULT CALLBACK onResizedSwapChain(ID3D10Device *device, IDXGISwapChain *swapChain, const DXGI_SURFACE_DESC *desc, void *context) {
     HRESULT hr;
     V_RETURN(dialogResourceManager.OnD3D10ResizedSwapChain(device, desc));
@@ -200,9 +229,12 @@ HRESULT CALLBACK onResizedSwapChain(ID3D10Device *device, IDXGISwapChain *swapCh
     hud.SetLocation(desc->Width - (45 + HUD_WIDTH), 0);
 
     mlaa = new MLAA(device, desc->Width, desc->Height);
+    initMLAA();
     depthStencil = new DepthStencil(device, desc->Width, desc->Height,  DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
     depthBufferRenderTarget = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R32_FLOAT);
     backbufferRenderTarget = new BackbufferRenderTarget(device, DXUTGetDXGISwapChain());
+    finalRenderTargetSRGB = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+    finalRenderTarget = new RenderTarget(device, *finalRenderTargetSRGB, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     return S_OK;
 }
@@ -215,6 +247,8 @@ void CALLBACK onReleasingSwapChain(void *context) {
     SAFE_DELETE(depthStencil);
     SAFE_DELETE(depthBufferRenderTarget);
     SAFE_DELETE(backbufferRenderTarget);
+    SAFE_DELETE(finalRenderTargetSRGB);
+    SAFE_DELETE(finalRenderTarget);
 }
 
 
@@ -242,6 +276,15 @@ void drawHud(ID3D10Device *device, float elapsedTime) {
 }
 
 
+void saveBackbuffer(ID3D10Device *device) {
+    HRESULT hr;
+    RenderTarget *renderTarget = new RenderTarget(device, backbufferRenderTarget->getWidth(), backbufferRenderTarget->getHeight(), DXGI_FORMAT_R8G8B8A8_UNORM, NoMSAA(), false);
+    device->CopyResource(*renderTarget, *backbufferRenderTarget);
+    V(D3DX10SaveTextureToFile(*renderTarget, D3DX10_IFF_PNG, commandlineOptions.dst.c_str()));
+    SAFE_DELETE(renderTarget);
+}
+
+
 void drawTextures(ID3D10Device *device) {
     switch (int(hud.GetComboBox(IDC_VIEWMODE)->GetSelectedData())) {
         case 1:
@@ -266,23 +309,31 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
     device->ClearRenderTargetView(*backbufferRenderTarget, clearColor);
     device->ClearDepthStencilView(*depthStencil, D3D10_CLEAR_STENCIL, 1.0, 0);
 
-    // This is our simulated main render-to-backbuffer pass
+    // This is our simulated main render-to-backbuffer pass.
     D3D10_VIEWPORT viewport = Utils::viewportFromView(testView);
-    Copy::go(testView, *backbufferRenderTarget, &viewport);
+    Copy::go(testView, *finalRenderTargetSRGB, &viewport);
     Copy::go(testDepthView, *depthBufferRenderTarget, &viewport);
 
+    // Run MLAA
     if (hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked()) {
         bool useDepth = int(hud.GetComboBox(IDC_DETECTIONMODE)->GetSelectedData()) == 1;
+        int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? timer->getRepetitionsCount() : 1;
 
         timer->start();
-        // We are using the functions that just grab the backbuffer and process
-        // it (just for programming convenience)
-        if (useDepth) {
-            mlaa->go(DXUTGetDXGISwapChain(), *depthStencil, *depthBufferRenderTarget);
-        } else {
-            mlaa->go(DXUTGetDXGISwapChain(), *depthStencil);
+        for (int i = 0; i < n; i++) { // This loop is just for profiling.
+            if (useDepth)
+                mlaa->goDepth(*depthBufferRenderTarget, *finalRenderTargetSRGB, *backbufferRenderTarget, *depthStencil);
+            else
+                mlaa->goColor(*finalRenderTarget, *finalRenderTargetSRGB, *backbufferRenderTarget, *depthStencil);
         }
         timer->clock(L"MLAA");
+    } else {
+        Copy::go(*finalRenderTargetSRGB, *backbufferRenderTarget);
+    }
+
+    if (commandlineOptions.dst != L"") {
+        saveBackbuffer(device);
+        exit(0);
     }
 
     DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats"); // These events are to help PIX identify what the code is doing
@@ -294,9 +345,8 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
 
 LRESULT CALLBACK msgProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, bool *finished, void *context) {
     *finished = dialogResourceManager.MsgProc(hwnd, msg, wparam, lparam);
-    if (*finished) {
+    if (*finished)
         return 0;
-    }
 
     if (settingsDialog.IsActive()) {
         settingsDialog.MsgProc(hwnd, msg, wparam, lparam);
@@ -304,9 +354,8 @@ LRESULT CALLBACK msgProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, bool
     }
 
     *finished = hud.MsgProc(hwnd, msg, wparam, lparam);
-    if (*finished) {
+    if (*finished)
         return 0;
-    }
 
     return 0;
 }
@@ -315,9 +364,8 @@ LRESULT CALLBACK msgProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, bool
 void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context) {
     switch (nchar) {
         case VK_TAB: {
-            if (keyDown) {
+            if (keyDown)
                 showHud = !showHud;
-            }
             break;
         }
         case 'A': {
@@ -341,7 +389,38 @@ void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context
 }
 
 
+void setAdapter(DXUTDeviceSettings *settings) {
+    HRESULT hr;
+
+    // Look for 'NVIDIA PerfHUD' adapter. If it is present, override default settings.
+    IDXGIFactory *factory;
+    V(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**) &factory));
+
+    // Search for a PerfHUD adapter.
+    IDXGIAdapter *adapter = NULL;
+    int i = 0;
+    while (factory->EnumAdapters(i, &adapter) != DXGI_ERROR_NOT_FOUND) {
+        if (adapter) {
+            DXGI_ADAPTER_DESC desc;
+            if (SUCCEEDED(adapter->GetDesc(&desc))) {
+                const bool isPerfHUD = wcscmp(desc.Description, L"NVIDIA PerfHUD") == 0;
+
+                if(isPerfHUD) {
+                    // IMPORTANT: we modified DXUT for this to work. Search for <PERFHUD_FIX> in DXUT.cpp
+                    settings->d3d10.AdapterOrdinal = i;
+                    settings->d3d10.DriverType = D3D10_DRIVER_TYPE_REFERENCE;
+                    break;
+                }
+            }
+        }
+        i++;
+    }
+}
+
+
 bool CALLBACK modifyDeviceSettings(DXUTDeviceSettings *settings, void *context) {
+    setAdapter(settings);
+
     settingsDialog.GetDialogControl()->GetComboBox(DXUTSETTINGSDLG_D3D10_MULTISAMPLE_COUNT)->SetEnabled(false);
     settingsDialog.GetDialogControl()->GetComboBox(DXUTSETTINGSDLG_D3D10_MULTISAMPLE_QUALITY)->SetEnabled(false);
     settingsDialog.GetDialogControl()->GetStatic(DXUTSETTINGSDLG_D3D10_MULTISAMPLE_COUNT_LABEL)->SetEnabled(false);
@@ -382,6 +461,9 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
             settingsDialog.SetActive(!settingsDialog.IsActive());
             break;
         case IDC_LOADIMAGE: {
+            if (!DXUTIsWindowed()) 
+                DXUTToggleFullScreen();
+
             OPENFILENAME params;
             ZeroMemory(&params, sizeof(OPENFILENAME));
             
@@ -417,9 +499,6 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 if (int(hud.GetComboBox(IDC_VIEWMODE)->GetSelectedData()) > 0) {
                     hud.GetCheckBox(IDC_ANTIALIASING)->SetChecked(true);
                 }
-
-                bool viewEdges = int(hud.GetComboBox(IDC_VIEWMODE)->GetSelectedData()) == 1;
-                mlaa->setStopAtEdgeDetection(viewEdges);
             }
             break;
         case IDC_INPUT:
@@ -499,15 +578,42 @@ void initApp() {
 
     hud.AddComboBox(IDC_INPUT, 35, iY += 24, HUD_WIDTH, 22, 0, false);
     buildInputComboBox();
-    
+    if (commandlineOptions.src != L"") {
+        hud.GetComboBox(IDC_INPUT)->AddItem(commandlineOptions.src.c_str(), (LPVOID) -1);
+        hud.GetComboBox(IDC_INPUT)->SetSelectedByData((LPVOID) -1);
+    }
+
     hud.AddCheckBox(IDC_ANTIALIASING, L"MLAA Anti-Aliasing", 35, iY += 24, HUD_WIDTH, 22, true);
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, HUD_WIDTH, 22, false);
 
-    hud.AddStatic(IDC_MAXSEARCHSTEPS_LABEL, L"Max Search Steps: 8", 35, iY += 24, HUD_WIDTH, 22);
-    hud.AddSlider(IDC_MAXSEARCHSTEPS, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * 8.0f / 16.0f));
+    wstringstream s;
+    s << L"Max Search Steps: " << commandlineOptions.distance;
+    hud.AddStatic(IDC_MAXSEARCHSTEPS_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
+    hud.AddSlider(IDC_MAXSEARCHSTEPS, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.distance / 16.0f));
 
-    hud.AddStatic(IDC_THRESHOLD_LABEL, L"Threshold: 0.1", 35, iY += 24, HUD_WIDTH, 22);
-    hud.AddSlider(IDC_THRESHOLD, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * 0.1f / 0.5f));
+    s = wstringstream();
+    s << L"Threshold: " << commandlineOptions.threshold;
+    hud.AddStatic(IDC_THRESHOLD_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
+    hud.AddSlider(IDC_THRESHOLD, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.threshold / 0.5f));
+}
+
+
+void parseCommandLine() {
+    // Cheap, hackish, but simple command-line parsing:
+    //   Demo.exe <distance:int> <threshold:float> <file.png in:str> <file.png out:str>
+    wstringstream s(GetCommandLineW());
+    wstring executable;
+    s >> executable;
+    s >> commandlineOptions.distance;
+    commandlineOptions.distance = max(min(commandlineOptions.distance, 16), 0);
+    if (!s) return;
+    s >> commandlineOptions.threshold;
+    commandlineOptions.threshold = max(min(commandlineOptions.threshold, 0.5f), 0.0f);
+    if (!s) return;
+    s >> commandlineOptions.src;
+    if (!s) return;
+    s >> commandlineOptions.dst;
+    if (!s) return;
 }
 
 
@@ -516,6 +622,8 @@ INT WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
     #if defined(DEBUG) | defined(_DEBUG)
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
     #endif
+
+    parseCommandLine();
 
     DXUTSetCallbackD3D10DeviceAcceptable(isDeviceAcceptable);
     DXUTSetCallbackD3D10DeviceCreated(onCreateDevice);
@@ -530,20 +638,24 @@ INT WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
 
     initApp();
 
-    if (FAILED(DXUTInit(true, true, L"-forcevsync:0"))) {
+    if (FAILED(DXUTInit(true, true, L"-forcevsync:0")))
         return -1;
-    }
 
     DXUTSetCursorSettings(true, true);
-    if (FAILED(DXUTCreateWindow(L"Practical Morphological Anti-Aliasing Demo (Jimenez's MLAA)"))) {
+    if (FAILED(DXUTCreateWindow(L"Practical Morphological Anti-Aliasing Demo (Jimenez's MLAA)")))
         return -1;
-    }
 
-    if (FAILED(DXUTCreateDevice(true, 1280, 720))) {
+    if (FAILED(DXUTCreateDevice(true, 1280, 720)))
         return -1;
-    }
-    
+
     resizeWindow();
+
+    /**
+     * A note to myself: we hacked DXUT to not show the window by default.
+     * See <WINDOW_FIX> in DXUT.h
+     */
+    if (commandlineOptions.dst == L"")
+        ShowWindow(DXUTGetHWND(), SW_SHOW);
 
     DXUTMainLoop();
 

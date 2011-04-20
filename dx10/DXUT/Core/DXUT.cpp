@@ -2607,8 +2607,10 @@ HRESULT DXUTChangeDevice( DXUTDeviceSettings* pNewDeviceSettings,
     }
 
     // Make the window visible
-    if( !IsWindowVisible( DXUTGetHWND() ) )
-        ShowWindow( DXUTGetHWND(), SW_SHOW );
+    // <IRYOKU> <WINDOW_FIX>: hacked this to do it manually depending on the situation.
+
+    //if( !IsWindowVisible( DXUTGetHWND() ) )
+    //    ShowWindow( DXUTGetHWND(), SW_SHOW );
 
     // Ensure that the display doesn't power down when fullscreen but does when windowed
     if( !DXUTIsWindowed() )
@@ -3813,6 +3815,16 @@ HRESULT DXUTCreate3DEnvironment10( ID3D10Device* pd3d10DeviceFromApp )
         hr = S_OK;
         if( pNewDeviceSettings->d3d10.DriverType == D3D10_DRIVER_TYPE_HARDWARE )
             hr = pDXGIFactory->EnumAdapters( pNewDeviceSettings->d3d10.AdapterOrdinal, &pAdapter );
+        else if( pNewDeviceSettings->d3d10.DriverType == D3D10_DRIVER_TYPE_REFERENCE ) { // <IRYOKU> <PERFHUD_FIX>
+            hr = pDXGIFactory->EnumAdapters( pNewDeviceSettings->d3d10.AdapterOrdinal, &pAdapter );
+            DXGI_ADAPTER_DESC desc;
+            V(pAdapter->GetDesc(&desc));
+            bool isPerfHUD = wcscmp(desc.Description, L"NVIDIA PerfHUD") == 0;
+            if ( !isPerfHUD )
+            {
+                SAFE_RELEASE(pAdapter);
+            }
+        }
         if( SUCCEEDED( hr ) )
         {
             // Try creating the D3D10.1 device first
@@ -3835,7 +3847,8 @@ HRESULT DXUTCreate3DEnvironment10( ID3D10Device* pd3d10DeviceFromApp )
 
             if( SUCCEEDED( hr ) )
             {
-                if( pNewDeviceSettings->d3d10.DriverType != D3D10_DRIVER_TYPE_HARDWARE )
+                if( pNewDeviceSettings->d3d10.DriverType != D3D10_DRIVER_TYPE_HARDWARE
+                    && pAdapter == NULL ) // <IRYOKU> <PERFHUD_FIX>: && pAdapter == NULL
                 {
                     IDXGIDevice* pDXGIDev = NULL;
                     hr = pd3d10Device->QueryInterface( __uuidof( IDXGIDevice ), ( LPVOID* )&pDXGIDev );

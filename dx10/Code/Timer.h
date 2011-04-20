@@ -70,7 +70,10 @@ class Timer {
         bool isFlushEnabled() const { return flushEnabled; }
 
         void setWindowSize(int windowSize) { this->windowSize = windowSize; }
-        int getWindowSize() { return windowSize; }
+        int getWindowSize() const { return windowSize; }
+
+        void setRepetitionsCount(int repetitionCount) { this->repetitionCount = repetitionCount; }
+        int getRepetitionsCount() const { return repetitionCount; }
 
         friend std::wostream &operator<<(std::wostream &out, const Timer &timer);
 
@@ -90,6 +93,7 @@ class Timer {
         bool enabled;
         bool flushEnabled;
         int windowSize;
+        int repetitionCount;
 
         class Section {
             public:

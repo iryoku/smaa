@@ -113,7 +113,7 @@ MLAA::MLAA(IDirect3DDevice9 *device, int width, int height, int maxSearchSteps, 
 
     // Vertex declaration for rendering the typical fullscreen quad later on.
     const D3DVERTEXELEMENT9 vertexElements[3] = {
-        { 0, 0,  D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITIONT, 0 },
+        { 0, 0,  D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
         { 0, 12, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD,  0 },
         D3DDECL_END()
     };
@@ -188,7 +188,7 @@ void MLAA::go(IDirect3DTexture9 *src,
     // Setup the layout for our fullscreen quad.
     V(device->SetVertexDeclaration(vertexDeclaration));
 
-    // Here you have the three passes of our MLAA approach.
+    // And here we go!
     edgesDetectionPass(src, depthResource);
     blendingWeightsCalculationPass();
     neighborhoodBlendingPass(src, dst);
@@ -276,11 +276,12 @@ void MLAA::neighborhoodBlendingPass(IDirect3DTexture9 *src, IDirect3DSurface9 *d
 void MLAA::quad(int width, int height) {
     // Typical aligned fullscreen quad.
     HRESULT hr;
+    D3DXVECTOR2 pixelSize = D3DXVECTOR2(1.0f / float(width), 1.0f / float(height));
     float quad[4][5] = {
-        { -0.5f, -0.5f, 0.5f, 0.0f, 0.0f },
-        { width - 0.5f, -0.5f, 0.5f, 1.0f, 0.0f },
-        { -0.5f, height - 0.5f, 0.5f, 0.0f, 1.0f },
-        { width - 0.5f, height - 0.5f, 0.5f, 1.0f, 1.0f }
+        { -1.0f - pixelSize.x,  1.0f + pixelSize.y, 0.5f, 0.0f, 0.0f },
+        {  1.0f - pixelSize.x,  1.0f + pixelSize.y, 0.5f, 1.0f, 0.0f },
+        { -1.0f - pixelSize.x, -1.0f + pixelSize.y, 0.5f, 0.0f, 1.0f },
+        {  1.0f - pixelSize.x, -1.0f + pixelSize.y, 0.5f, 1.0f, 1.0f }
     };
     V(device->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, quad, sizeof(quad[0])));
 }

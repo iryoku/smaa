@@ -63,7 +63,7 @@ using namespace std;
 
 
 #ifdef TIMER_USE_DIRECTX_9
-Timer::Timer(IDirect3DDevice9 *device) : enabled(true), flushEnabled(true), windowSize(1000) {
+Timer::Timer(IDirect3DDevice9 *device) : enabled(true), flushEnabled(true), windowSize(10), repetitionCount(1) {
     HRESULT hr;
 
     V(device->CreateQuery(D3DQUERYTYPE_EVENT, &event));
@@ -71,7 +71,7 @@ Timer::Timer(IDirect3DDevice9 *device) : enabled(true), flushEnabled(true), wind
     start();
 }
 #else
-Timer::Timer(ID3D10Device *device) : enabled(true), flushEnabled(true), windowSize(1000) {
+Timer::Timer(ID3D10Device *device) : enabled(true), flushEnabled(true), windowSize(10), repetitionCount(1) {
     HRESULT hr;
 
     D3D10_QUERY_DESC desc;
@@ -94,8 +94,8 @@ void Timer::start() {
         if (flushEnabled)
             flush();
 
-        QueryPerformanceCounter((LARGE_INTEGER*) &t0);
         accum = 0.0f;
+        QueryPerformanceCounter((LARGE_INTEGER*) &t0);
     }
 }
 
@@ -168,8 +168,9 @@ wostream &operator<<(wostream &out, const Timer &timer) {
          section != timer.sections.end();
          section++) {
         const wstring &name = section->first;
-        const float &mean = section->second.mean;
-        out << name << L" : " << mean << L"s : " << int(100.0f * mean / timer.accum) << L"% : " << int(1.0 / mean) << L"fps [" << int(100.0f * section->second.completed) << L"%]" << endl;
+        float mean = section->second.mean / timer.repetitionCount;
+        float accum = timer.accum / timer.repetitionCount;
+        out << name << L" : " << mean << L"s : " << int(100.0f * mean / accum) << L"% : " << int(1.0 / mean) << L"fps [" << int(100.0f * section->second.completed) << L"%]" << endl;
     }
     return out;
 }

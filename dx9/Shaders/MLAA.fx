@@ -88,6 +88,13 @@ sampler2D colorMapL {
     SRGBTexture = true;
 };
 
+sampler2D colorMapG {
+    Texture = <colorTex>;
+    AddressU  = Clamp; AddressV = Clamp;
+    MipFilter = Point; MinFilter = Point; MagFilter = Point;
+    SRGBTexture = false;
+};
+
 sampler2D depthMap {
     Texture = <depthTex>;
     AddressU  = Clamp; AddressV = Clamp;
@@ -188,24 +195,39 @@ float2 Area(float2 distance, float e1, float e2) {
 
 
 /**
+ *  V E R T E X   S H A D E R S
+ */
+
+void PassThroughVS(inout float4 position : POSITION0,
+                   inout float2 texcoord : TEXCOORD0) {
+}
+
+void OffsetVS(inout float4 position : POSITION0,
+              inout float2 texcoord : TEXCOORD0,
+              out float4 offset[2] : TEXCOORD1) {
+    offset[0] = texcoord.xyxy + PIXEL_SIZE.xyxy * float4(-1.0, 0.0, 0.0, -1.0);
+    offset[1] = texcoord.xyxy + PIXEL_SIZE.xyxy * float4( 1.0, 0.0, 0.0,  1.0);
+}
+
+
+/**
  *  1 S T   P A S S   ~   C O L O R   V E R S I O N
  */
 
-float4 ColorEdgeDetectionPS(float2 texcoord : TEXCOORD0) : COLOR0 {
-    float3 weights = float3(0.2126,0.7152, 0.0722); // These ones are from the CIE XYZ standard.
-
-    float L = dot(tex2Dlevel0(colorMap, texcoord).rgb, weights);
-    float Lleft = dot(tex2Doffset(colorMap, texcoord, -float2(1.0, 0.0)).rgb, weights);
-    float Ltop = dot(tex2Doffset(colorMap, texcoord, -float2(0.0, 1.0)).rgb, weights);  
-    float Lright = dot(tex2Doffset(colorMap, texcoord, float2(1.0, 0.0)).rgb, weights);
-    float Lbottom = dot(tex2Doffset(colorMap, texcoord, float2(0.0, 1.0)).rgb, weights);
+float4 ColorEdgeDetectionPS(float2 texcoord : TEXCOORD0,
+                            float4 offset[2]: TEXCOORD1) : COLOR0 {
+    float3 weights = float3(0.2126,0.7152, 0.0722); // These ones are from the ITU-R Recommendation BT. 709
 
     /**
-     * We detect edges in gamma 1.0/2.0 space. Gamma space boosts the contrast
-     * of the blacks, where the human vision system is more sensitive to small
-     * gradations of intensity.
+     * Luma calculation requires gamma-corrected colors:
      */
-    float4 delta = abs(sqrt(L).xxxx - sqrt(float4(Lleft, Ltop, Lright, Lbottom)));
+    float L = dot(tex2D(colorMapG, texcoord).rgb, weights);
+    float Lleft = dot(tex2D(colorMapG, offset[0].xy).rgb, weights);
+    float Ltop = dot(tex2D(colorMapG, offset[0].zw).rgb, weights);  
+    float Lright = dot(tex2D(colorMapG, offset[1].xy).rgb, weights);
+    float Lbottom = dot(tex2D(colorMapG, offset[1].zw).rgb, weights);
+
+    float4 delta = abs(L.xxxx - float4(Lleft, Ltop, Lright, Lbottom));
     float4 edges = step(threshold.xxxx, delta);
 
     if (dot(edges, 1.0) == 0.0)
@@ -219,12 +241,13 @@ float4 ColorEdgeDetectionPS(float2 texcoord : TEXCOORD0) : COLOR0 {
  *  1 S T   P A S S   ~   D E P T H   V E R S I O N
  */
 
-float4 DepthEdgeDetectionPS(float2 texcoord : TEXCOORD0) : COLOR0 {
-    float D = tex2Dlevel0(depthMap, texcoord).r;
-    float Dleft = tex2Doffset(depthMap, texcoord, -float2(1.0, 0.0)).r;
-    float Dtop  = tex2Doffset(depthMap, texcoord, -float2(0.0, 1.0)).r;
-    float Dright = tex2Doffset(depthMap, texcoord, float2(1.0, 0.0)).r;
-    float Dbottom = tex2Doffset(depthMap, texcoord, float2(0.0, 1.0)).r;
+float4 DepthEdgeDetectionPS(float2 texcoord : TEXCOORD0,
+                            float4 offset[2]: TEXCOORD1) : COLOR0 {
+    float D = tex2D(depthMap, texcoord).r;
+    float Dleft = tex2D(depthMap, offset[0].xy).r;
+    float Dtop  = tex2D(depthMap, offset[0].zw).r;
+    float Dright = tex2D(depthMap, offset[1].xy).r;
+    float Dbottom = tex2D(depthMap, offset[1].zw).r;
 
     float4 delta = abs(D.xxxx - float4(Dleft, Dtop, Dright, Dbottom));
     float4 edges = step(threshold.xxxx / 10.0, delta); // Dividing by 10 give us results similar to the color-based detection.
@@ -283,22 +306,13 @@ float SearchYDown(float2 texcoord) {
 
 
 /**
- * Checks if the crossing edges e1 and e2 correspond to a _U_ shape.
- */
-
-bool IsUShape(float e1, float e2) {
-    float t = e1 + e2;
-    return abs(t - 1.5) < 0.1 || abs(t - 0.5) < 0.1;
-}
-
-/**
- *  S E C O N D   P A S S
+ *  2 N D   P A S S
  */
 
 float4 BlendWeightCalculationPS(float2 texcoord : TEXCOORD0) : COLOR0 {
     float4 areas = 0.0;
 
-    float2 e = tex2Dlevel0(edgesMap, texcoord);
+    float2 e = tex2D(edgesMap, texcoord).rg;
 
     [branch]
     if (e.g) { // Edge at north
@@ -313,11 +327,9 @@ float4 BlendWeightCalculationPS(float2 texcoord : TEXCOORD0) : COLOR0 {
         float e1 = tex2Dlevel0(edgesMapL, coords.xy).r;
         float e2 = tex2Dlevel0(edgesMapL, coords.zw).r;
 
-        if (-d.r + d.g + 1 > 1 || IsUShape(e1, e2)) {
-            // Ok, we know how this pattern looks like, now it is time for getting
-            // the actual area:
-            areas.rg = Area(abs(d), e1, e2);
-        }
+        // Ok, we know how this pattern looks like, now it is time for getting
+        // the actual area:
+        areas.rg = Area(abs(d), e1, e2);
     }
 
     [branch]
@@ -331,11 +343,9 @@ float4 BlendWeightCalculationPS(float2 texcoord : TEXCOORD0) : COLOR0 {
                             PIXEL_SIZE.xyxy, texcoord.xyxy);
         float e1 = tex2Dlevel0(edgesMapL, coords.xy).g;
         float e2 = tex2Dlevel0(edgesMapL, coords.zw).g;
-        
-        if (-d.r + d.g + 1 > 1 || IsUShape(e1, e2)) {
-            // Get the area for this direction:
-            areas.ba = Area(abs(d), e1, e2);
-        }
+
+        // Get the area for this direction:
+        areas.ba = Area(abs(d), e1, e2);
     }
 
     return areas;
@@ -343,46 +353,52 @@ float4 BlendWeightCalculationPS(float2 texcoord : TEXCOORD0) : COLOR0 {
 
 
 /**
- *  T H I R D   P A S S
+ *  3 R D   P A S S
  */
 
-float4 NeighborhoodBlendingPS(float2 texcoord : TEXCOORD0) : COLOR0 {
+float4 NeighborhoodBlendingPS(float2 texcoord : TEXCOORD0,
+                              float4 offset[2]: TEXCOORD1) : COLOR0 {
     // Fetch the blending weights for current pixel:
-    float4 topLeft = tex2Dlevel0(blendMap, texcoord);
-    float bottom = tex2Doffset(blendMap, texcoord, float2(0.0, 1.0)).g;
-    float right = tex2Doffset(blendMap, texcoord, float2(1.0, 0.0)).a;
+    float4 topLeft = tex2D(blendMap, texcoord);
+    float bottom = tex2D(blendMap, offset[1].zw).g;
+    float right = tex2D(blendMap, offset[1].xy).a;
     float4 a = float4(topLeft.r, bottom, topLeft.b, right);
 
+    // Up to 4 lines can be crossing a pixel (one in each edge). So, we perform
+    // a weighted average, where the weight of each line is 'a' cubed, which
+    // favors blending and works well in practice.
+    float4 w = a * a * a;
+
     // There is some blending weight with a value greater than 0.0?
-    float sum = dot(a, 1.0);
-    [branch]
-    if (sum > 0.0) {;
-        float4 color = 0.0;
+    float sum = dot(w, 1.0);
+    if (sum < 1e-5)
+        discard;
 
-        // Add the contributions of the possible 4 lines that can cross this pixel:
-        #ifdef BILINEAR_FILTER_TRICK
-            float4 o = a * PIXEL_SIZE.yyxx;
-            color = mad(tex2Dlevel0(colorMapL, texcoord + float2( 0.0, -o.r)), a.r, color);
-            color = mad(tex2Dlevel0(colorMapL, texcoord + float2( 0.0,  o.g)), a.g, color);
-            color = mad(tex2Dlevel0(colorMapL, texcoord + float2(-o.b,  0.0)), a.b, color);
-            color = mad(tex2Dlevel0(colorMapL, texcoord + float2( o.a,  0.0)), a.a, color);
-        #else
-            float4 C = tex2Dlevel0(colorMap, texcoord);
-            float4 Cleft = tex2Doffset(colorMap, texcoord, -float2(1.0, 0.0));
-            float4 Ctop = tex2Doffset(colorMap, texcoord, -float2(0.0, 1.0));
-            float4 Cright = tex2Doffset(colorMap, texcoord, float2(1.0, 0.0));
-            float4 Cbottom = tex2Doffset(colorMap, texcoord, float2(0.0, 1.0));
-            color = mad(lerp(C, Ctop, a.r), a.r, color);
-            color = mad(lerp(C, Cbottom, a.g), a.g, color);
-            color = mad(lerp(C, Cleft, a.b), a.b, color);
-            color = mad(lerp(C, Cright, a.a), a.a, color);
-        #endif
+    float4 color = 0.0;
 
-        // Normalize the resulting color and we are finished!
-        return color / sum; 
-    } else {
-        return tex2Dlevel0(colorMap, texcoord);
-    }
+    // Add the contributions of the possible 4 lines that can cross this pixel:
+    #ifdef BILINEAR_FILTER_TRICK
+        float4 coords = mad(float4( 0.0, -a.r, 0.0,  a.g), PIXEL_SIZE.yyyy, texcoord.xyxy);
+        color = mad(tex2D(colorMapL, coords.xy), w.r, color);
+        color = mad(tex2D(colorMapL, coords.zw), w.g, color);
+
+        coords = mad(float4(-a.b,  0.0, a.a,  0.0), PIXEL_SIZE.xxxx, texcoord.xyxy);
+        color = mad(tex2D(colorMapL, coords.xy), w.b, color);
+        color = mad(tex2D(colorMapL, coords.zw), w.a, color);
+    #else
+        float4 C = tex2D(colorMap, texcoord);
+        float4 Cleft = tex2D(colorMap, offset[0].xy);
+        float4 Ctop = tex2D(colorMap, offset[0].zw);
+        float4 Cright = tex2D(colorMap, offset[1].xy);
+        float4 Cbottom = tex2D(colorMap, offset[1].zw);
+        color = mad(lerp(C, Ctop, a.r), w.r, color);
+        color = mad(lerp(C, Cbottom, a.g), w.g, color);
+        color = mad(lerp(C, Cleft, a.b), w.b, color);
+        color = mad(lerp(C, Cright, a.a), w.a, color);
+    #endif
+
+    // Normalize the resulting color and we are finished!
+    return color / sum; 
 }
 
 
@@ -392,10 +408,11 @@ float4 NeighborhoodBlendingPS(float2 texcoord : TEXCOORD0) : COLOR0 {
 
 technique ColorEdgeDetection {
     pass ColorEdgeDetection {
-        VertexShader = null;
+        VertexShader = compile vs_3_0 OffsetVS();
         PixelShader = compile ps_3_0 ColorEdgeDetectionPS();
         ZEnable = false;        
         SRGBWriteEnable = false;
+        AlphaBlendEnable = false;
 
         // We will be creating the stencil buffer for later usage.
         StencilEnable = true;
@@ -406,10 +423,11 @@ technique ColorEdgeDetection {
 
 technique DepthEdgeDetection {
     pass DepthEdgeDetection {
-        VertexShader = null;
+        VertexShader = compile vs_3_0 OffsetVS();
         PixelShader = compile ps_3_0 DepthEdgeDetectionPS();
         ZEnable = false;        
         SRGBWriteEnable = false;
+        AlphaBlendEnable = false;
 
         // We will be creating the stencil buffer for later usage.
         StencilEnable = true;
@@ -420,10 +438,11 @@ technique DepthEdgeDetection {
 
 technique BlendWeightCalculation {
     pass BlendWeightCalculation {
-        VertexShader = null;
+        VertexShader = compile vs_3_0 PassThroughVS();
         PixelShader = compile ps_3_0 BlendWeightCalculationPS();
         ZEnable = false;
         SRGBWriteEnable = false;
+        AlphaBlendEnable = false;
 
         // Here we want to process only marked pixels.
         StencilEnable = true;
@@ -435,10 +454,11 @@ technique BlendWeightCalculation {
 
 technique NeighborhoodBlending {
     pass NeighborhoodBlending {
-        VertexShader = null;
+        VertexShader = compile vs_3_0 OffsetVS();
         PixelShader = compile ps_3_0 NeighborhoodBlendingPS();
         ZEnable = false;
         SRGBWriteEnable = true;
+        AlphaBlendEnable = false;
 
         // Here we want to process only marked pixels.
         StencilEnable = true;

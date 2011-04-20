@@ -70,7 +70,7 @@ bool showHud = true;
 
 
 bool CALLBACK isDeviceAcceptable(D3DCAPS9 *caps, D3DFORMAT adapterFormat, D3DFORMAT backBufferFormat, bool windowed, void *userContext) {
-    if (caps->PixelShaderVersion < D3DPS_VERSION(3, 0))
+    if (caps->PixelShaderVersion < D3DPS_VERSION(3, 0) || caps->VertexShaderVersion < D3DVS_VERSION(3, 0))
         return false;
     else
         return true;
@@ -104,6 +104,7 @@ HRESULT CALLBACK onResetDevice(IDirect3DDevice9 *device, const D3DSURFACE_DESC *
     
     timer = new Timer(device);
     timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
+    timer->setRepetitionsCount(100);
 
     mlaa = new MLAA(device, desc->Width, desc->Height, 8);
 
@@ -200,11 +201,15 @@ void CALLBACK onFrameRender(IDirect3DDevice9 *device, double time, float elapsed
 
         // Run MLAA
         bool useDepth = int(hud.GetComboBox(IDC_DETECTIONMODE)->GetSelectedData()) == 1;
+        int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? timer->getRepetitionsCount() : 1;
+
         timer->start();
-        if (useDepth)
-            mlaa->go(finalbufferColorTexture, backbufferSurface, finalbufferDepthTexture);
-        else
-            mlaa->go(finalbufferColorTexture, backbufferSurface);
+        for (int i = 0; i < n; i++) { // This loop is just for profiling.
+            if (useDepth)
+                mlaa->go(finalbufferColorTexture, backbufferSurface, finalbufferDepthTexture);
+            else
+                mlaa->go(finalbufferColorTexture, backbufferSurface);
+        }
         timer->clock(L"MLAA");
 
         // Draw the HUD
@@ -242,7 +247,26 @@ void CALLBACK onKeyboard(UINT nchar, bool keyDown, bool altDown, void *userConte
 }
 
 
+void setAdapter(DXUTDeviceSettings *settings) {
+    HRESULT hr;
+
+    // Look for 'NVIDIA PerfHUD' adapter. If it is present, override default settings.
+    IDirect3D9 *d3d = DXUTGetD3D9Object();
+    for (UINT i = 0; i < d3d->GetAdapterCount(); i++) {
+        D3DADAPTER_IDENTIFIER9 id;
+        V(d3d->GetAdapterIdentifier(i, 0, &id));
+        if (strstr(id.Description, "PerfHUD") != 0) {
+            settings->d3d9.AdapterOrdinal = i;
+            settings->d3d9.DeviceType = D3DDEVTYPE_REF;
+            break;
+        }
+    }
+}
+
+
 bool CALLBACK modifyDeviceSettings(DXUTDeviceSettings *settings, void *userContext) {
+    setAdapter(settings);
+
     if (settings->ver == DXUT_D3D9_DEVICE) {
         // Debugging vertex shaders requires either REF or software vertex processing 
         // and debugging pixel shaders requires REF.  
