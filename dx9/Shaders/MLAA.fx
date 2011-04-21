@@ -198,6 +198,14 @@ void OffsetVS(inout float4 position : POSITION0,
     offset[1] = texcoord.xyxy + PIXEL_SIZE.xyxy * float4( 1.0, 0.0, 0.0,  1.0);
 }
 
+void BlendWeightCalculationVS(inout float4 position : POSITION0,
+                              inout float2 texcoord : TEXCOORD0,
+                              out float4 offset[2] : TEXCOORD1) {
+    // We will use these offsets for the searchs later on.
+    offset[0] = texcoord.xyxy + PIXEL_SIZE.xyxy * float4(-0.25, -0.125,  0.25, -0.125);
+    offset[1] = texcoord.xyxy + PIXEL_SIZE.xyxy * float4(-0.125, -0.25, -0.125,  0.25);
+}
+
 
 /**
  *  1 S T   P A S S   ~   C O L O R   V E R S I O N
@@ -281,14 +289,14 @@ float DetermineLength(float2 e) {
  */
 
 float SearchXLeft(float2 texcoord) {
+    /**
+     * This texcoord has been offset by (-0.25, -0.125) in the vertex shader to
+     * sample between edgels, thus fetching four in a row.
+     * Sampling with different offsets in each direction allows to disambiguate
+     * which edges are active from the four fetched ones.
+     */
+
     float2 e;
-
-    // We offset by (1.25, 0.125) to sample between edgels, thus fetching four
-    // in a row.
-    // Sampling with different offsets in each direction allows to disambiguate
-    // which edges are active from the four fetched ones.
-    texcoord -= float2(0.25, 0.125) * PIXEL_SIZE;
-
     for (int i = 0; i < MAX_SEARCH_STEPS; i++) {
         e = tex2Dlevel0(edgesMapL, texcoord).rg;
 
@@ -301,49 +309,49 @@ float SearchXLeft(float2 texcoord) {
         texcoord -= float2(2.0, 0.0) * PIXEL_SIZE;
     }
 
-    return -2.0 * i - DetermineLength(e) + 1;
+    // When we exit the loop without founding the end, we want to return
+    // -2 * MAX_SEARCH_STEPS (this "max" is not strictly required but 
+    // recommended).
+    return max(-2.0 * i - DetermineLength(e) + 1.0, -2.0 * MAX_SEARCH_STEPS);
 }
 
 
 float SearchXRight(float2 texcoord) {
     float2 e;
 
-    texcoord += float2(0.25, -0.125) * PIXEL_SIZE;
     for (int i = 0; i < MAX_SEARCH_STEPS; i++) {
         e = tex2Dlevel0(edgesMapL, texcoord).bg;
         [flatten] if (e.g < 0.8281 || e.r > 0.0) break;
         texcoord += float2(2.0, 0.0) * PIXEL_SIZE;
     }
 
-    return 2.0 * i + DetermineLength(e) - 1;
+    return min(2.0 * i + DetermineLength(e) - 1.0, 2.0 * MAX_SEARCH_STEPS);
 }
 
 
 float SearchYUp(float2 texcoord) {
     float2 e;
 
-    texcoord -= float2(0.125, 0.25) * PIXEL_SIZE;
     for (int i = 0; i < MAX_SEARCH_STEPS; i++) {
         e = tex2Dlevel0(edgesMapL, texcoord).rg;
         [flatten] if (e.r < 0.8281 || e.g > 0.0) break;
         texcoord -= float2(0.0, 2.0) * PIXEL_SIZE;
     }
 
-    return -2.0 * i - DetermineLength(e.gr) + 1;
+    return max(-2.0 * i - DetermineLength(e.gr) + 1.0, -2.0 * MAX_SEARCH_STEPS);
 }
 
 
 float SearchYDown(float2 texcoord) {
     float2 e;
 
-    texcoord += float2(-0.125, 0.25) * PIXEL_SIZE;
     for (int i = 0; i < MAX_SEARCH_STEPS; i++) {
         e = tex2Dlevel0(edgesMapL, texcoord).ra;
         [flatten] if (e.r < 0.8281 || e.g > 0.0) break;
         texcoord += float2(0.0, 2.0) * PIXEL_SIZE;
     }
-
-    return 2.0 * i + DetermineLength(e.gr) - 1;
+    
+    return min(2.0 * i + DetermineLength(e.gr) - 1.0, 2.0 * MAX_SEARCH_STEPS);
 }
 
 
@@ -351,7 +359,8 @@ float SearchYDown(float2 texcoord) {
  *  2 N D   P A S S
  */
 
-float4 BlendWeightCalculationPS(float2 texcoord : TEXCOORD0) : COLOR0 {
+float4 BlendWeightCalculationPS(float2 texcoord : TEXCOORD0,
+                                float4 offset[2]: TEXCOORD1) : COLOR0 {
     float4 areas = 0.0;
 
     float2 e = tex2D(edgesMap, texcoord).rg;
@@ -360,7 +369,7 @@ float4 BlendWeightCalculationPS(float2 texcoord : TEXCOORD0) : COLOR0 {
     if (e.g) { // Edge at north
 
         // Search distances to the left and to the right:
-        float2 d = float2(SearchXLeft(texcoord), SearchXRight(texcoord));
+        float2 d = float2(SearchXLeft(offset[0].xy), SearchXRight(offset[0].zw));
 
         // Now fetch the crossing edges. Instead of sampling between edgels, we
         // sample at -0.25, to be able to discern what value each edgel has:
@@ -378,7 +387,7 @@ float4 BlendWeightCalculationPS(float2 texcoord : TEXCOORD0) : COLOR0 {
     if (e.r) { // Edge at west
 
         // Search distances to the top and to the bottom:
-        float2 d = float2(SearchYUp(texcoord), SearchYDown(texcoord));
+        float2 d = float2(SearchYUp(offset[1].xy), SearchYDown(offset[1].zw));
 
         // Now fetch the crossing edges (yet again):
         float4 coords = mad(float4(-0.25, d.x, -0.25, d.y + 1.0),
@@ -480,7 +489,7 @@ technique DepthEdgeDetection {
 
 technique BlendWeightCalculation {
     pass BlendWeightCalculation {
-        VertexShader = compile vs_3_0 PassThroughVS();
+        VertexShader = compile vs_3_0 BlendWeightCalculationVS();
         PixelShader = compile ps_3_0 BlendWeightCalculationPS();
         ZEnable = false;
         SRGBWriteEnable = false;

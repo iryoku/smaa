@@ -110,17 +110,21 @@ float2 Area(float2 distance, float e1, float e2) {
  *  ~ D U M M Y   V E R T E X   S H A D E R ~
  */
 
-struct PassV2P {
-    float4 position : SV_POSITION;
-    float2 texcoord : TEXCOORD0;
-};
+void PassVS(float4 position : POSITION,
+            out float4 svPosition : SV_POSITION,
+            inout float2 texcoord : TEXCOORD0) {
+    svPosition = position;
+}
 
-PassV2P PassVS(float4 position : POSITION,
-               float2 texcoord : TEXCOORD0) {
-    PassV2P output;
-    output.position = position;
-    output.texcoord = texcoord;
-    return output;
+void BlendWeightCalculationVS(float4 position : POSITION,
+                              out float4 svPosition : SV_POSITION,
+                              inout float2 texcoord : TEXCOORD0,
+                              out float4 offset[2] : TEXCOORD1) {
+    svPosition = position;
+
+    // We will use these offsets for the searchs later on.
+    offset[0] = texcoord.xyxy + PIXEL_SIZE.xyxy * float4(-0.25, -0.125,  0.25, -0.125);
+    offset[1] = texcoord.xyxy + PIXEL_SIZE.xyxy * float4(-0.125, -0.25, -0.125,  0.25);
 }
 
 
@@ -207,14 +211,14 @@ float DetermineLength(float2 e) {
  */
 
 float SearchXLeft(float2 texcoord) {
+    /**
+     * This texcoord has been offset by (-0.25, -0.125) in the vertex shader to
+     * sample between edgels, thus fetching four in a row.
+     * Sampling with different offsets in each direction allows to disambiguate
+     * which edges are active from the four fetched ones.
+     */
+
     float2 e;
-
-    // We offset by (0.25, 0.125) to sample between edgels, thus fetching four
-    // in a row.
-    // Sampling with different offsets in each direction allows to disambiguate
-    // which edges are active from the four fetched ones.
-    texcoord -= float2(0.25, 0.125) * PIXEL_SIZE;
-
     for (int i = 0; i < maxSearchSteps; i++) {
         e = edgesTex.SampleLevel(LinearSampler, texcoord, 0).rg;
 
@@ -228,47 +232,45 @@ float SearchXLeft(float2 texcoord) {
     }
 
     // When we exit the loop without founding the end, we want to return
-    // -2 * maxSearchSteps
-    return -2.0 * i - DetermineLength(e) + 1.0;
+    // -2 * MAX_SEARCH_STEPS (this "max" is not strictly required but 
+    // recommended).
+    return max(-2.0 * i - DetermineLength(e) + 1.0, -2.0 * maxSearchSteps);
 }
 
 float SearchXRight(float2 texcoord) {
     float2 e;
 
-    texcoord += float2(0.25, -0.125) * PIXEL_SIZE;
     for (int i = 0; i < maxSearchSteps; i++) {
         e = edgesTex.SampleLevel(LinearSampler, texcoord, 0).bg;
         [flatten] if (e.g < 0.8281 || e.r > 0.0) break;
         texcoord += float2(2.0, 0.0) * PIXEL_SIZE;
     }
-
-    return 2.0 * i + DetermineLength(e) - 1.0;
+    
+    return min(2.0 * i + DetermineLength(e) - 1.0, 2.0 * maxSearchSteps);
 }
 
 float SearchYUp(float2 texcoord) {
     float2 e;
 
-    texcoord -= float2(0.125, 0.25) * PIXEL_SIZE;
     for (int i = 0; i < maxSearchSteps; i++) {
         e = edgesTex.SampleLevel(LinearSampler, texcoord, 0).rg;
         [flatten] if (e.r < 0.8281 || e.g > 0.0) break;
         texcoord -= float2(0.0, 2.0) * PIXEL_SIZE;
     }
-
-    return -2.0 * i - DetermineLength(e.gr) + 1.0;
+    
+    return max(-2.0 * i - DetermineLength(e.gr) + 1.0, -2.0 * maxSearchSteps);
 }
 
 float SearchYDown(float2 texcoord) {
     float2 e;
 
-    texcoord += float2(-0.125, 0.25) * PIXEL_SIZE;
     for (int i = 0; i < maxSearchSteps; i++) {
         e = edgesTex.SampleLevel(LinearSampler, texcoord, 0).ra;
         [flatten] if (e.r < 0.8281 || e.g > 0.0) break;
         texcoord += float2(0.0, 2.0) * PIXEL_SIZE;
     }
-
-    return 2.0 * i + DetermineLength(e.gr) - 1.0;
+    
+    return min(2.0 * i + DetermineLength(e.gr) - 1.0, 2.0 * maxSearchSteps);
 }
 
 
@@ -277,7 +279,8 @@ float SearchYDown(float2 texcoord) {
  */
 
 float4 BlendingWeightCalculationPS(float4 position : SV_POSITION,
-                                   float2 texcoord : TEXCOORD0) : SV_TARGET {
+                                   float2 texcoord : TEXCOORD0,
+                                   float4 offset[2] : TEXCOORD1) : SV_TARGET {
     float4 weights = 0.0;
 
     float2 e = edgesTex.SampleLevel(PointSampler, texcoord, 0).rg;
@@ -286,7 +289,7 @@ float4 BlendingWeightCalculationPS(float4 position : SV_POSITION,
     if (e.g) { // Edge at north
 
         // Search distances to the left and to the right:
-        float2 d = float2(SearchXLeft(texcoord), SearchXRight(texcoord));
+        float2 d = float2(SearchXLeft(offset[0].xy), SearchXRight(offset[0].zw));
 
         // Now fetch the crossing edges. Instead of sampling between edgels, we
         // sample at -0.25, to be able to discern what value each edgel has:
@@ -304,8 +307,8 @@ float4 BlendingWeightCalculationPS(float4 position : SV_POSITION,
     if (e.r) { // Edge at west
 
         // Search distances to the top and to the bottom:
-        float2 d = float2(SearchYUp(texcoord), SearchYDown(texcoord));
-        
+        float2 d = float2(SearchYUp(offset[1].xy), SearchYDown(offset[1].zw));
+
         // Now fetch the crossing edges (yet again):
         float4 coords = mad(float4(-0.25, d.x, -0.25, d.y + 1.0),
                             PIXEL_SIZE.xyxy, texcoord.xyxy);
@@ -414,7 +417,7 @@ technique10 DepthEdgeDetection {
 
 technique10 BlendingWeightCalculation {
     pass BlendingWeightCalculation {
-        SetVertexShader(CompileShader(vs_4_0, PassVS()));
+        SetVertexShader(CompileShader(vs_4_0, BlendWeightCalculationVS()));
         SetGeometryShader(NULL);
         SetPixelShader(CompileShader(ps_4_0, BlendingWeightCalculationPS()));
 
