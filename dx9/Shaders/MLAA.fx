@@ -68,6 +68,7 @@ texture2D depthTex;
 texture2D edgesTex;
 texture2D blendTex;
 texture2D areaTex;
+texture2D searchLengthTex;
 
 
 /**
@@ -130,6 +131,13 @@ sampler2D areaMap {
     SRGBTexture = false;
 };
 
+sampler2D searchLengthMap {
+    Texture = <searchLengthTex>;
+    AddressU = Clamp; AddressV = Clamp; AddressW = Clamp;
+    MipFilter = Point; MinFilter = Point; MagFilter = Point;
+    SRGBTexture = false;
+};
+
 
 /**
  * Typical Multiply-Add operation to ease translation to assembly code.
@@ -159,32 +167,13 @@ float4 tex2Dlevel0(sampler2D map, float2 texcoord) {
 }
 
 
-/**
- * Same as above, this eases translation to assembly code;
- */
-
-float4 tex2Doffset(sampler2D map, float2 texcoord, float2 offset) {
-    #if defined(XBOX) && MAX_SEARCH_STEPS < 6
-    float4 result;
-    float x = offset.x;
-    float y = offset.y;
-    asm {
-        tfetch2D result, texcoord, map, OffsetX = x, OffsetY = y
-    };
-    return result;
-    #else
-    return tex2Dlevel0(map, texcoord + PIXEL_SIZE * offset);
-    #endif
-}
-
-
 /** 
  * Ok, we have the distance and both crossing edges, can you please return 
  * the float2 blending weights?
  */
 
 float2 Area(float2 distance, float e1, float e2) {
-     // * By dividing by areaSize - 1.0 below we are implicitely offsetting to
+     // * By dividing by areaSize - 1.0 below we are implicitly offsetting to
      //   always fall inside of a pixel
      // * Rounding prevents bilinear access precision problems
     float areaSize = MAX_DISTANCE * 5.0;
@@ -227,11 +216,26 @@ float4 ColorEdgeDetectionPS(float2 texcoord : TEXCOORD0,
     float Lright = dot(tex2D(colorMapG, offset[1].xy).rgb, weights);
     float Lbottom = dot(tex2D(colorMapG, offset[1].zw).rgb, weights);
 
+    // We do the usual threshold
     float4 delta = abs(L.xxxx - float4(Lleft, Ltop, Lright, Lbottom));
     float4 edges = step(threshold.xxxx, delta);
 
+    // Then discard if there is no edge
     if (dot(edges, 1.0) == 0.0)
         discard;
+
+    /**
+     * Each edge with a delta in luma of less than 50% of the maximum luma
+     * surrounding this pixel is discarded. This allows to eliminate spurious
+     * crossing edges, and is based on the fact that, if there is too much
+     * contrast in a direction, that will hide contrast in the other
+     * neighbors.
+     * This is done after the discard intentionally as this situation doesn't
+     * happen too frequently (but it's important to do as it prevents some 
+     * edges from going undetected).
+     */
+    float maxDelta = max(max(max(delta.x, delta.y), delta.z), delta.w);
+    edges *= step(0.5 * maxDelta, delta);
 
     return edges;
 }
@@ -260,48 +264,96 @@ float4 DepthEdgeDetectionPS(float2 texcoord : TEXCOORD0,
 
 
 /**
+ * This allows to determine how much length should add the last step of the
+ * searchs. It takes the bilinearly interpolated value and returns 0, 1 or 2,
+ * depending on which edges and crossing edges are active. 
+ * "e.g" contains the bilinearly interpolated value for the edges and "e.r" for
+ * the crossing edges.
+ */
+
+float DetermineLength(float2 e) {
+    return 255.0 * tex2Dlevel0(searchLengthMap, e).r;
+}
+
+
+/**
  * Search functions for the 2nd pass.
  */
 
 float SearchXLeft(float2 texcoord) {
-    // We compare with 0.9 to prevent bilinear access precision problems.
-    float i;
-    float e = 0.0;
-    for (i = -1.5; i > -2.0 * MAX_SEARCH_STEPS; i -= 2.0) {
-        e = tex2Doffset(edgesMapL, texcoord, float2(i, 0.0)).g;
-        [flatten] if (e < 0.9) break;
+    float2 e = tex2Dlevel0(edgesMapL, texcoord - float2(0.0, 0.5) * PIXEL_SIZE).rg;
+    if (e.r > 0.25)
+        return 0.0;
+
+    // We offset by (1.25, 0.125) to sample between edgels, thus fetching four
+    // in a row.
+    // Sampling with different offsets in each direction allows to disambiguate
+    // which edges are active from the four fetched ones.
+    texcoord -= float2(1.25, 0.125) * PIXEL_SIZE;
+
+    for (int i = 0; i < MAX_SEARCH_STEPS; i++) {
+        e = tex2Dlevel0(edgesMapL, texcoord).rg;
+
+        // Is there some edge non activated? (e.g < 0.8281)
+        // Or is there a crossing edge that breaks the line? (e.r > 0.0)
+        // We refer you to the paper to discover where this magic number comes
+        // from.
+        [flatten] if (e.g < 0.8281 || e.r > 0.0) break;
+
+        texcoord -= float2(2.0, 0.0) * PIXEL_SIZE;
     }
-    return max(i + 1.5 - 2.0 * e, -2.0 * MAX_SEARCH_STEPS);
+
+    // When we exit the loop without founding the end, we want to return
+    // -2 * MAX_SEARCH_STEPS
+    return max(-2.0 * i - DetermineLength(e), -2.0 * MAX_SEARCH_STEPS);
 }
+
 
 float SearchXRight(float2 texcoord) {
-    float i;
-    float e = 0.0;
-    for (i = 1.5; i < 2.0 * MAX_SEARCH_STEPS; i += 2.0) {
-        e = tex2Doffset(edgesMapL, texcoord, float2(i, 0.0)).g;
-        [flatten] if (e < 0.9) break;
+    float2 e = tex2Dlevel0(edgesMapL, texcoord - float2(0.0, 0.5) * PIXEL_SIZE).bg;
+    if (e.r > 0.25)
+        return 0.0;
+
+    texcoord += float2(1.25, -0.125) * PIXEL_SIZE;
+    for (int i = 0; i < MAX_SEARCH_STEPS; i++) {
+        e = tex2Dlevel0(edgesMapL, texcoord).bg;
+        [flatten] if (e.g < 0.8281 || e.r > 0.0) break;
+        texcoord += float2(2.0, 0.0) * PIXEL_SIZE;
     }
-    return min(i - 1.5 + 2.0 * e, 2.0 * MAX_SEARCH_STEPS);
+
+    return min(2.0 * i + DetermineLength(e), 2.0 * MAX_SEARCH_STEPS);
 }
+
 
 float SearchYUp(float2 texcoord) {
-    float i;
-    float e = 0.0;
-    for (i = -1.5; i > -2.0 * MAX_SEARCH_STEPS; i -= 2.0) {
-        e = tex2Doffset(edgesMapL, texcoord, float2(i, 0.0).yx).r;
-        [flatten] if (e < 0.9) break;
+    float2 e = tex2Dlevel0(edgesMapL, texcoord - float2(0.5, 0.0) * PIXEL_SIZE).rg;
+    if (e.g > 0.25)
+        return 0.0;
+
+    texcoord -= float2(0.125, 1.25) * PIXEL_SIZE;
+    for (int i = 0; i < MAX_SEARCH_STEPS; i++) {
+        e = tex2Dlevel0(edgesMapL, texcoord).rg;
+        [flatten] if (e.r < 0.8281 || e.g > 0.0) break;
+        texcoord -= float2(0.0, 2.0) * PIXEL_SIZE;
     }
-    return max(i + 1.5 - 2.0 * e, -2.0 * MAX_SEARCH_STEPS);
+
+    return max(-2.0 * i - DetermineLength(e.gr), -2.0 * MAX_SEARCH_STEPS);
 }
 
+
 float SearchYDown(float2 texcoord) {
-    float i;
-    float e = 0.0;
-    for (i = 1.5; i < 2.0 * MAX_SEARCH_STEPS; i += 2.0) {
-        e = tex2Doffset(edgesMapL, texcoord, float2(i, 0.0).yx).r;
-        [flatten] if (e < 0.9) break;
+    float2 e = tex2Dlevel0(edgesMapL, texcoord - float2(0.5, 0.0) * PIXEL_SIZE).ra;
+    if (e.g > 0.25)
+        return 0.0;
+
+    texcoord += float2(-0.125, 1.25) * PIXEL_SIZE;
+    for (int i = 0; i < MAX_SEARCH_STEPS; i++) {
+        e = tex2Dlevel0(edgesMapL, texcoord).ra;
+        [flatten] if (e.r < 0.8281 || e.g > 0.0) break;
+        texcoord += float2(0.0, 2.0) * PIXEL_SIZE;
     }
-    return min(i - 1.5 + 2.0 * e, 2.0 * MAX_SEARCH_STEPS);
+
+    return min(2.0 * i + DetermineLength(e.gr), 2.0 * MAX_SEARCH_STEPS);
 }
 
 
@@ -321,7 +373,7 @@ float4 BlendWeightCalculationPS(float2 texcoord : TEXCOORD0) : COLOR0 {
         float2 d = float2(SearchXLeft(texcoord), SearchXRight(texcoord));
 
         // Now fetch the crossing edges. Instead of sampling between edgels, we
-        // sample at -0.25, to be able to discern what value has each edgel:
+        // sample at -0.25, to be able to discern what value each edgel has:
         float4 coords = mad(float4(d.x, -0.25, d.y + 1.0, -0.25),
                             PIXEL_SIZE.xyxy, texcoord.xyxy);
         float e1 = tex2Dlevel0(edgesMapL, coords.xy).r;
@@ -369,14 +421,14 @@ float4 NeighborhoodBlendingPS(float2 texcoord : TEXCOORD0,
     // favors blending and works well in practice.
     float4 w = a * a * a;
 
-    // There is some blending weight with a value greater than 0.0?
+    // Is there any blending weight with a value greater than 0.0?
     float sum = dot(w, 1.0);
     if (sum < 1e-5)
         discard;
 
     float4 color = 0.0;
 
-    // Add the contributions of the possible 4 lines that can cross this pixel:
+    // Add the contributions of the 4 possible lines that can cross this pixel:
     #ifdef BILINEAR_FILTER_TRICK
         float4 coords = mad(float4( 0.0, -a.r, 0.0,  a.g), PIXEL_SIZE.yyyy, texcoord.xyxy);
         color = mad(tex2D(colorMapL, coords.xy), w.r, color);

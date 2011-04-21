@@ -142,10 +142,11 @@ class MLAA {
         IDirect3DSurface9 *blendSurface;
         bool releaseBlendResources;
 
-        IDirect3DTexture9 *areaMapTexture;
+        IDirect3DTexture9 *areaTexture;
+        IDirect3DTexture9 *searchLengthTexture;
 
         D3DXHANDLE thresholdHandle;
-        D3DXHANDLE areaTexHandle;
+        D3DXHANDLE areaTexHandle, searchLengthTexHandle;
         D3DXHANDLE colorTexHandle, depthTexHandle;
         D3DXHANDLE edgesTexHandle, blendTexHandle;
         D3DXHANDLE colorEdgeDetectionHandle, depthEdgeDetectionHandle,

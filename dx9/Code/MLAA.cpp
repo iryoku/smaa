@@ -125,7 +125,7 @@ MLAA::MLAA(IDirect3DDevice9 *device, int width, int height, int maxSearchSteps, 
         edgeSurface = storage.edgeSurface;
         releaseEdgeResources = false;
     } else {
-        V(device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_R5G6B5, D3DPOOL_DEFAULT, &edgeTexture, NULL));
+        V(device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &edgeTexture, NULL));
         V(edgeTexture->GetSurfaceLevel(0, &edgeSurface));
         releaseEdgeResources = true;
     }
@@ -141,16 +141,22 @@ MLAA::MLAA(IDirect3DDevice9 *device, int width, int height, int maxSearchSteps, 
         releaseBlendResources = true;
     }
 
+    // Load the pre-computed areas texture.
     // For some obscure reason, if if we use D3DX_DEFAULT as the width and height parameters of D3DXCreateTextureFromResourceEx, the texture gets scaled down.
     D3DXIMAGE_INFO info;
     wstringstream ss;
     ss << L"AreaMap" << MAX_DISTANCE << L".dds";
     V(D3DXGetImageInfoFromResource(NULL, ss.str().c_str(), &info));
-    V(D3DXCreateTextureFromResourceEx(device, NULL, ss.str().c_str(), info.Width, info.Height, 1, 0, D3DFMT_A8L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &areaMapTexture));
+    V(D3DXCreateTextureFromResourceEx(device, NULL, ss.str().c_str(), info.Width, info.Height, 1, 0, D3DFMT_A8L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &areaTexture));
+
+    // Load the pre-computed search length texture.
+    V(D3DXGetImageInfoFromResource(NULL, L"SearchLengthMap.dds", &info));
+    V(D3DXCreateTextureFromResourceEx(device, NULL, L"SearchLengthMap.dds", info.Width, info.Height, 1, 0, D3DFMT_L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &searchLengthTexture));
 
     // Create some handles for techniques and variables.
     thresholdHandle = effect->GetParameterByName(NULL, "threshold");
     areaTexHandle = effect->GetParameterByName(NULL, "areaTex");
+    searchLengthTexHandle = effect->GetParameterByName(NULL, "searchLengthTex");
     colorTexHandle = effect->GetParameterByName(NULL, "colorTex");
     depthTexHandle = effect->GetParameterByName(NULL, "depthTex");
     edgesTexHandle = effect->GetParameterByName(NULL, "edgesTex");
@@ -176,7 +182,8 @@ MLAA::~MLAA() {
         SAFE_RELEASE(blendSurface);
     }
 
-    SAFE_RELEASE(areaMapTexture);
+    SAFE_RELEASE(areaTexture);
+    SAFE_RELEASE(searchLengthTexture);
 }
 
 
@@ -234,7 +241,8 @@ void MLAA::blendingWeightsCalculationPass() {
 
     // Setup the variables and the technique (yet again).
     V(effect->SetTexture(edgesTexHandle, edgeTexture));
-    V(effect->SetTexture(areaTexHandle, areaMapTexture));
+    V(effect->SetTexture(areaTexHandle, areaTexture));
+    V(effect->SetTexture(searchLengthTexHandle, searchLengthTexture));
     V(effect->SetTechnique(blendWeightCalculationHandle));
 
     // And here we go!
