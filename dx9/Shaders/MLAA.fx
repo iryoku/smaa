@@ -39,7 +39,7 @@
 #if !defined(PIXEL_SIZE)
 #define PIXEL_SIZE float2(1.0 / 1280.0, 1.0 / 720.0)
 #define MAX_SEARCH_STEPS 8    
-#define MAX_DISTANCE 32
+#define MAX_DISTANCE 33
 #endif
 
 /**
@@ -212,7 +212,7 @@ float4 ColorEdgeDetectionPS(float2 texcoord : TEXCOORD0,
      */
     float L = dot(tex2D(colorMapG, texcoord).rgb, weights);
     float Lleft = dot(tex2D(colorMapG, offset[0].xy).rgb, weights);
-    float Ltop = dot(tex2D(colorMapG, offset[0].zw).rgb, weights);  
+    float Ltop = dot(tex2D(colorMapG, offset[0].zw).rgb, weights);
     float Lright = dot(tex2D(colorMapG, offset[1].xy).rgb, weights);
     float Lbottom = dot(tex2D(colorMapG, offset[1].zw).rgb, weights);
 
@@ -281,15 +281,13 @@ float DetermineLength(float2 e) {
  */
 
 float SearchXLeft(float2 texcoord) {
-    float2 e = tex2Dlevel0(edgesMapL, texcoord - float2(0.0, 0.5) * PIXEL_SIZE).rg;
-    if (e.r > 0.25)
-        return 0.0;
+    float2 e;
 
     // We offset by (1.25, 0.125) to sample between edgels, thus fetching four
     // in a row.
     // Sampling with different offsets in each direction allows to disambiguate
     // which edges are active from the four fetched ones.
-    texcoord -= float2(1.25, 0.125) * PIXEL_SIZE;
+    texcoord -= float2(0.25, 0.125) * PIXEL_SIZE;
 
     for (int i = 0; i < MAX_SEARCH_STEPS; i++) {
         e = tex2Dlevel0(edgesMapL, texcoord).rg;
@@ -303,57 +301,49 @@ float SearchXLeft(float2 texcoord) {
         texcoord -= float2(2.0, 0.0) * PIXEL_SIZE;
     }
 
-    // When we exit the loop without founding the end, we want to return
-    // -2 * MAX_SEARCH_STEPS
-    return max(-2.0 * i - DetermineLength(e), -2.0 * MAX_SEARCH_STEPS);
+    return -2.0 * i - DetermineLength(e) + 1;
 }
 
 
 float SearchXRight(float2 texcoord) {
-    float2 e = tex2Dlevel0(edgesMapL, texcoord - float2(0.0, 0.5) * PIXEL_SIZE).bg;
-    if (e.r > 0.25)
-        return 0.0;
+    float2 e;
 
-    texcoord += float2(1.25, -0.125) * PIXEL_SIZE;
+    texcoord += float2(0.25, -0.125) * PIXEL_SIZE;
     for (int i = 0; i < MAX_SEARCH_STEPS; i++) {
         e = tex2Dlevel0(edgesMapL, texcoord).bg;
         [flatten] if (e.g < 0.8281 || e.r > 0.0) break;
         texcoord += float2(2.0, 0.0) * PIXEL_SIZE;
     }
 
-    return min(2.0 * i + DetermineLength(e), 2.0 * MAX_SEARCH_STEPS);
+    return 2.0 * i + DetermineLength(e) - 1;
 }
 
 
 float SearchYUp(float2 texcoord) {
-    float2 e = tex2Dlevel0(edgesMapL, texcoord - float2(0.5, 0.0) * PIXEL_SIZE).rg;
-    if (e.g > 0.25)
-        return 0.0;
+    float2 e;
 
-    texcoord -= float2(0.125, 1.25) * PIXEL_SIZE;
+    texcoord -= float2(0.125, 0.25) * PIXEL_SIZE;
     for (int i = 0; i < MAX_SEARCH_STEPS; i++) {
         e = tex2Dlevel0(edgesMapL, texcoord).rg;
         [flatten] if (e.r < 0.8281 || e.g > 0.0) break;
         texcoord -= float2(0.0, 2.0) * PIXEL_SIZE;
     }
 
-    return max(-2.0 * i - DetermineLength(e.gr), -2.0 * MAX_SEARCH_STEPS);
+    return -2.0 * i - DetermineLength(e.gr) + 1;
 }
 
 
 float SearchYDown(float2 texcoord) {
-    float2 e = tex2Dlevel0(edgesMapL, texcoord - float2(0.5, 0.0) * PIXEL_SIZE).ra;
-    if (e.g > 0.25)
-        return 0.0;
+    float2 e;
 
-    texcoord += float2(-0.125, 1.25) * PIXEL_SIZE;
+    texcoord += float2(-0.125, 0.25) * PIXEL_SIZE;
     for (int i = 0; i < MAX_SEARCH_STEPS; i++) {
         e = tex2Dlevel0(edgesMapL, texcoord).ra;
         [flatten] if (e.r < 0.8281 || e.g > 0.0) break;
         texcoord += float2(0.0, 2.0) * PIXEL_SIZE;
     }
 
-    return min(2.0 * i + DetermineLength(e.gr), 2.0 * MAX_SEARCH_STEPS);
+    return 2.0 * i + DetermineLength(e.gr) - 1;
 }
 
 
