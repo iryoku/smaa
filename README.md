@@ -9,8 +9,8 @@ Checkout http://www.iryoku.com/mlaa for more info!
 Usage
 -----
 
-Checkout MLAA.h for integration info. The dirs DX9 and DX10 contain integration
-examples for DirectX 9 and 10 respectively.
+Checkout [MLAA.h](https://github.com/iryoku/jimenez-mlaa/blob/master/MLAA.h) for integration info. The directories [DX9](https://github.com/iryoku/jimenez-mlaa/blob/master/Demo/DX9) and [DX10](https://github.com/iryoku/jimenez-mlaa/blob/master/Demo/DX10) contain
+integration examples for DirectX 9 and 10 respectively.
 
 
 Bug Tracker
@@ -44,11 +44,16 @@ Authors
 Copyright and License
 ---------------------
 
-Copyright (C) 2011 Jorge Jimenez (jorge@iryoku.com)
-Copyright (C) 2011 Belen Masia (bmasia@unizar.es) 
-Copyright (C) 2011 Jose I. Echevarria (joseignacioechevarria@gmail.com) 
-Copyright (C) 2011 Fernando Navarro (fernandn@microsoft.com) 
-Copyright (C) 2011 Diego Gutierrez (diegog@unizar.es)
+Copyright &copy; 2011 Jorge Jimenez (jorge@iryoku.com)
+
+Copyright &copy; 2011 Belen Masia (bmasia@unizar.es) 
+
+Copyright &copy; 2011 Jose I. Echevarria (joseignacioechevarria@gmail.com) 
+
+Copyright &copy; 2011 Fernando Navarro (fernandn@microsoft.com) 
+
+Copyright &copy; 2011 Diego Gutierrez (diegog@unizar.es)
+
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
