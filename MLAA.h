@@ -258,7 +258,7 @@ void MLAANeighborhoodBlendingVS(float4 position,
 float4 MLAALumaEdgeDetectionPS(float2 texcoord,
                                float4 offset[2],
                                MLAATexture2D colorGammaTex) {
-    float3 weights = float3(0.2126,0.7152, 0.0722);
+    float3 weights = float3(0.2126, 0.7152, 0.0722);
 
     /**
      * Luma calculation requires gamma-corrected colors, and thus 'colorGammaTex'
@@ -267,16 +267,20 @@ float4 MLAALumaEdgeDetectionPS(float2 texcoord,
     float L = dot(MLAASample(colorGammaTex, texcoord).rgb, weights);
     float Lleft = dot(MLAASample(colorGammaTex, offset[0].xy).rgb, weights);
     float Ltop  = dot(MLAASample(colorGammaTex, offset[0].zw).rgb, weights);
-    float Lright = dot(MLAASample(colorGammaTex, offset[1].xy).rgb, weights);
-    float Lbottom  = dot(MLAASample(colorGammaTex, offset[1].zw).rgb, weights);
 
     // We do the usual threshold
-    float4 delta = abs(L.xxxx - float4(Lleft, Ltop, Lright, Lbottom));
-    float4 edges = step(MLAA_THRESHOLD.xxxx, delta);
+    float4 delta;
+    delta.xy = abs(L.xx - float2(Lleft, Ltop));
+    float2 edges = step(MLAA_THRESHOLD.xx, delta.xy);
 
     // Then discard if there is no edge
     if (dot(edges, 1.0) == 0.0)
         discard;
+
+    // Calculate right and bottom deltas:
+    float Lright = dot(MLAASample(colorGammaTex, offset[1].xy).rgb, weights);
+    float Lbottom  = dot(MLAASample(colorGammaTex, offset[1].zw).rgb, weights);
+    delta.zw = abs(L.xx - float2(Lright, Lbottom));
 
     /**
      * Each edge with a delta in luma of less than 50% of the maximum luma
@@ -289,9 +293,9 @@ float4 MLAALumaEdgeDetectionPS(float2 texcoord,
      * edges from going undetected).
      */
     float maxDelta = max(max(max(delta.x, delta.y), delta.z), delta.w);
-    edges *= step(0.5 * maxDelta, delta);
+    edges.xy *= step(0.5 * maxDelta, delta.xy);
 
-    return edges;
+    return float4(edges, 0.0, 0.0);
 }
 
 
@@ -317,6 +321,14 @@ float4 MLAAColorEdgeDetectionPS(float2 texcoord,
     t = abs(C - Ctop);
     delta.y = max(max(t.r, t.g), t.b);
 
+    // We do the usual threshold
+    float2 edges = step(MLAA_THRESHOLD.xx, delta.xy);
+
+    // Then discard if there is no edge
+    if (dot(edges, 1.0) == 0.0)
+        discard;
+
+    // Calculate right and bottom deltas:
     float3 Cright = MLAASample(colorGammaTex, offset[1].xy).rgb;
     t = abs(C - Cright);
     delta.z = max(max(t.r, t.g), t.b);
@@ -324,13 +336,6 @@ float4 MLAAColorEdgeDetectionPS(float2 texcoord,
     float3 Cbottom  = MLAASample(colorGammaTex, offset[1].zw).rgb;
     t = abs(C - Cbottom);
     delta.w = max(max(t.r, t.g), t.b);
-
-    // We do the usual threshold
-    float4 edges = step(MLAA_THRESHOLD.xxxx, delta);
-
-    // Then discard if there is no edge
-    if (dot(edges, 1.0) == 0.0)
-        discard;
 
     /**
      * Each edge with a delta in luma of less than 50% of the maximum luma
@@ -343,9 +348,9 @@ float4 MLAAColorEdgeDetectionPS(float2 texcoord,
      * edges from going undetected).
      */
     float maxDelta = max(max(max(delta.x, delta.y), delta.z), delta.w);
-    edges *= step(0.5 * maxDelta, delta);
+    edges.xy *= step(0.5 * maxDelta, delta.xy);
 
-    return edges;
+    return float4(edges, 0.0, 0.0);
 }
 
 
@@ -358,16 +363,15 @@ float4 MLAADepthEdgeDetectionPS(float2 texcoord,
     float D = MLAASample(depthTex, texcoord).r;
     float Dleft = MLAASample(depthTex, offset[0].xy).r;
     float Dtop  = MLAASample(depthTex, offset[0].zw).r;
-    float Dright = MLAASample(depthTex, offset[1].xy).r;
-    float Dbottom  = MLAASample(depthTex, offset[1].zw).r;
 
-    float4 delta = abs(D.xxxx - float4(Dleft, Dtop, Dright, Dbottom));
-    float4 edges = step(MLAA_THRESHOLD.xxxx / 10.0, delta); // Dividing by 10 give us results similar to the color-based detection.
+    float2 delta = abs(D.xx - float2(Dleft, Dtop));
+    // Dividing by 10 give us results similar to the color-based detection, in our examples:
+    float2 edges = step(MLAA_THRESHOLD.xx / 10.0, delta);
 
     if (dot(edges, 1.0) == 0.0)
         discard;
 
-    return edges;
+    return float4(edges, 0.0, 0.0);
 }
 
 
@@ -588,31 +592,32 @@ float4 MLAANeighborhoodBlendingPS(float2 texcoord,
     float sum = dot(w, 1.0);
     if (sum < 1e-5)
         return MLAASample(colorTex, texcoord);
+    else {
+        float4 color = 0.0;
 
-    float4 color = 0.0;
+        // Add the contributions of the 4 possible lines that can cross this
+        // pixel:
+        #if MLAA_HLSL_4 == 1 || MLAA_DIRECTX9_LINEAR_BLEND == 0
+            float4 coords = MLAAMad(float4( 0.0, -a.r, 0.0,  a.g), MLAA_PIXEL_SIZE.yyyy, texcoord.xyxy);
+            color = MLAAMad(MLAASample(colorTex, coords.xy), w.r, color);
+            color = MLAAMad(MLAASample(colorTex, coords.zw), w.g, color);
 
-    // Add the contributions of the 4 possible lines that can cross this
-    // pixel:
-    #if MLAA_HLSL_4 == 1 || MLAA_DIRECTX9_LINEAR_BLEND == 0
-        float4 coords = MLAAMad(float4( 0.0, -a.r, 0.0,  a.g), MLAA_PIXEL_SIZE.yyyy, texcoord.xyxy);
-        color = MLAAMad(MLAASample(colorTex, coords.xy), w.r, color);
-        color = MLAAMad(MLAASample(colorTex, coords.zw), w.g, color);
+            coords = MLAAMad(float4(-a.b,  0.0, a.a,  0.0), MLAA_PIXEL_SIZE.xxxx, texcoord.xyxy);
+            color = MLAAMad(MLAASample(colorTex, coords.xy), w.b, color);
+            color = MLAAMad(MLAASample(colorTex, coords.zw), w.a, color);
+        #else
+            float4 C = MLAASample(colorTex, texcoord);
+            float4 Cleft = MLAASample(colorTex, offset[0].xy);
+            float4 Ctop = MLAASample(colorTex, offset[0].zw);
+            float4 Cright = MLAASample(colorTex, offset[1].xy);
+            float4 Cbottom = MLAASample(colorTex, offset[1].zw);
+            color = MLAAMad(lerp(C, Ctop, a.r), w.r, color);
+            color = MLAAMad(lerp(C, Cbottom, a.g), w.g, color);
+            color = MLAAMad(lerp(C, Cleft, a.b), w.b, color);
+            color = MLAAMad(lerp(C, Cright, a.a), w.a, color);
+        #endif
 
-        coords = MLAAMad(float4(-a.b,  0.0, a.a,  0.0), MLAA_PIXEL_SIZE.xxxx, texcoord.xyxy);
-        color = MLAAMad(MLAASample(colorTex, coords.xy), w.b, color);
-        color = MLAAMad(MLAASample(colorTex, coords.zw), w.a, color);
-    #else
-        float4 C = MLAASample(colorTex, texcoord);
-        float4 Cleft = MLAASample(colorTex, offset[0].xy);
-        float4 Ctop = MLAASample(colorTex, offset[0].zw);
-        float4 Cright = MLAASample(colorTex, offset[1].xy);
-        float4 Cbottom = MLAASample(colorTex, offset[1].zw);
-        color = MLAAMad(lerp(C, Ctop, a.r), w.r, color);
-        color = MLAAMad(lerp(C, Cbottom, a.g), w.g, color);
-        color = MLAAMad(lerp(C, Cleft, a.b), w.b, color);
-        color = MLAAMad(lerp(C, Cright, a.a), w.a, color);
-    #endif
-
-    // Normalize the resulting color and we are finished!
-    return color / sum;
+        // Normalize the resulting color and we are finished!
+        return color / sum;
+    }
 }
