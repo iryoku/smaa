@@ -212,7 +212,7 @@ MLAA::~MLAA() {
     // And here we go!
     edgesDetectionPass(depthStencil, input);
     blendingWeightsCalculationPass(depthStencil);
-    neighborhoodBlendingPass(srcSRGB, dst, depthStencil);
+    neighborhoodBlendingPass(dst, depthStencil);
 }
 
 
@@ -252,32 +252,14 @@ void MLAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *depthStencil) 
 }
 
 
-void MLAA::neighborhoodBlendingPass(ID3D10ShaderResourceView *src, ID3D10RenderTargetView *dst, ID3D10DepthStencilView *depthStencil) {
+void MLAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dst, ID3D10DepthStencilView *depthStencil) {
     HRESULT hr;
-
-    // We have to copy the src image to the destination, as we will only update the pixels marked as edges.
-    // So, we copy it first here, then update the pixels using the stencil buffer in this last pass.
-    copy(src, dst);
 
     // Setup the technique (once again).
     V(neighborhoodBlendingTechnique->GetPassByIndex(0)->Apply(0));
     
-    // Yeah! We finally have the antialiased image!
+    // Do the final pass!
     device->OMSetRenderTargets(1, &dst, depthStencil);
     quad->draw();
     device->OMSetRenderTargets(0, NULL, NULL);
-}
-
-
-void MLAA::copy(ID3D10ShaderResourceView *src, ID3D10RenderTargetView *dst) {
-    ID3D10Texture2D *srcTexture2D;
-    src->GetResource(reinterpret_cast<ID3D10Resource **>(&srcTexture2D));
-
-    ID3D10Texture2D *dstTexture2D;
-    dst->GetResource(reinterpret_cast<ID3D10Resource **>(&dstTexture2D));
-
-    device->CopyResource(dstTexture2D, srcTexture2D);
-
-    srcTexture2D->Release();
-    dstTexture2D->Release();
 }

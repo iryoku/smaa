@@ -121,7 +121,7 @@ sampler2D areaTex {
 sampler2D searchTex {
     Texture = <searchTex2D>;
     AddressU = Clamp; AddressV = Clamp; AddressW = Clamp;
-    MipFilter = Linear; MinFilter = Linear; MagFilter = Linear;
+    MipFilter = Point; MinFilter = Point; MagFilter = Point;
     SRGBTexture = false;
 };
 
@@ -137,8 +137,9 @@ void DX9_MLAAEdgeDetectionVS(inout float4 position : POSITION,
 
 void DX9_MLAABlendWeightCalculationVS(inout float4 position : POSITION,
                                       inout float2 texcoord : TEXCOORD0,
-                                      out float4 offset[2] : TEXCOORD1) {
-    MLAABlendWeightCalculationVS(position, position, texcoord, offset);
+                                      out float2 pixcoord : TEXCOORD1,
+                                      out float4 offset[3] : TEXCOORD2) {
+    MLAABlendWeightCalculationVS(position, position, texcoord, pixcoord, offset);
 }
 
 void DX9_MLAANeighborhoodBlendingVS(inout float4 position : POSITION,
@@ -171,11 +172,12 @@ float4 DX9_MLAADepthEdgeDetectionPS(float4 position : SV_POSITION,
 
 float4 DX9_MLAABlendingWeightCalculationPS(float4 position : SV_POSITION,
                                            float2 texcoord : TEXCOORD0,
-                                           float4 offset[2] : TEXCOORD1,
+                                           float2 pixcoord : TEXCOORD1,
+                                           float4 offset[3] : TEXCOORD2,
                                            uniform MLAATexture2D edgesTex, 
                                            uniform MLAATexture2D areaTex, 
                                            uniform MLAATexture2D searchTex) : COLOR {
-    return MLAABlendingWeightCalculationPS(texcoord, offset, edgesTex, areaTex, searchTex);
+    return MLAABlendingWeightCalculationPS(texcoord, pixcoord, offset, edgesTex, areaTex, searchTex);
 }
 
 float4 DX9_MLAANeighborhoodBlendingPS(float4 position : SV_POSITION,
@@ -190,6 +192,21 @@ float4 DX9_MLAANeighborhoodBlendingPS(float4 position : SV_POSITION,
 /**
  * Time for some techniques!
  */
+technique LumaEdgeDetection {
+    pass LumaEdgeDetection {
+        VertexShader = compile vs_3_0 DX9_MLAAEdgeDetectionVS();
+        PixelShader = compile ps_3_0 DX9_MLAALumaEdgeDetectionPS(colorTexG);
+        ZEnable = false;        
+        SRGBWriteEnable = false;
+        AlphaBlendEnable = false;
+
+        // We will be creating the stencil buffer for later usage.
+        StencilEnable = true;
+        StencilPass = REPLACE;
+        StencilRef = 1;
+    }
+}
+
 technique ColorEdgeDetection {
     pass ColorEdgeDetection {
         VertexShader = compile vs_3_0 DX9_MLAAEdgeDetectionVS();
@@ -244,10 +261,7 @@ technique NeighborhoodBlending {
         SRGBWriteEnable = true;
         AlphaBlendEnable = false;
 
-        // Here we want to process only marked pixels.
-        StencilEnable = true;
-        StencilPass = KEEP;
-        StencilFunc = EQUAL;
-        StencilRef = 1;
+        // Here we want to process all the pixels.
+        StencilEnable = false;
     }
 }

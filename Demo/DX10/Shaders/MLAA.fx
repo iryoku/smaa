@@ -112,8 +112,9 @@ void DX10_MLAAEdgeDetectionVS(float4 position : POSITION,
 void DX10_MLAABlendWeightCalculationVS(float4 position : POSITION,
                                        out float4 svPosition : SV_POSITION,
                                        inout float2 texcoord : TEXCOORD0,
-                                       out float4 offset[2] : TEXCOORD1) {
-    MLAABlendWeightCalculationVS(position, svPosition, texcoord, offset);
+                                       out float2 pixcoord : TEXCOORD1,
+                                       out float4 offset[3] : TEXCOORD2) {
+    MLAABlendWeightCalculationVS(position, svPosition, texcoord, pixcoord, offset);
 }
 
 void DX10_MLAANeighborhoodBlendingVS(float4 position : POSITION,
@@ -147,11 +148,12 @@ float4 DX10_MLAADepthEdgeDetectionPS(float4 position : SV_POSITION,
 
 float4 DX10_MLAABlendingWeightCalculationPS(float4 position : SV_POSITION,
                                             float2 texcoord : TEXCOORD0,
-                                            float4 offset[2] : TEXCOORD1,
+                                            float2 pixcoord : TEXCOORD1,
+                                            float4 offset[3] : TEXCOORD2,
                                             uniform MLAATexture2D edgesTex, 
                                             uniform MLAATexture2D areaTex, 
                                             uniform MLAATexture2D searchTex) : SV_TARGET {
-    return MLAABlendingWeightCalculationPS(texcoord, offset, edgesTex, areaTex, searchTex);
+    return MLAABlendingWeightCalculationPS(texcoord, pixcoord, offset, edgesTex, areaTex, searchTex);
 }
 
 float4 DX10_MLAANeighborhoodBlendingPS(float4 position : SV_POSITION,
@@ -216,7 +218,7 @@ technique10 NeighborhoodBlending {
         SetGeometryShader(NULL);
         SetPixelShader(CompileShader(ps_4_0, DX10_MLAANeighborhoodBlendingPS(colorTex, blendTex)));
 
-        SetDepthStencilState(DisableDepthUseStencil, 1);
+        SetDepthStencilState(DisableDepthStencil, 0);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
     }
 }

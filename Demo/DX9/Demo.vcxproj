@@ -160,9 +160,9 @@
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Shaders\MLAA.fx">
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">fxc /Od /Zi /Tfx_2_0 /nologo /I ../.. /Fo"$(IntDir)%(Filename).fxo" "%(FullPath)"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">fxc /Od /Zi /Tfx_2_0 /nologo /I ../.. /Fo"$(IntDir)%(Filename).fxo"  /Fc"$(IntDir)%(Filename).asm" "%(FullPath)"</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename).fxo</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">fxc /Tfx_2_0 /nologo  /I ../..  /Fo"$(IntDir)%(Filename).fxo" "%(FullPath)"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">fxc /Tfx_2_0 /nologo  /I ../..  /Fo"$(IntDir)%(Filename).fxo"  /Fc"$(IntDir)%(Filename).asm" "%(FullPath)"</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)%(Filename).fxo</Outputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\MLAA.h</AdditionalInputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\MLAA.h</AdditionalInputs>

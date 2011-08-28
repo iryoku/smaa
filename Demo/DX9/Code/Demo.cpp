@@ -200,15 +200,20 @@ void CALLBACK onFrameRender(IDirect3DDevice9 *device, double time, float elapsed
         mainPass(device);
 
         // Run MLAA
-        bool useDepth = int(hud.GetComboBox(IDC_DETECTIONMODE)->GetSelectedData()) == 1;
+        MLAA::Input input = MLAA::Input(int(hud.GetComboBox(IDC_DETECTIONMODE)->GetSelectedData()));
         int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? timer->getRepetitionsCount() : 1;
 
         timer->start();
         for (int i = 0; i < n; i++) { // This loop is just for profiling.
-            if (useDepth)
-                mlaa->go(finalbufferColorTexture, backbufferSurface, finalbufferDepthTexture);
-            else
-                mlaa->go(finalbufferColorTexture, backbufferSurface);
+            switch (input) {
+                case MLAA::INPUT_LUMA:
+                case MLAA::INPUT_COLOR:
+                    mlaa->go(finalbufferColorTexture, finalbufferColorTexture, backbufferSurface, input);
+                    break;
+                case MLAA::INPUT_DEPTH:
+                    mlaa->go(finalbufferDepthTexture, finalbufferColorTexture, backbufferSurface, input);
+                    break;
+            }
         }
         timer->clock(L"MLAA");
 
@@ -309,8 +314,9 @@ void initApp() {
     hud.SetCallback(onGUIEvent); int iY = 10;
     hud.AddButton(IDC_TOGGLEFULLSCREEN, L"Toggle full screen", 35, iY, 125, 22);
     hud.AddComboBox(IDC_DETECTIONMODE, 35, iY += 24, 125, 22, 0, false);
-    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Color edge det.", (LPVOID) 0);
-    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Depth edge det.", (LPVOID) 1);
+    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
+    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Color edge det.", (LPVOID) 1);
+    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, 125, 22, false);
 }
 

@@ -64,7 +64,13 @@
  * You have three edge detection methods to choose from: luma, color or depth.
  * They represent different quality/performance and anti-aliasing/sharpness
  * tradeoffs, so our recommendation is for you to choose the one that suits
- * better your particular scenario.
+ * better your particular scenario:
+ *
+ * - Depth edge detection is usually the faster but it may miss some edges.
+ * - Luma edge detection is usually more expensive than depth edge detection,
+ *   but catches visible edges that depth edge detection can miss.
+ * - Color edge detection is usually the most expensive one but catches
+ *   chroma-only edges.
  *
  * Ok then, let's go!
  *
@@ -73,14 +79,14 @@
  *   edges texture. 
  *
  * - Both temporal framebuffers 'edgesTex' and 'blendTex' must be cleared each
- *   frame.
+ *   frame. Do not forget to clear the alpha channel!
  *
  * - The next step is loading the two supporting precalculated textures,
  *   'areaTex' (RG) and 'searchTex' (R). They are needed for the 
  *   'MLAABlendingWeightCalculation' pass.
  *
- * - In DX10 the used SamplerState is already set to linear, but in DX9, all 
- *   samplers must be set to linear filtering and clamp.
+ * - In DX9, all samplers must be set to linear filtering and clamp, with the
+ *   exception of 'searchTex', that must be set to point filtering.
  *
  * - All texture reads and buffer writes must be non-sRGB, with the exception
  *   of the input read and the output write of input in 
@@ -106,7 +112,8 @@
  *
  * - After you have get the last pass to work, it's time to optimize. You will
  *   have to initialize a stencil buffer in the first pass (discard is already
- *   in the code), then just mask execution by using it the following passes.
+ *   in the code), then just mask execution by using it the second pass. The
+ *   last one should be executed in all pixels.
  *
  * That is!
  */
@@ -166,6 +173,7 @@
 #if MLAA_HLSL_3 == 1
 #define MLAATexture2D sampler2D
 #define MLAASampleLevelZero(tex, coord) tex2Dlod(tex, float4(coord, 0.0, 0.0))
+#define MLAASampleLevelZeroPoint(tex, coord) tex2Dlod(tex, float4(coord, 0.0, 0.0))
 #define MLAASample(tex, coord) tex2D(tex, coord)
 #define MLAASampleLevelZeroOffset(tex, coord, off) tex2Dlod(tex, float4(coord + off * MLAA_PIXEL_SIZE, 0.0, 0.0))
 #define MLAASampleOffset(tex, coord, off) tex2D(tex, coord + off * MLAA_PIXEL_SIZE)
@@ -197,22 +205,6 @@ float4 MLAAMad(float4 m, float4 a, float4 b) {
 }
 
 
-/** 
- * Ok, we have the distance and both crossing edges. So, what are the areas
- * at each side of current edge?
- */
-float2 MLAAArea(MLAATexture2D areaTex, float2 distance, float e1, float e2) {
-    // The areas texture is actually compressed quadratically, hence the sqrt.
-    float2 texcoord = MLAA_MAX_DISTANCE * round(4.0 * float2(e1, e2)) + sqrt(round(distance));
-    
-    // We do a scale and bias for mapping to texel space:
-    texcoord = MLAA_AREATEX_PIXEL_SIZE * texcoord + (0.5 * MLAA_AREATEX_PIXEL_SIZE);
-
-    // Do it!
-    return MLAASampleLevelZero(areaTex, texcoord).rg;
-}
-
-
 /**
  * Edge Detection Vertex Shader
  */
@@ -232,12 +224,18 @@ void MLAAEdgeDetectionVS(float4 position,
 void MLAABlendWeightCalculationVS(float4 position,
                                   out float4 svPosition,
                                   inout float2 texcoord,
-                                  out float4 offset[2]) {
+                                  out float2 pixcoord,
+                                  out float4 offset[3]) {
     svPosition = position;
 
-    // We will use these offsets for the searchs later on (see @PSEUDO_GATHER4).
-    offset[0] = texcoord.xyxy + MLAA_PIXEL_SIZE.xyxy * float4(-0.25, -0.125,  0.25, -0.125);
-    offset[1] = texcoord.xyxy + MLAA_PIXEL_SIZE.xyxy * float4(-0.125, -0.25, -0.125,  0.25);
+    pixcoord = texcoord / MLAA_PIXEL_SIZE;
+
+    // We will use these offsets for the searchs later on (see @PSEUDO_GATHER4):
+    offset[0] = texcoord.xyxy + MLAA_PIXEL_SIZE.xyxy * float4(-0.25, -0.125,  1.25, -0.125);
+    offset[1] = texcoord.xyxy + MLAA_PIXEL_SIZE.xyxy * float4(-0.125, -0.25, -0.125,  1.25);
+
+    // And these for the searchs, they indicate the ends of the loops:
+    offset[2] = float4(offset[0].xz, offset[1].yw) + float4(-2.0, 2.0, -2.0, 2.0) * MLAA_PIXEL_SIZE.xxyy * MLAA_MAX_SEARCH_STEPS;
 }
 
 /**
@@ -379,24 +377,19 @@ float4 MLAADepthEdgeDetectionPS(float2 texcoord,
  * @PSEUDO_GATHER4), and adds 0, 1 or 2, depending on which edges and
  * crossing edges are active.
  */
-float MLAASearchLength(MLAATexture2D searchTex, float2 e) {
-    #if MLAA_HLSL_4 == 1
+float MLAASearchLength(MLAATexture2D searchTex, float2 e, float bias, float scale) {
+    // Not required if searchTex accesses are set to point:
+    // float2 SEARCH_TEX_PIXEL_SIZE = 1.0 / float2(66.0, 33.0);
+    // e = float2(bias, 0.0) + 0.5 * SEARCH_TEX_PIXEL_SIZE + e * float2(scale, 1.0) * float2(64.0, 32.0) * SEARCH_TEX_PIXEL_SIZE;
+    e.r = bias + e.r * scale;
     return 255.0 * MLAASampleLevelZeroPoint(searchTex, e).r;
-    #else
-    // In case of DX9, we prefer to do a scale and bias to not force the use
-    // of point sampling, which may be forgotten by mistake and lead to 
-    // integration problems. We just keep it simple, linear sampling for
-    // everything.
-    float2 coord = 0.5 / 33.0 + 32.0 / 33.0 * e;
-    return 255.0 * MLAASampleLevelZero(searchTex, coord).r;
-    #endif
 }
 
 
 /**
  * Search functions for the 2nd pass.
  */
-float MLAASearchXLeft(MLAATexture2D edgesTex, MLAATexture2D searchTex, float2 texcoord) {
+float MLAASearchXLeft(MLAATexture2D edgesTex, MLAATexture2D searchTex, float2 texcoord, float end) {
     /**
      * @PSEUDO_GATHER4
      * This texcoord has been offset by (-0.25, -0.125) in the vertex shader to
@@ -404,18 +397,11 @@ float MLAASearchXLeft(MLAATexture2D edgesTex, MLAATexture2D searchTex, float2 te
      * Sampling with different offsets in each direction allows to disambiguate
      * which edges are active from the four fetched ones.
      */
-    float end = texcoord.x - 2.0 * MLAA_PIXEL_SIZE.x * MLAA_MAX_SEARCH_STEPS;
-
-    float2 e;
-    while (texcoord.x > end) {
+    float2 e = float2(0.0, 1.0);
+    while (texcoord.x > end && 
+           e.g > 0.8281 && // Is there some edge not activated?
+           e.r == 0.0) { // Or is there a crossing edge that breaks the line?
         e = MLAASampleLevelZero(edgesTex, texcoord).rg;
-
-        // Is there some edge non activated? (e.g < 0.8281)
-        // Or is there a crossing edge that breaks the line? (e.r > 0.0)
-        // These numbers come from the specific offsets we have used to fetch
-        // the four pixels.
-        [flatten] if (e.g < 0.8281 || e.r > 0.0) break;
-
         texcoord -= float2(2.0, 0.0) * MLAA_PIXEL_SIZE;
     }
 
@@ -426,57 +412,74 @@ float MLAASearchXLeft(MLAATexture2D edgesTex, MLAATexture2D searchTex, float2 te
     texcoord.x += MLAA_PIXEL_SIZE.x;
 
     // Disambiguate the length added by the last step:
-    texcoord.x -= MLAA_PIXEL_SIZE.x * MLAASearchLength(searchTex, e);
+    texcoord.x += 2.0 * MLAA_PIXEL_SIZE.x; // Undo last step
+    texcoord.x -= MLAA_PIXEL_SIZE.x * MLAASearchLength(searchTex, e, 0.0, 0.5);
 
     return texcoord.x;
 }
 
-float MLAASearchXRight(MLAATexture2D edgesTex, MLAATexture2D searchTex, float2 texcoord) {
-    float end = texcoord.x + 2.0 * MLAA_PIXEL_SIZE.x * MLAA_MAX_SEARCH_STEPS;
-
-    float2 e;
-    while (texcoord.x < end) {
-        e = MLAASampleLevelZero(edgesTex, texcoord).bg;
-        [flatten] if (e.g < 0.8281 || e.r > 0.0) break;
+float MLAASearchXRight(MLAATexture2D edgesTex, MLAATexture2D searchTex, float2 texcoord, float end) {
+    float2 e = float2(0.0, 1.0);
+    while (texcoord.x < end && 
+           e.g > 0.8281 && // Is there some edge not activated?
+           e.r == 0.0) { // Or is there a crossing edge that breaks the line?
+        e = MLAASampleLevelZero(edgesTex, texcoord).rg;
         texcoord += float2(2.0, 0.0) * MLAA_PIXEL_SIZE;
     }
 
     texcoord.x -= 0.25 * MLAA_PIXEL_SIZE.x;
     texcoord.x -= MLAA_PIXEL_SIZE.x;
-    texcoord.x += MLAA_PIXEL_SIZE.x * MLAASearchLength(searchTex, e);
+    texcoord.x -= 2.0 * MLAA_PIXEL_SIZE.x;
+    texcoord.x += MLAA_PIXEL_SIZE.x * MLAASearchLength(searchTex, e, 0.5, 0.5);
     return texcoord.x;
 }
 
-float MLAASearchYUp(MLAATexture2D edgesTex, MLAATexture2D searchTex, float2 texcoord) {
-    float end = texcoord.y - 2.0 * MLAA_PIXEL_SIZE.y * MLAA_MAX_SEARCH_STEPS;
-
-    float2 e;
-    while (texcoord.y > end) {
+float MLAASearchYUp(MLAATexture2D edgesTex, MLAATexture2D searchTex, float2 texcoord, float end) {
+    float2 e = float2(1.0, 0.0);
+    while (texcoord.y > end && 
+           e.r > 0.8281 && // Is there some edge not activated?
+           e.g == 0.0) { // Or is there a crossing edge that breaks the line?
         e = MLAASampleLevelZero(edgesTex, texcoord).rg;
-        [flatten] if (e.r < 0.8281 || e.g > 0.0) break;
         texcoord -= float2(0.0, 2.0) * MLAA_PIXEL_SIZE;
     }
 
     texcoord.y += 0.25 * MLAA_PIXEL_SIZE.y;
     texcoord.y += MLAA_PIXEL_SIZE.y;
-    texcoord.y -= MLAA_PIXEL_SIZE.y * MLAASearchLength(searchTex, e.gr);
+    texcoord.y += 2.0 * MLAA_PIXEL_SIZE.y;
+    texcoord.y -= MLAA_PIXEL_SIZE.y * MLAASearchLength(searchTex, e.gr, 0.0, 0.5);
     return texcoord.y;
 }
 
-float MLAASearchYDown(MLAATexture2D edgesTex, MLAATexture2D searchTex, float2 texcoord) {
-    float end = texcoord.y + 2.0 * MLAA_PIXEL_SIZE.y * MLAA_MAX_SEARCH_STEPS;
-
-    float2 e;
-    while (texcoord.y < end) {
-        e = MLAASampleLevelZero(edgesTex, texcoord).ra;
-        [flatten] if (e.r < 0.8281 || e.g > 0.0) break;
+float MLAASearchYDown(MLAATexture2D edgesTex, MLAATexture2D searchTex, float2 texcoord, float end) {
+    float2 e = float2(1.0, 0.0);
+    while (texcoord.y < end && 
+           e.r > 0.8281 && // Is there some edge not activated?
+           e.g == 0.0) { // Or is there a crossing edge that breaks the line?
+        e = MLAASampleLevelZero(edgesTex, texcoord).rg;
         texcoord += float2(0.0, 2.0) * MLAA_PIXEL_SIZE;
     }
-
+    
     texcoord.y -= 0.25 * MLAA_PIXEL_SIZE.y;
     texcoord.y -= MLAA_PIXEL_SIZE.y;
-    texcoord.y += MLAA_PIXEL_SIZE.y * MLAASearchLength(searchTex, e.gr);
+    texcoord.y -= 2.0 * MLAA_PIXEL_SIZE.y;
+    texcoord.y += MLAA_PIXEL_SIZE.y * MLAASearchLength(searchTex, e.gr, 0.5, 0.5);
     return texcoord.y;
+}
+
+
+/** 
+ * Ok, we have the distance and both crossing edges. So, what are the areas
+ * at each side of current edge?
+ */
+float2 MLAAArea(MLAATexture2D areaTex, float2 distance, float e1, float e2) {
+    // Rounding prevents precision errors of bilinear filtering:
+    float2 texcoord = MLAA_MAX_DISTANCE * round(4.0 * float2(e1, e2)) + distance;
+    
+    // We do a scale and bias for mapping to texel space:
+    texcoord = MLAA_AREATEX_PIXEL_SIZE * texcoord + (0.5 * MLAA_AREATEX_PIXEL_SIZE);
+
+    // Do it!
+    return MLAASampleLevelZero(areaTex, texcoord).rg;
 }
 
 
@@ -484,7 +487,8 @@ float MLAASearchYDown(MLAATexture2D edgesTex, MLAATexture2D searchTex, float2 te
  * Blending Weight Calculation
  */
 float4 MLAABlendingWeightCalculationPS(float2 texcoord,
-                                       float4 offset[2],
+                                       float2 pixcoord,
+                                       float4 offset[3],
                                        MLAATexture2D edgesTex, 
                                        MLAATexture2D areaTex, 
                                        MLAATexture2D searchTex) {
@@ -498,9 +502,9 @@ float4 MLAABlendingWeightCalculationPS(float2 texcoord,
 
         // Find the distance to the left:
         float2 coords;
-        coords.x = MLAASearchXLeft(edgesTex, searchTex, offset[0].xy);
-        coords.y = texcoord.y - 0.25 * MLAA_PIXEL_SIZE.y; // @CROSSING_OFFSET
-        d.x = texcoord.x - coords.x;
+        coords.x = MLAASearchXLeft(edgesTex, searchTex, offset[0].xy, offset[2].x);
+        coords.y = offset[1].y; // offset[1].y = texcoord.y - 0.25 * MLAA_PIXEL_SIZE.y (@CROSSING_OFFSET)
+        d.x = coords.x;
 
         // Now fetch the left crossing edges, two at a time using bilinear
         // filtering. Sampling at -0.25 (see @CROSSING_OFFSET) enables to
@@ -508,15 +512,19 @@ float4 MLAABlendingWeightCalculationPS(float2 texcoord,
         float e1 = MLAASampleLevelZero(edgesTex, coords).r;
 
         // Find the distance to the right:
-        coords.x = MLAASearchXRight(edgesTex, searchTex, offset[0].zw);
-        d.y = coords.x - texcoord.x;
+        coords.x = MLAASearchXRight(edgesTex, searchTex, offset[0].zw, offset[2].y);
+        d.y = coords.x;
+
+        // We want the distances to be in pixel units (doing this here allow to
+        // better interleave arithmetic and memory accesses):
+        d = d / MLAA_PIXEL_SIZE.x - pixcoord.x;
+
+        // MLAAArea below needs a sqrt, as the areas texture is compressed 
+        // quadratically:
+        d = sqrt(abs(d));
 
         // Fetch the right crossing edges:
         float e2 = MLAASampleLevelZeroOffset(edgesTex, coords, int2(1, 0)).r;
-
-        // We want the distances to be in pixel units (this will be optimized 
-        // away with the multiplications inside of MLAAArea):
-        d *= 1.0 / MLAA_PIXEL_SIZE.x;
 
         // Ok, we know how this pattern looks like, now it is time for getting
         // the actual area:
@@ -529,22 +537,26 @@ float4 MLAABlendingWeightCalculationPS(float2 texcoord,
         
         // Find the distance to the top:
         float2 coords;
-        coords.y = MLAASearchYUp(edgesTex, searchTex, offset[1].xy);
-        coords.x = texcoord.x - 0.25 * MLAA_PIXEL_SIZE.x;
-        d.x = texcoord.y - coords.y;
+        coords.y = MLAASearchYUp(edgesTex, searchTex, offset[1].xy, offset[2].z);
+        coords.x = offset[0].x; // offset[1].x = texcoord.x - 0.25 * MLAA_PIXEL_SIZE.x;
+        d.x = coords.y;
 
         // Fetch the top crossing edges:
         float e1 = MLAASampleLevelZero(edgesTex, coords).g;
 
         // Find the distance to the bottom:
-        coords.y = MLAASearchYDown(edgesTex, searchTex, offset[1].zw);
-        d.y = coords.y - texcoord.y;
+        coords.y = MLAASearchYDown(edgesTex, searchTex, offset[1].zw, offset[2].w);
+        d.y = coords.y;
+
+        // We want the distances to be in pixel units:
+        d = d / MLAA_PIXEL_SIZE.y - pixcoord.y;
+
+        // MLAAArea below needs a sqrt, as the areas texture is compressed 
+        // quadratically:
+        d = sqrt(abs(d));
 
         // Fetch the bottom crossing edges:
         float e2 = MLAASampleLevelZeroOffset(edgesTex, coords, int2(0, 1)).g;
-
-        // We want the distances to be in pixel units:
-        d *= 1.0 / MLAA_PIXEL_SIZE.y;
 
         // Get the area for this direction:
         weights.ba = MLAAArea(areaTex, d, e1, e2);
@@ -575,7 +587,7 @@ float4 MLAANeighborhoodBlendingPS(float2 texcoord,
     // Is there any blending weight with a value greater than 0.0?
     float sum = dot(w, 1.0);
     if (sum < 1e-5)
-        discard;
+        return MLAASample(colorTex, texcoord);
 
     float4 color = 0.0;
 

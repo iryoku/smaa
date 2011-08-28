@@ -172,6 +172,7 @@ MLAA::MLAA(IDirect3DDevice9 *device, int width, int height, const ExternalStorag
     depthTexHandle = effect->GetParameterByName(NULL, "depthTex2D");
     edgesTexHandle = effect->GetParameterByName(NULL, "edgesTex2D");
     blendTexHandle = effect->GetParameterByName(NULL, "blendTex2D");
+    lumaEdgeDetectionHandle = effect->GetTechniqueByName("LumaEdgeDetection");
     colorEdgeDetectionHandle = effect->GetTechniqueByName("ColorEdgeDetection");
     depthEdgeDetectionHandle = effect->GetTechniqueByName("DepthEdgeDetection");
     blendWeightCalculationHandle = effect->GetTechniqueByName("BlendWeightCalculation");
@@ -198,22 +199,23 @@ MLAA::~MLAA() {
 }
 
 
-void MLAA::go(IDirect3DTexture9 *src,
+void MLAA::go(IDirect3DTexture9 *edges,
+              IDirect3DTexture9 *src, 
               IDirect3DSurface9 *dst,
-              IDirect3DTexture9 *depthResource) {
+              Input input) {
     HRESULT hr;
 
     // Setup the layout for our fullscreen quad.
     V(device->SetVertexDeclaration(vertexDeclaration));
 
     // And here we go!
-    edgesDetectionPass(src, depthResource);
+    edgesDetectionPass(edges, input);
     blendingWeightsCalculationPass();
     neighborhoodBlendingPass(src, dst);
 }
 
 
-void MLAA::edgesDetectionPass(IDirect3DTexture9 *src, IDirect3DTexture9 *depth) {
+void MLAA::edgesDetectionPass(IDirect3DTexture9 *edges, Input input) {
     HRESULT hr;
 
     // Set the render target and clear both the color and the stencil buffers.
@@ -223,16 +225,24 @@ void MLAA::edgesDetectionPass(IDirect3DTexture9 *src, IDirect3DTexture9 *depth) 
     // Setup variables.
     V(effect->SetFloat(thresholdHandle, threshold));
     V(effect->SetFloat(maxSearchStepsHandle, float(maxSearchSteps)));
-    V(effect->SetTexture(colorTexHandle, src));
-    V(effect->SetTexture(depthTexHandle, depth));
 
-    // Depending on the resources that are available, select the technique accordingly.
-    if (depth != NULL) {
-        V(effect->SetTechnique(depthEdgeDetectionHandle));
-    } else if (src != NULL) {
-        V(effect->SetTechnique(colorEdgeDetectionHandle));
-    } else
-        throw logic_error("unexpected error");
+    // Select the technique accordingly.
+    switch (input) {
+        case INPUT_LUMA:
+            V(effect->SetTexture(colorTexHandle, edges));
+            V(effect->SetTechnique(lumaEdgeDetectionHandle));
+            break;
+        case INPUT_COLOR:
+            V(effect->SetTexture(colorTexHandle, edges));
+            V(effect->SetTechnique(colorEdgeDetectionHandle));
+            break;
+        case INPUT_DEPTH:
+            V(effect->SetTexture(depthTexHandle, edges));
+            V(effect->SetTechnique(depthEdgeDetectionHandle));
+            break;
+        default:
+            throw logic_error("unexpected error");
+    }
 
     // Do it!
     UINT passes;
@@ -269,13 +279,6 @@ void MLAA::blendingWeightsCalculationPass() {
 
 void MLAA::neighborhoodBlendingPass(IDirect3DTexture9 *src, IDirect3DSurface9 *dst) { 
     HRESULT hr;
-
-    // We have to copy the src image to the destination, as we will only update the pixels marked as edges.
-    // So, we copy it first here, then update the pixels using the stencil buffer in this last pass.
-    IDirect3DSurface9 *srcSurface = NULL;
-    V(src->GetSurfaceLevel(0, &srcSurface));
-    V(device->StretchRect(srcSurface, NULL, dst, NULL, D3DTEXF_NONE));
-    SAFE_RELEASE(srcSurface);
 
     // Blah blah blah
     V(device->SetRenderTarget(0, dst));

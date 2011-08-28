@@ -52,10 +52,12 @@ class MLAA {
         enum Input { INPUT_LUMA, INPUT_COLOR, INPUT_DEPTH };
 
         /**
-         * If you have one or two spare DXGI_FORMAT_R8G8B8A8_UNORM render
-         * targets of the same size as the backbuffer, you may want to pass
-         * them in the 'storage' parameter. You may pass one or the two,
-         * depending on what you have available.
+         * If you have one or two spare render targets of the same size as the
+         * backbuffer, you may want to pass them in the 'storage' parameter.
+         * You may pass one or the two, depending on what you have available.
+         *
+         * A non-sRGB RG buffer (at least) is expected for storing edges.
+         * A non-sRGB RGBA buffer is expected for the blending weights.
          *
          * By default, two render targets will be created for storing
          * intermediate calculations.
@@ -123,8 +125,7 @@ class MLAA {
     private:
         void edgesDetectionPass(ID3D10DepthStencilView *depthStencil, Input input);
         void blendingWeightsCalculationPass(ID3D10DepthStencilView *depthStencil);
-        void neighborhoodBlendingPass(ID3D10ShaderResourceView *src, ID3D10RenderTargetView *dst, ID3D10DepthStencilView *depthStencil);
-        void copy(ID3D10ShaderResourceView *src, ID3D10RenderTargetView *dst);
+        void neighborhoodBlendingPass(ID3D10RenderTargetView *dst, ID3D10DepthStencilView *depthStencil);
 
         ID3D10Device *device;
         ID3D10Effect *effect;

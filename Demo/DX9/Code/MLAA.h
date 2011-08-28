@@ -50,6 +50,8 @@ class MLAA {
     public:
         class ExternalStorage;
 
+        enum Input { INPUT_LUMA, INPUT_COLOR, INPUT_DEPTH };
+
         /**
          * If you have one or two spare render targets of the same size as the
          * backbuffer, you may want to pass them in the 'storage' parameter.
@@ -66,12 +68,13 @@ class MLAA {
         ~MLAA();
 
         /**
-         * MLAA processing using color-based edge detection
-         * ************************************************
-         *
          * Processes input texture 'src', storing the antialiased image into
          * 'dst'. Note that 'src' and 'dst' should be associated to different
          * buffers.
+         *
+         * 'edges' should be the input for using for edge detection: either a
+         * depth buffer or a non-sRGB color buffer. Input must be set 
+         * accordingly.
          *
          * IMPORTANT: the stencil component of currently bound depth-stencil
          * buffer will be used to mask the zones to be processed. It is assumed
@@ -82,24 +85,11 @@ class MLAA {
          * from this function (the render target, the input layout, the 
          * depth-stencil and blend states...)
          */
-        void go(IDirect3DTexture9 *src, 
-                IDirect3DSurface9 *dst) { go(src, dst, NULL); }
-
-        /**
-         * MLAA processing using depth-based edge detection
-         * ************************************************
-         *
-         * Same as above, but in this case a depth-based edge detection will be
-         * performed.
-         *
-         * 'depth' should contain the linearized depth buffer to be used for
-         * edge detection. Some people seem to work better with non-linearized
-         * buffers, so you may want to try that as well.
-         */
-        void go(IDirect3DTexture9 *src, 
+        void go(IDirect3DTexture9 *edges,
+                IDirect3DTexture9 *src, 
                 IDirect3DSurface9 *dst,
-                IDirect3DTexture9 *depth);
-        
+                Input input);
+
         /**
          * Maximum length to search for patterns. Each step is two pixels wide.
          */
@@ -131,7 +121,7 @@ class MLAA {
         };
 
     private:
-        void edgesDetectionPass(IDirect3DTexture9 *src, IDirect3DTexture9 *depth);
+        void edgesDetectionPass(IDirect3DTexture9 *edges, Input input);
         void blendingWeightsCalculationPass();
         void neighborhoodBlendingPass(IDirect3DTexture9 *src, IDirect3DSurface9 *dst);
         void quad(int width, int height);
@@ -155,7 +145,7 @@ class MLAA {
         D3DXHANDLE areaTexHandle, searchTexHandle;
         D3DXHANDLE colorTexHandle, depthTexHandle;
         D3DXHANDLE edgesTexHandle, blendTexHandle;
-        D3DXHANDLE colorEdgeDetectionHandle, depthEdgeDetectionHandle,
+        D3DXHANDLE lumaEdgeDetectionHandle, colorEdgeDetectionHandle, depthEdgeDetectionHandle,
                    blendWeightCalculationHandle, neighborhoodBlendingHandle;
         
         int maxSearchSteps;
