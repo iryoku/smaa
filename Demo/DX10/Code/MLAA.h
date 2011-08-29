@@ -66,24 +66,24 @@ class MLAA {
         ~MLAA();
 
         /**
-         * 'srcEdges' should be the input for using for edge detection:
+         * 'edgesSRV' should be the input for using for edge detection:
          *    either a depth buffer or a non-sRGB color buffer.
          *
-         * 'srcSRGB' should be a sRGB view of the input image'. 
+         * 'srcSRV' should be a sRGB view of the input image'.
          *
-         * IMPORTANT: The stencil component of 'depthStencil' is used to mask
-         * the zones to be processed. It is assumed to be already cleared to 
-         * zero when this function is called. It is not done here because it is
-         * usually cleared together with the depth.
+         * IMPORTANT: The stencil component of 'dsv' is used to mask zones to
+         * be processed. It is assumed to be already cleared to zero when this
+         * function is called. It is not done here because it is usually
+         * cleared together with the depth.
          *
          * The viewport, the binded render target and the input layout is saved
          * and restored accordingly. However, we modify but not restore the
          * depth-stencil and blend states.
          */
-        void go(ID3D10ShaderResourceView *srcEdges,
-                ID3D10ShaderResourceView *srcSRGB,
-                ID3D10RenderTargetView *dst,
-                ID3D10DepthStencilView *depthStencil, 
+        void go(ID3D10ShaderResourceView *edgesSRV,
+                ID3D10ShaderResourceView *srcSRV,
+                ID3D10RenderTargetView *dstRTV,
+                ID3D10DepthStencilView *dsv, 
                 Input input);
 
         /**
@@ -123,9 +123,11 @@ class MLAA {
         };
 
     private:
-        void edgesDetectionPass(ID3D10DepthStencilView *depthStencil, Input input);
-        void blendingWeightsCalculationPass(ID3D10DepthStencilView *depthStencil);
-        void neighborhoodBlendingPass(ID3D10RenderTargetView *dst, ID3D10DepthStencilView *depthStencil);
+        void loadAreaTex();
+        void loadSearchTex();
+        void edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input);
+        void blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv);
+        void neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthStencilView *dsv);
 
         ID3D10Device *device;
         ID3D10Effect *effect;
@@ -133,15 +135,18 @@ class MLAA {
 
         RenderTarget *edgeRenderTarget;
         RenderTarget *blendRenderTarget;
-        ID3D10ShaderResourceView *areaTexView;
-        ID3D10ShaderResourceView *searchTexView;
+
+        ID3D10Texture2D *areaTex;
+        ID3D10ShaderResourceView *areaTexSRV;
+        ID3D10Texture2D *searchTex;
+        ID3D10ShaderResourceView *searchTexSRV;
 
         ID3D10EffectScalarVariable *thresholdVariable;
         ID3D10EffectScalarVariable *maxSearchStepsVariable;
         ID3D10EffectShaderResourceVariable *areaTexVariable, *searchTexVariable,
                                            *colorTexVariable, *colorGammaTexVariable, *depthTexVariable,
                                            *edgesTexVariable, *blendTexVariable;
-        
+
         ID3D10EffectTechnique *lumaEdgeDetectionTechnique,
                               *colorEdgeDetectionTechnique,
                               *depthEdgeDetectionTechnique,

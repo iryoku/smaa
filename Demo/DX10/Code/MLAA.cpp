@@ -39,6 +39,8 @@
 
 #include <sstream>
 #include "MLAA.h"
+#include "SearchTex.h"
+#include "AreaTex.h"
 using namespace std;
 
 
@@ -126,22 +128,16 @@ MLAA::MLAA(ID3D10Device *device, int width, int height, const ExternalStorage &s
         edgeRenderTarget = new RenderTarget(device, storage.edgesRTV, storage.edgesSRV);
     else
         edgeRenderTarget = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
-    
+
     // Same for blending weights.
     if (storage.weightsRTV != NULL && storage.weightsSRV != NULL)
         blendRenderTarget = new RenderTarget(device, storage.weightsRTV, storage.weightsSRV);
     else
         blendRenderTarget = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
 
-    // Load the pre-computed areas texture.
-    D3DX10_IMAGE_LOAD_INFO info = D3DX10_IMAGE_LOAD_INFO();
-    info.MipLevels = 1;
-    info.Format = DXGI_FORMAT_R8G8_UNORM;
-    V(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(NULL), L"AreaTex.dds", &info, NULL, &areaTexView, NULL));
-    
-    // Load the pre-computed search length texture.
-    info.Format = DXGI_FORMAT_R8_UNORM;
-    V(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(NULL), L"SearchTex.dds", &info, NULL, &searchTexView, NULL));
+    // Load the pre-computed textures.
+    loadAreaTex();
+    loadSearchTex();
 
     // Create some handles for techniques and variables.
     thresholdVariable = effect->GetVariableByName("threshold")->AsScalar();
@@ -166,16 +162,18 @@ MLAA::~MLAA() {
     SAFE_DELETE(quad);
     SAFE_DELETE(edgeRenderTarget);
     SAFE_DELETE(blendRenderTarget);
-    SAFE_RELEASE(areaTexView);
-    SAFE_RELEASE(searchTexView);
+    SAFE_RELEASE(areaTex);
+    SAFE_RELEASE(areaTexSRV);
+    SAFE_RELEASE(searchTex);
+    SAFE_RELEASE(searchTexSRV);
 }
 
 
- void MLAA::go(ID3D10ShaderResourceView *srcEdges,
-               ID3D10ShaderResourceView *srcSRGB,
-               ID3D10RenderTargetView *dst,
-               ID3D10DepthStencilView *depthStencil, 
-               Input input) {
+void MLAA::go(ID3D10ShaderResourceView *edgesSRV,
+              ID3D10ShaderResourceView *srcSRV,
+              ID3D10RenderTargetView *dstRTV,
+              ID3D10DepthStencilView *dsv, 
+              Input input) {
     HRESULT hr;
 
     // Save the state.
@@ -198,25 +196,84 @@ MLAA::~MLAA() {
     // Setup variables.
     V(thresholdVariable->SetFloat(threshold));
     V(maxSearchStepsVariable->SetFloat(float(maxSearchSteps)));
-    V(colorTexVariable->SetResource(srcSRGB));
+    V(colorTexVariable->SetResource(srcSRV));
     V(edgesTexVariable->SetResource(*edgeRenderTarget));
     V(blendTexVariable->SetResource(*blendRenderTarget));
-    V(areaTexVariable->SetResource(areaTexView));
-    V(searchTexVariable->SetResource(searchTexView));
+    V(areaTexVariable->SetResource(areaTexSRV));
+    V(searchTexVariable->SetResource(searchTexSRV));
     if (input == INPUT_DEPTH) {
-        V(depthTexVariable->SetResource(srcEdges));
+        V(depthTexVariable->SetResource(edgesSRV));
     } else {
-        V(colorGammaTexVariable->SetResource(srcEdges));
+        V(colorGammaTexVariable->SetResource(edgesSRV));
     }
 
     // And here we go!
-    edgesDetectionPass(depthStencil, input);
-    blendingWeightsCalculationPass(depthStencil);
-    neighborhoodBlendingPass(dst, depthStencil);
+    edgesDetectionPass(dsv, input);
+    blendingWeightsCalculationPass(dsv);
+    neighborhoodBlendingPass(dstRTV, dsv);
 }
 
 
-void MLAA::edgesDetectionPass(ID3D10DepthStencilView *depthStencil, Input input) {
+void MLAA::loadAreaTex() {
+    HRESULT hr;
+
+    D3D10_SUBRESOURCE_DATA data;
+    data.pSysMem = areaTexBytes;
+    data.SysMemPitch = AREATEX_PITCH;
+    data.SysMemSlicePitch = 0;
+
+    D3D10_TEXTURE2D_DESC descTex;
+    descTex.Width = AREATEX_WIDTH;
+    descTex.Height = AREATEX_HEIGHT;
+    descTex.MipLevels = descTex.ArraySize = 1;
+    descTex.Format = DXGI_FORMAT_R8G8_UNORM;
+    descTex.SampleDesc.Count = 1;
+    descTex.SampleDesc.Quality = 0;
+    descTex.Usage = D3D10_USAGE_DEFAULT;
+    descTex.BindFlags = D3D10_BIND_SHADER_RESOURCE;
+    descTex.CPUAccessFlags = 0;
+    descTex.MiscFlags = 0;
+    V(device->CreateTexture2D(&descTex, &data, &areaTex));
+
+    D3D10_SHADER_RESOURCE_VIEW_DESC descSRV;
+    descSRV.Format = descTex.Format;
+    descSRV.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
+    descSRV.Texture2D.MostDetailedMip = 0;
+    descSRV.Texture2D.MipLevels = 1;
+    V(device->CreateShaderResourceView(areaTex, &descSRV, &areaTexSRV));
+}
+
+void MLAA::loadSearchTex() {
+    HRESULT hr;
+
+    D3D10_SUBRESOURCE_DATA data;
+    data.pSysMem = searchTexBytes;
+    data.SysMemPitch = SEARCHTEX_PITCH;
+    data.SysMemSlicePitch = 0;
+
+    D3D10_TEXTURE2D_DESC descTex;
+    descTex.Width = SEARCHTEX_WIDTH;
+    descTex.Height = SEARCHTEX_HEIGHT;
+    descTex.MipLevels = descTex.ArraySize = 1;
+    descTex.Format = DXGI_FORMAT_R8_UNORM;
+    descTex.SampleDesc.Count = 1;
+    descTex.SampleDesc.Quality = 0;
+    descTex.Usage = D3D10_USAGE_DEFAULT;
+    descTex.BindFlags = D3D10_BIND_SHADER_RESOURCE;
+    descTex.CPUAccessFlags = 0;
+    descTex.MiscFlags = 0;
+    V(device->CreateTexture2D(&descTex, &data, &searchTex));
+
+    D3D10_SHADER_RESOURCE_VIEW_DESC descSRV;
+    descSRV.Format = descTex.Format;
+    descSRV.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
+    descSRV.Texture2D.MostDetailedMip = 0;
+    descSRV.Texture2D.MipLevels = 1;
+    V(device->CreateShaderResourceView(searchTex, &descSRV, &searchTexSRV));
+}
+
+
+void MLAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
     HRESULT hr;
 
     // Select the technique accordingly.
@@ -233,33 +290,33 @@ void MLAA::edgesDetectionPass(ID3D10DepthStencilView *depthStencil, Input input)
     }
 
     // Do it!
-    device->OMSetRenderTargets(1, *edgeRenderTarget, depthStencil);
+    device->OMSetRenderTargets(1, *edgeRenderTarget, dsv);
     quad->draw();
     device->OMSetRenderTargets(0, NULL, NULL);
 }
 
 
-void MLAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *depthStencil) {
+void MLAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv) {
     HRESULT hr;
 
     // Setup the technique (again).
     V(blendWeightCalculationTechnique->GetPassByIndex(0)->Apply(0));
 
     // And here we go!
-    device->OMSetRenderTargets(1, *blendRenderTarget, depthStencil);
+    device->OMSetRenderTargets(1, *blendRenderTarget, dsv);
     quad->draw();
     device->OMSetRenderTargets(0, NULL, NULL);
 }
 
 
-void MLAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dst, ID3D10DepthStencilView *depthStencil) {
+void MLAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthStencilView *dsv) {
     HRESULT hr;
 
     // Setup the technique (once again).
     V(neighborhoodBlendingTechnique->GetPassByIndex(0)->Apply(0));
     
     // Do the final pass!
-    device->OMSetRenderTargets(1, &dst, depthStencil);
+    device->OMSetRenderTargets(1, &dstRTV, dsv);
     quad->draw();
     device->OMSetRenderTargets(0, NULL, NULL);
 }

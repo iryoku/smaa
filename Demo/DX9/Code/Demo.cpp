@@ -52,12 +52,12 @@ ID3DXFont *font = NULL;
 Timer *timer = NULL;
 MLAA *mlaa = NULL;
 IDirect3DSurface9 *backbufferSurface = NULL;
-IDirect3DTexture9 *finalbufferColorTexture = NULL;
+IDirect3DTexture9 *finalbufferColorTex = NULL;
 IDirect3DSurface9 *finalbufferColorSurface = NULL;
-IDirect3DTexture9 *finalbufferDepthTexture = NULL;
+IDirect3DTexture9 *finalbufferDepthTex = NULL;
 IDirect3DSurface9 *finalbufferDepthSurface = NULL;
-IDirect3DTexture9 *colorTexture = NULL;
-IDirect3DTexture9 *depthTexture = NULL;
+IDirect3DTexture9 *colorTex = NULL;
+IDirect3DTexture9 *depthTex = NULL;
 ID3DXSprite *sprite = NULL;
 CDXUTTextHelper *txtHelper = NULL;
 
@@ -110,17 +110,17 @@ HRESULT CALLBACK onResetDevice(IDirect3DDevice9 *device, const D3DSURFACE_DESC *
 
     V(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbufferSurface));
 
-    V(device->CreateTexture(desc->Width, desc->Height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &finalbufferColorTexture, NULL));
-    V(finalbufferColorTexture->GetSurfaceLevel(0, &finalbufferColorSurface));
+    V(device->CreateTexture(desc->Width, desc->Height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &finalbufferColorTex, NULL));
+    V(finalbufferColorTex->GetSurfaceLevel(0, &finalbufferColorSurface));
 
-    V(device->CreateTexture(desc->Width, desc->Height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_R32F, D3DPOOL_DEFAULT, &finalbufferDepthTexture, NULL));
-    V(finalbufferDepthTexture->GetSurfaceLevel(0, &finalbufferDepthSurface));
+    V(device->CreateTexture(desc->Width, desc->Height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_R32F, D3DPOOL_DEFAULT, &finalbufferDepthTex, NULL));
+    V(finalbufferDepthTex->GetSurfaceLevel(0, &finalbufferDepthSurface));
 
     D3DXIMAGE_INFO info;
     V(D3DXGetImageInfoFromResource(NULL, L"Unigine01.png", &info));
-    V(D3DXCreateTextureFromResourceEx(device, NULL, L"Unigine01.png", info.Width, info.Height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &colorTexture));
+    V(D3DXCreateTextureFromResourceEx(device, NULL, L"Unigine01.png", info.Width, info.Height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &colorTex));
     V(D3DXGetImageInfoFromResource(NULL, L"Unigine01.dds", &info));
-    V(D3DXCreateTextureFromResourceEx(device, NULL, L"Unigine01.dds", info.Width, info.Height, 1, 0, D3DFMT_R32F, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &depthTexture));
+    V(D3DXCreateTextureFromResourceEx(device, NULL, L"Unigine01.dds", info.Width, info.Height, 1, 0, D3DFMT_R32F, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &depthTex));
 
     V_RETURN(D3DXCreateSprite(device, &sprite));
     txtHelper = new CDXUTTextHelper(font, sprite, NULL, NULL, 15);
@@ -138,12 +138,12 @@ void CALLBACK onLostDevice(void *userContext) {
     SAFE_DELETE(timer);
     SAFE_DELETE(mlaa);
     SAFE_RELEASE(backbufferSurface);
-    SAFE_RELEASE(finalbufferColorTexture);
+    SAFE_RELEASE(finalbufferColorTex);
     SAFE_RELEASE(finalbufferColorSurface);
-    SAFE_RELEASE(finalbufferDepthTexture);
+    SAFE_RELEASE(finalbufferDepthTex);
     SAFE_RELEASE(finalbufferDepthSurface);
-    SAFE_RELEASE(colorTexture);
-    SAFE_RELEASE(depthTexture);
+    SAFE_RELEASE(colorTex);
+    SAFE_RELEASE(depthTex);
     SAFE_RELEASE(sprite);
     SAFE_DELETE(txtHelper);
 }
@@ -173,7 +173,7 @@ void mainPass(IDirect3DDevice9 *device) {
 
     // A dummy copy over here.
     IDirect3DSurface9 *colorSurface = NULL;
-    V(colorTexture->GetSurfaceLevel(0, &colorSurface));
+    V(colorTex->GetSurfaceLevel(0, &colorSurface));
     D3DSURFACE_DESC desc;
     colorSurface->GetDesc(&desc);
     const D3DSURFACE_DESC *backbufferDesc = DXUTGetD3D9BackBufferSurfaceDesc();
@@ -183,7 +183,7 @@ void mainPass(IDirect3DDevice9 *device) {
 
     // And another one over here.
     IDirect3DSurface9 *depthSurface = NULL;
-    V(depthTexture->GetSurfaceLevel(0, &depthSurface));
+    V(depthTex->GetSurfaceLevel(0, &depthSurface));
     V(device->StretchRect(depthSurface, &rect, finalbufferDepthSurface, &rect, D3DTEXF_POINT));
     SAFE_RELEASE(depthSurface);
 }
@@ -208,10 +208,10 @@ void CALLBACK onFrameRender(IDirect3DDevice9 *device, double time, float elapsed
             switch (input) {
                 case MLAA::INPUT_LUMA:
                 case MLAA::INPUT_COLOR:
-                    mlaa->go(finalbufferColorTexture, finalbufferColorTexture, backbufferSurface, input);
+                    mlaa->go(finalbufferColorTex, finalbufferColorTex, backbufferSurface, input);
                     break;
                 case MLAA::INPUT_DEPTH:
-                    mlaa->go(finalbufferDepthTexture, finalbufferColorTexture, backbufferSurface, input);
+                    mlaa->go(finalbufferDepthTex, finalbufferColorTex, backbufferSurface, input);
                     break;
             }
         }
@@ -242,12 +242,17 @@ LRESULT CALLBACK msgProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, bool
 
 
 void CALLBACK onKeyboard(UINT nchar, bool keyDown, bool altDown, void *userContext) {
+    if (keyDown)
     switch (nchar) {
         case VK_TAB: {
             if (keyDown)
                 showHud = !showHud;
             break;
         }
+        case 'X':
+            hud.GetCheckBox(IDC_PROFILE)->SetChecked(!hud.GetCheckBox(IDC_PROFILE)->GetChecked());
+            timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
+            break;
     }
 }
 

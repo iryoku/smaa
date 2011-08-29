@@ -9,8 +9,7 @@ Checkout http://www.iryoku.com/mlaa for more info!
 Usage
 -----
 
-Checkout [MLAA.h](https://github.com/iryoku/jimenez-mlaa/blob/master/MLAA.h) for integration info. The directories [DX9](https://github.com/iryoku/jimenez-mlaa/blob/master/Demo/DX9) and [DX10](https://github.com/iryoku/jimenez-mlaa/blob/master/Demo/DX10) contain
-integration examples for DirectX 9 and 10 respectively.
+See [MLAA.h](https://github.com/iryoku/jimenez-mlaa/blob/master/MLAA.h) for integration info. You'll also need some precomputed textures, which can be found as C++ headers ([Textures/AreaTex.h](https://github.com/iryoku/jimenez-mlaa/blob/master/Textures/AreaTex.h) and [Textures/SearchTex.h](https://github.com/iryoku/jimenez-mlaa/blob/master/Textures/SearchTex.h)), or as regular DDS files (see [Textures](https://github.com/iryoku/jimenez-mlaa/blob/master/Textures)). The directories [DX9](https://github.com/iryoku/jimenez-mlaa/blob/master/Demo/DX9) and [DX10](https://github.com/iryoku/jimenez-mlaa/blob/master/Demo/DX10) contain integration examples for DirectX 9 and 10 respectively.
 
 
 Bug Tracker

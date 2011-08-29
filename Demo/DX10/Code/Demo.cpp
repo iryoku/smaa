@@ -65,8 +65,8 @@ BackbufferRenderTarget *backbufferRenderTarget = NULL;
 RenderTarget *finalRenderTargetSRGB = NULL;
 RenderTarget *finalRenderTarget = NULL;
 
-ID3D10ShaderResourceView *testView = NULL;
-ID3D10ShaderResourceView *testDepthView = NULL;
+ID3D10ShaderResourceView *testColorSRV = NULL;
+ID3D10ShaderResourceView *testDepthSRV = NULL;
 
 bool showHud = true;
 
@@ -115,11 +115,11 @@ void loadImage() {
 
     WCHAR *text = hud.GetComboBox(IDC_INPUT)->GetSelectedItem()->strText;
     if (int(hud.GetComboBox(IDC_INPUT)->GetSelectedData()) != -1) { // ... then, we have to search for it in the executable resources
-        SAFE_RELEASE(testView);
-        SAFE_RELEASE(testDepthView);
+        SAFE_RELEASE(testColorSRV);
+        SAFE_RELEASE(testDepthSRV);
 
         // Load color
-        V(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), text, &loadInfo, NULL, &testView, NULL));
+        V(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), text, &loadInfo, NULL, &testColorSRV, NULL));
 
         // Try to load depth
         loadInfo.Format = DXGI_FORMAT_R32_FLOAT;
@@ -127,10 +127,10 @@ void loadImage() {
 
         wstring path = wstring(text).substr(0, wstring(text).find_last_of('.')) + L".dds";
         if (FindResource(GetModuleHandle(NULL), path.c_str(), RT_RCDATA) != NULL)
-            V(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), path.c_str(), &loadInfo, NULL, &testDepthView, NULL));
+            V(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), path.c_str(), &loadInfo, NULL, &testDepthSRV, NULL));
     } else { // ... search for it in the file system
-        ID3D10ShaderResourceView *view= NULL;
-        if (FAILED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), text, &loadInfo, NULL, &view, NULL))) {
+        ID3D10ShaderResourceView *colorSRV= NULL;
+        if (FAILED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), text, &loadInfo, NULL, &colorSRV, NULL))) {
             MessageBox(NULL, L"Unable to open selected file", L"ERROR", MB_OK | MB_SETFOREGROUND | MB_TOPMOST);
             hud.GetComboBox(IDC_INPUT)->RemoveItem(hud.GetComboBox(IDC_INPUT)->FindItem(text));
             if (commandlineOptions.src != L"") {
@@ -140,15 +140,15 @@ void loadImage() {
             }
             return;
         } else {
-            SAFE_RELEASE(testView);
-            SAFE_RELEASE(testDepthView);
+            SAFE_RELEASE(testColorSRV);
+            SAFE_RELEASE(testDepthSRV);
 
-            testView = view;
+            testColorSRV = colorSRV;
 
-            ID3D10ShaderResourceView *depthView;
+            ID3D10ShaderResourceView *depthSRV;
             wstring path = wstring(text).substr(0, wstring(text).find_last_of('.')) + L".dds";
-            if (SUCCEEDED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), path.c_str(), &loadInfo, NULL, &depthView, NULL)))
-                testDepthView = depthView;
+            if (SUCCEEDED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), path.c_str(), &loadInfo, NULL, &depthSRV, NULL)))
+                testDepthSRV = depthSRV;
         }
     }
 
@@ -156,7 +156,7 @@ void loadImage() {
     hud.GetComboBox(IDC_DETECTIONMODE)->RemoveAllItems();
     hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
     hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Color edge det.", (LPVOID) 1);
-    if (testDepthView != NULL)
+    if (testDepthSRV != NULL)
         hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
     hud.GetComboBox(IDC_DETECTIONMODE)->SetSelectedByIndex(selectedIndex);
 }
@@ -164,7 +164,7 @@ void loadImage() {
 
 void resizeWindow() {
     ID3D10Texture2D *texture2D;
-    testView->GetResource(reinterpret_cast<ID3D10Resource **>(&texture2D));
+    testColorSRV->GetResource(reinterpret_cast<ID3D10Resource **>(&texture2D));
     D3D10_TEXTURE2D_DESC desc;
     texture2D->GetDesc(&desc);
     texture2D->Release();
@@ -211,8 +211,8 @@ void CALLBACK onDestroyDevice(void *context) {
 
     Copy::release();
     
-    SAFE_RELEASE(testView);
-    SAFE_RELEASE(testDepthView);
+    SAFE_RELEASE(testColorSRV);
+    SAFE_RELEASE(testDepthSRV);
 }
 
 
@@ -338,9 +338,9 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
     device->ClearDepthStencilView(*depthStencil, D3D10_CLEAR_STENCIL, 1.0, 0);
 
     // This is our simulated main render-to-backbuffer pass.
-    D3D10_VIEWPORT viewport = Utils::viewportFromView(testView);
-    Copy::go(testView, *finalRenderTargetSRGB, &viewport);
-    Copy::go(testDepthView, *depthBufferRenderTarget, &viewport);
+    D3D10_VIEWPORT viewport = Utils::viewportFromView(testColorSRV);
+    Copy::go(testColorSRV, *finalRenderTargetSRGB, &viewport);
+    Copy::go(testDepthSRV, *depthBufferRenderTarget, &viewport);
 
     // Run MLAA
     if (hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked()) {

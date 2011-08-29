@@ -101,6 +101,12 @@
     <ClInclude Include="..\..\MLAA.h">
       <Filter>Shaders</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\SearchTex.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\AreaTex.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Shaders\MLAA.fx">

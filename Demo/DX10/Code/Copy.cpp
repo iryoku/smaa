@@ -69,20 +69,20 @@ void Copy::release() {
 }
 
 
-void Copy::go(ID3D10ShaderResourceView *src, ID3D10RenderTargetView *dst, D3D10_VIEWPORT *viewport) {
+void Copy::go(ID3D10ShaderResourceView *srcSRV, ID3D10RenderTargetView *dstRTV, D3D10_VIEWPORT *viewport) {
     SaveViewportsScope saveViewport(device);
     SaveRenderTargetsScope saveRenderTargets(device);
     SaveInputLayoutScope saveInputLayout(device);
 
-    D3D10_VIEWPORT dstViewport = Utils::viewportFromView(dst);
+    D3D10_VIEWPORT dstViewport = Utils::viewportFromView(dstRTV);
     device->RSSetViewports(1, viewport != NULL? viewport : &dstViewport);
 
     quad->setInputLayout();
     
     HRESULT hr;
-    V(effect->GetVariableByName("tex")->AsShaderResource()->SetResource(src));
+    V(effect->GetVariableByName("tex")->AsShaderResource()->SetResource(srcSRV));
     V(effect->GetTechniqueByName("Copy")->GetPassByIndex(0)->Apply(0));
-    device->OMSetRenderTargets(1, &dst, NULL);
+    device->OMSetRenderTargets(1, &dstRTV, NULL);
     quad->draw();
     device->OMSetRenderTargets(0, NULL, NULL);
 }

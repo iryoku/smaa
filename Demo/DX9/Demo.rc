@@ -3,8 +3,6 @@
 MLAA.fx RCDATA Shaders\MLAA.fx
 
 MLAA.h RCDATA "..\\..\\MLAA.h"
-AreaTex.dds RCDATA "..\\..\\AreaTex.dds"
-SearchTex.dds RCDATA "..\\..\\SearchTex.dds"
 
 Unigine01.png RCDATA Media\Images\Unigine01.png
 Unigine01.dds RCDATA Media\Images\Unigine01.dds

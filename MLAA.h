@@ -82,7 +82,8 @@
  *   frame. Do not forget to clear the alpha channel!
  *
  * - The next step is loading the two supporting precalculated textures,
- *   'areaTex' (RG) and 'searchTex' (R). They are needed for the 
+ *   'areaTex' and 'searchTex'. You'll find them in the 'Textures' folder as
+ *   C++ headers and also as regular DDS files. They'll be needed for the
  *   'MLAABlendingWeightCalculation' pass.
  *
  * - In DX9, all samplers must be set to linear filtering and clamp, with the
@@ -483,7 +484,11 @@ float2 MLAAArea(MLAATexture2D areaTex, float2 distance, float e1, float e2) {
     texcoord = MLAA_AREATEX_PIXEL_SIZE * texcoord + (0.5 * MLAA_AREATEX_PIXEL_SIZE);
 
     // Do it!
+    #if MLAA_HLSL_3 == 1
+    return MLAASampleLevelZero(areaTex, texcoord).ra;
+    #else
     return MLAASampleLevelZero(areaTex, texcoord).rg;
+    #endif
 }
 
 
@@ -590,8 +595,9 @@ float4 MLAANeighborhoodBlendingPS(float2 texcoord,
 
     // Is there any blending weight with a value greater than 0.0?
     float sum = dot(w, 1.0);
+    [branch]
     if (sum < 1e-5)
-        return MLAASample(colorTex, texcoord);
+        return MLAASampleLevelZero(colorTex, texcoord);
     else {
         float4 color = 0.0;
 
@@ -599,18 +605,18 @@ float4 MLAANeighborhoodBlendingPS(float2 texcoord,
         // pixel:
         #if MLAA_HLSL_4 == 1 || MLAA_DIRECTX9_LINEAR_BLEND == 0
             float4 coords = MLAAMad(float4( 0.0, -a.r, 0.0,  a.g), MLAA_PIXEL_SIZE.yyyy, texcoord.xyxy);
-            color = MLAAMad(MLAASample(colorTex, coords.xy), w.r, color);
-            color = MLAAMad(MLAASample(colorTex, coords.zw), w.g, color);
+            color = MLAAMad(MLAASampleLevelZero(colorTex, coords.xy), w.r, color);
+            color = MLAAMad(MLAASampleLevelZero(colorTex, coords.zw), w.g, color);
 
             coords = MLAAMad(float4(-a.b,  0.0, a.a,  0.0), MLAA_PIXEL_SIZE.xxxx, texcoord.xyxy);
-            color = MLAAMad(MLAASample(colorTex, coords.xy), w.b, color);
-            color = MLAAMad(MLAASample(colorTex, coords.zw), w.a, color);
+            color = MLAAMad(MLAASampleLevelZero(colorTex, coords.xy), w.b, color);
+            color = MLAAMad(MLAASampleLevelZero(colorTex, coords.zw), w.a, color);
         #else
-            float4 C = MLAASample(colorTex, texcoord);
-            float4 Cleft = MLAASample(colorTex, offset[0].xy);
-            float4 Ctop = MLAASample(colorTex, offset[0].zw);
-            float4 Cright = MLAASample(colorTex, offset[1].xy);
-            float4 Cbottom = MLAASample(colorTex, offset[1].zw);
+            float4 C = MLAASampleLevelZero(colorTex, texcoord);
+            float4 Cleft = MLAASampleLevelZero(colorTex, offset[0].xy);
+            float4 Ctop = MLAASampleLevelZero(colorTex, offset[0].zw);
+            float4 Cright = MLAASampleLevelZero(colorTex, offset[1].xy);
+            float4 Cbottom = MLAASampleLevelZero(colorTex, offset[1].zw);
             color = MLAAMad(lerp(C, Ctop, a.r), w.r, color);
             color = MLAAMad(lerp(C, Cbottom, a.g), w.g, color);
             color = MLAAMad(lerp(C, Cleft, a.b), w.b, color);

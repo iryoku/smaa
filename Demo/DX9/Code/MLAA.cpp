@@ -39,6 +39,8 @@
 
 #include <sstream>
 #include "MLAA.h"
+#include "SearchTex.h"
+#include "AreaTex.h"
 using namespace std;
 
 
@@ -132,36 +134,30 @@ MLAA::MLAA(IDirect3DDevice9 *device, int width, int height, const ExternalStorag
     V(device->CreateVertexDeclaration(vertexElements , &vertexDeclaration));
 
     // If storage for the edges is not specified we will create it.
-    if (storage.edgeTexture != NULL && storage.edgeSurface != NULL) {
-        edgeTexture = storage.edgeTexture;
+    if (storage.edgeTex != NULL && storage.edgeSurface != NULL) {
+        edgeTex = storage.edgeTex;
         edgeSurface = storage.edgeSurface;
         releaseEdgeResources = false;
     } else {
-        V(device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &edgeTexture, NULL));
-        V(edgeTexture->GetSurfaceLevel(0, &edgeSurface));
+        V(device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &edgeTex, NULL));
+        V(edgeTex->GetSurfaceLevel(0, &edgeSurface));
         releaseEdgeResources = true;
     }
 
     // Same for blending weights.
-    if (storage.blendTexture != NULL && storage.blendSurface != NULL) {
-        blendTexture = storage.blendTexture;
+    if (storage.blendTex != NULL && storage.blendSurface != NULL) {
+        blendTex = storage.blendTex;
         blendSurface = storage.blendSurface;
         releaseBlendResources = false;
     } else {
-        V(device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &blendTexture, NULL));
-        V(blendTexture->GetSurfaceLevel(0, &blendSurface));
+        V(device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &blendTex, NULL));
+        V(blendTex->GetSurfaceLevel(0, &blendSurface));
         releaseBlendResources = true;
     }
 
-    // Load the pre-computed areas texture.
-    // For some obscure reason, if if we use D3DX_DEFAULT as the width and height parameters of D3DXCreateTextureFromResourceEx, the texture gets scaled down.
-    D3DXIMAGE_INFO info;
-    V(D3DXGetImageInfoFromResource(NULL, L"AreaTex.dds", &info));
-    V(D3DXCreateTextureFromResourceEx(device, NULL, L"AreaTex.dds", info.Width, info.Height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &areaTexture));
-
-    // Load the pre-computed search length texture.
-    V(D3DXGetImageInfoFromResource(NULL, L"SearchTex.dds", &info));
-    V(D3DXCreateTextureFromResourceEx(device, NULL, L"SearchTex.dds", info.Width, info.Height, 1, 0, D3DFMT_L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &searchTexture));
+    // Load the precomputed textures.
+    loadAreaTex();
+    loadSearchTex();
 
     // Create some handles for techniques and variables.
     thresholdHandle = effect->GetParameterByName(NULL, "threshold");
@@ -185,17 +181,17 @@ MLAA::~MLAA() {
     SAFE_RELEASE(vertexDeclaration);
 
     if (releaseEdgeResources) { // We will be releasing these things *only* if we created them.
-        SAFE_RELEASE(edgeTexture);
+        SAFE_RELEASE(edgeTex);
         SAFE_RELEASE(edgeSurface);
     }
 
     if (releaseBlendResources) { // Same applies over here.
-        SAFE_RELEASE(blendTexture);
+        SAFE_RELEASE(blendTex);
         SAFE_RELEASE(blendSurface);
     }
 
-    SAFE_RELEASE(areaTexture);
-    SAFE_RELEASE(searchTexture);
+    SAFE_RELEASE(areaTex);
+    SAFE_RELEASE(searchTex);
 }
 
 
@@ -212,6 +208,28 @@ void MLAA::go(IDirect3DTexture9 *edges,
     edgesDetectionPass(edges, input);
     blendingWeightsCalculationPass();
     neighborhoodBlendingPass(src, dst);
+}
+
+
+void MLAA::loadAreaTex() {
+    HRESULT hr;
+    V(device->CreateTexture(AREATEX_WIDTH, AREATEX_HEIGHT, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8L8, D3DPOOL_DEFAULT, &areaTex, NULL));
+    D3DLOCKED_RECT rect;
+    V(areaTex->LockRect(0, &rect, NULL, D3DLOCK_DISCARD));
+    for (int i = 0; i < AREATEX_HEIGHT; i++)
+        CopyMemory(((char *) rect.pBits) + i * rect.Pitch, areaTexBytes + i * AREATEX_PITCH, AREATEX_PITCH);
+    V(areaTex->UnlockRect(0));
+}
+
+
+void MLAA::loadSearchTex() {
+    HRESULT hr;
+    V(device->CreateTexture(SEARCHTEX_WIDTH, SEARCHTEX_HEIGHT, 1, D3DUSAGE_DYNAMIC, D3DFMT_L8, D3DPOOL_DEFAULT, &searchTex, NULL));
+    D3DLOCKED_RECT rect;
+    V(searchTex->LockRect(0, &rect, NULL, D3DLOCK_DISCARD));
+    for (int i = 0; i < SEARCHTEX_HEIGHT; i++)
+        CopyMemory(((char *) rect.pBits) + i * rect.Pitch, searchTexBytes + i * SEARCHTEX_PITCH, SEARCHTEX_PITCH);
+    V(searchTex->UnlockRect(0));
 }
 
 
@@ -262,9 +280,9 @@ void MLAA::blendingWeightsCalculationPass() {
     V(device->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0));
 
     // Setup the variables and the technique (yet again).
-    V(effect->SetTexture(edgesTexHandle, edgeTexture));
-    V(effect->SetTexture(areaTexHandle, areaTexture));
-    V(effect->SetTexture(searchTexHandle, searchTexture));
+    V(effect->SetTexture(edgesTexHandle, edgeTex));
+    V(effect->SetTexture(areaTexHandle, areaTex));
+    V(effect->SetTexture(searchTexHandle, searchTex));
     V(effect->SetTechnique(blendWeightCalculationHandle));
 
     // And here we go!
@@ -283,7 +301,7 @@ void MLAA::neighborhoodBlendingPass(IDirect3DTexture9 *src, IDirect3DSurface9 *d
     // Blah blah blah
     V(device->SetRenderTarget(0, dst));
     V(effect->SetTexture(colorTexHandle, src));
-    V(effect->SetTexture(blendTexHandle, blendTexture));
+    V(effect->SetTexture(blendTexHandle, blendTex));
     V(effect->SetTechnique(neighborhoodBlendingHandle));
 
     // Yeah! We will finally have the antialiased image :D

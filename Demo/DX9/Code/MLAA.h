@@ -107,20 +107,22 @@ class MLAA {
          */
         class ExternalStorage {
             public:
-                ExternalStorage(IDirect3DTexture9 *edgeTexture=NULL,
+                ExternalStorage(IDirect3DTexture9 *edgeTex=NULL,
                                 IDirect3DSurface9 *edgeSurface=NULL,
-                                IDirect3DTexture9 *blendTexture=NULL,
+                                IDirect3DTexture9 *blendTex=NULL,
                                 IDirect3DSurface9 *blendSurface=NULL)
-                    : edgeTexture(edgeTexture),
+                    : edgeTex(edgeTex),
                       edgeSurface(edgeSurface), 
-                      blendTexture(blendTexture),
+                      blendTex(blendTex),
                       blendSurface(blendSurface) {}
 
-            IDirect3DTexture9 *edgeTexture, *blendTexture;
+            IDirect3DTexture9 *edgeTex, *blendTex;
             IDirect3DSurface9 *edgeSurface, *blendSurface;
         };
 
     private:
+        void loadAreaTex();
+        void loadSearchTex();
         void edgesDetectionPass(IDirect3DTexture9 *edges, Input input);
         void blendingWeightsCalculationPass();
         void neighborhoodBlendingPass(IDirect3DTexture9 *src, IDirect3DSurface9 *dst);
@@ -130,16 +132,16 @@ class MLAA {
         ID3DXEffect *effect;
         IDirect3DVertexDeclaration9 *vertexDeclaration;
 
-        IDirect3DTexture9 *edgeTexture;
+        IDirect3DTexture9 *edgeTex;
         IDirect3DSurface9 *edgeSurface;
         bool releaseEdgeResources;
 
-        IDirect3DTexture9 *blendTexture;
+        IDirect3DTexture9 *blendTex;
         IDirect3DSurface9 *blendSurface;
         bool releaseBlendResources;
 
-        IDirect3DTexture9 *areaTexture;
-        IDirect3DTexture9 *searchTexture;
+        IDirect3DTexture9 *areaTex;
+        IDirect3DTexture9 *searchTex;
 
         D3DXHANDLE thresholdHandle, maxSearchStepsHandle;
         D3DXHANDLE areaTexHandle, searchTexHandle;
