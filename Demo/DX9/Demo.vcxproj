@@ -38,13 +38,13 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <ExecutablePath>$(DXSDK_DIR)Utilities\bin\x86;$(ExecutablePath)</ExecutablePath>
-    <IncludePath>$(DXSDK_DIR)Include;../../../Textures;$(IncludePath)</IncludePath>
+    <IncludePath>$(DXSDK_DIR)Include;../../Textures;$(IncludePath)</IncludePath>
     <LibraryPath>$(DXSDK_DIR)Lib\x86;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <ExecutablePath>$(DXSDK_DIR)Utilities\bin\x86;$(ExecutablePath)</ExecutablePath>
-    <IncludePath>$(DXSDK_DIR)Include;../../../Textures;$(IncludePath)</IncludePath>
+    <IncludePath>$(DXSDK_DIR)Include;../../Textures;$(IncludePath)</IncludePath>
     <LibraryPath>$(DXSDK_DIR)Lib\x86;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -131,14 +131,16 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\MLAA.h" />
-    <ClInclude Include="Code\MLAA.h" />
+    <ClInclude Include="..\..\SMAA.h" />
+    <ClInclude Include="..\..\Textures\AreaTex.h" />
+    <ClInclude Include="..\..\Textures\SearchTex.h" />
+    <ClInclude Include="Code\SMAA.h" />
     <ClInclude Include="Code\Timer.h" />
     <ClInclude Include="DXUT\Core\DXUT.h" />
     <ClInclude Include="DXUT\Core\DXUTenum.h" />
     <ClInclude Include="DXUT\Core\DXUTmisc.h" />
     <ClCompile Include="Code\Demo.cpp" />
-    <ClCompile Include="Code\MLAA.cpp" />
+    <ClCompile Include="Code\SMAA.cpp" />
     <ClCompile Include="Code\Timer.cpp" />
     <ClCompile Include="DXUT\Core\DXUT.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
@@ -159,13 +161,13 @@
     <ClCompile Include="DXUT\Optional\SDKmisc.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="Shaders\MLAA.fx">
+    <CustomBuild Include="Shaders\SMAA.fx">
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">fxc /Od /Zi /Tfx_2_0 /nologo /I ../.. /Fo"$(IntDir)%(Filename).fxo"  /Fc"$(IntDir)%(Filename).asm" "%(FullPath)"</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename).fxo</Outputs>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">fxc /Tfx_2_0 /nologo  /I ../..  /Fo"$(IntDir)%(Filename).fxo"  /Fc"$(IntDir)%(Filename).asm" "%(FullPath)"</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)%(Filename).fxo</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\MLAA.h</AdditionalInputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\MLAA.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\..\SMAA.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\..\SMAA.h</AdditionalInputs>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>

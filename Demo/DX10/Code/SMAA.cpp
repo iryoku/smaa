@@ -16,8 +16,8 @@
  *       in the documentation and/or other materials provided with the 
  *       distribution:
  * 
- *      "Uses Jimenez's MLAA. Copyright (C) 2011 by Jorge Jimenez, Belen Masia,
- *       Jose I. Echevarria, Fernando Navarro and Diego Gutierrez."
+ *      "Uses SMAA. Copyright (C) 2011 by Jorge Jimenez, Jose I. Echevarria,
+ *       Belen Masia, Fernando Navarro and Diego Gutierrez."
  * 
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS 
  * IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
@@ -38,7 +38,7 @@
 
 
 #include <sstream>
-#include "MLAA.h"
+#include "SMAA.h"
 #include "SearchTex.h"
 #include "AreaTex.h"
 using namespace std;
@@ -94,7 +94,7 @@ class ID3D10IncludeResource : public ID3D10Include {
 #pragma endregion
 
 
-MLAA::MLAA(ID3D10Device *device, int width, int height, const ExternalStorage &storage)
+SMAA::SMAA(ID3D10Device *device, int width, int height, const ExternalStorage &storage)
         : device(device),
           maxSearchSteps(8),
           threshold(0.1f) {
@@ -106,17 +106,17 @@ MLAA::MLAA(ID3D10Device *device, int width, int height, const ExternalStorage &s
     string pixelSizeText = s.str();
 
     D3D10_SHADER_MACRO defines[3] = {
-        {"MLAA_PIXEL_SIZE", pixelSizeText.c_str()},
+        {"SMAA_PIXEL_SIZE", pixelSizeText.c_str()},
         {NULL, NULL}
     };
 
     /**
-     * IMPORTANT! Here we load and compile the MLAA effect from a *RESOURCE*
+     * IMPORTANT! Here we load and compile the SMAA effect from a *RESOURCE*
      * (Yeah, we like all-in-one executables for demos =)
      * In case you want it to be loaded from other place change this line accordingly.
      */
     ID3D10IncludeResource includeResource;
-    V(D3DX10CreateEffectFromResource(GetModuleHandle(NULL), L"MLAA.fx", NULL, defines, &includeResource, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, NULL, NULL, &effect, NULL, NULL));
+    V(D3DX10CreateEffectFromResource(GetModuleHandle(NULL), L"SMAA.fx", NULL, defines, &includeResource, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, NULL, NULL, &effect, NULL, NULL));
 
     // This is for rendering the typical fullscreen quad later on.
     D3D10_PASS_DESC desc;
@@ -157,7 +157,7 @@ MLAA::MLAA(ID3D10Device *device, int width, int height, const ExternalStorage &s
 }
 
 
-MLAA::~MLAA() {
+SMAA::~SMAA() {
     SAFE_RELEASE(effect);
     SAFE_DELETE(quad);
     SAFE_DELETE(edgeRenderTarget);
@@ -169,7 +169,7 @@ MLAA::~MLAA() {
 }
 
 
-void MLAA::go(ID3D10ShaderResourceView *edgesSRV,
+void SMAA::go(ID3D10ShaderResourceView *edgesSRV,
               ID3D10ShaderResourceView *srcSRV,
               ID3D10RenderTargetView *dstRTV,
               ID3D10DepthStencilView *dsv, 
@@ -214,7 +214,7 @@ void MLAA::go(ID3D10ShaderResourceView *edgesSRV,
 }
 
 
-void MLAA::loadAreaTex() {
+void SMAA::loadAreaTex() {
     HRESULT hr;
 
     D3D10_SUBRESOURCE_DATA data;
@@ -243,7 +243,7 @@ void MLAA::loadAreaTex() {
     V(device->CreateShaderResourceView(areaTex, &descSRV, &areaTexSRV));
 }
 
-void MLAA::loadSearchTex() {
+void SMAA::loadSearchTex() {
     HRESULT hr;
 
     D3D10_SUBRESOURCE_DATA data;
@@ -273,7 +273,7 @@ void MLAA::loadSearchTex() {
 }
 
 
-void MLAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
+void SMAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
     HRESULT hr;
 
     // Select the technique accordingly.
@@ -296,7 +296,7 @@ void MLAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
 }
 
 
-void MLAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv) {
+void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv) {
     HRESULT hr;
 
     // Setup the technique (again).
@@ -309,7 +309,7 @@ void MLAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv) {
 }
 
 
-void MLAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthStencilView *dsv) {
+void SMAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthStencilView *dsv) {
     HRESULT hr;
 
     // Setup the technique (once again).

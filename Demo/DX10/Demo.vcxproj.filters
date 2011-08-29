@@ -54,7 +54,7 @@
     <ClCompile Include="Code\Copy.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="Code\MLAA.cpp">
+    <ClCompile Include="Code\SMAA.cpp">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
@@ -95,25 +95,25 @@
     <ClInclude Include="Code\Copy.h">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="Code\MLAA.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\MLAA.h">
-      <Filter>Shaders</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\SearchTex.h">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="..\..\AreaTex.h">
       <Filter>Headers</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="Shaders\MLAA.fx">
+    <ClInclude Include="..\..\SMAA.h">
       <Filter>Shaders</Filter>
-    </CustomBuild>
+    </ClInclude>
+    <ClInclude Include="Code\SMAA.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Demo.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="Shaders\SMAA.fx">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

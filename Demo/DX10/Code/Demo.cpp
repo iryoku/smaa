@@ -42,7 +42,7 @@
 #include "Timer.h"
 #include "RenderTarget.h"
 #include "Copy.h"
-#include "MLAA.h"
+#include "SMAA.h"
 
 using namespace std;
 
@@ -58,7 +58,7 @@ ID3DX10Font *font = NULL;
 ID3DX10Sprite *sprite = NULL;
 CDXUTTextHelper *txtHelper = NULL;
 
-MLAA *mlaa = NULL;
+SMAA *smaa = NULL;
 DepthStencil *depthStencil = NULL;
 RenderTarget *depthBufferRenderTarget = NULL;
 BackbufferRenderTarget *backbufferRenderTarget = NULL;
@@ -216,19 +216,19 @@ void CALLBACK onDestroyDevice(void *context) {
 }
 
 
-void initMLAA() {
+void initSMAA() {
     int min, max;
     float scale;
 
     CDXUTSlider *slider = hud.GetSlider(IDC_MAXSEARCHSTEPS);
     slider->GetRange(min, max);
     scale = float(slider->GetValue()) / (max - min);
-    mlaa->setMaxSearchSteps(int(round(scale * 98.0f)));
+    smaa->setMaxSearchSteps(int(round(scale * 98.0f)));
 
     slider = hud.GetSlider(IDC_THRESHOLD);
     slider->GetRange(min, max);
     scale = float(slider->GetValue()) / (max - min);
-    mlaa->setThreshold(scale * 0.5f);
+    smaa->setThreshold(scale * 0.5f);
 }
 
 
@@ -239,8 +239,8 @@ HRESULT CALLBACK onResizedSwapChain(ID3D10Device *device, IDXGISwapChain *swapCh
 
     hud.SetLocation(desc->Width - (45 + HUD_WIDTH), 0);
 
-    mlaa = new MLAA(device, desc->Width, desc->Height);
-    initMLAA();
+    smaa = new SMAA(device, desc->Width, desc->Height);
+    initSMAA();
     depthStencil = new DepthStencil(device, desc->Width, desc->Height,  DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
     depthBufferRenderTarget = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R32_FLOAT);
     backbufferRenderTarget = new BackbufferRenderTarget(device, DXUTGetDXGISwapChain());
@@ -254,7 +254,7 @@ HRESULT CALLBACK onResizedSwapChain(ID3D10Device *device, IDXGISwapChain *swapCh
 void CALLBACK onReleasingSwapChain(void *context) {
     dialogResourceManager.OnD3D10ReleasingSwapChain();
 
-    SAFE_DELETE(mlaa);
+    SAFE_DELETE(smaa);
     SAFE_DELETE(depthStencil);
     SAFE_DELETE(depthBufferRenderTarget);
     SAFE_DELETE(backbufferRenderTarget);
@@ -297,7 +297,7 @@ void saveBackbuffer(ID3D10Device *device) {
 
 
 void doBenchmark() {
-    benchmarkFile << timer->getSection(L"MLAA") << endl;
+    benchmarkFile << timer->getSection(L"SMAA") << endl;
 
     int next = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() + 1;
     int n = hud.GetComboBox(IDC_INPUT)->GetNumItems();
@@ -316,10 +316,10 @@ void doBenchmark() {
 void drawTextures(ID3D10Device *device) {
     switch (int(hud.GetComboBox(IDC_VIEWMODE)->GetSelectedData())) {
         case 1:
-            Copy::go(*mlaa->getEdgeRenderTarget(), *backbufferRenderTarget);
+            Copy::go(*smaa->getEdgeRenderTarget(), *backbufferRenderTarget);
             break;
         case 2:
-            Copy::go(*mlaa->getBlendRenderTarget(), *backbufferRenderTarget);
+            Copy::go(*smaa->getBlendRenderTarget(), *backbufferRenderTarget);
             break;
         default:
             break;
@@ -342,24 +342,24 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
     Copy::go(testColorSRV, *finalRenderTargetSRGB, &viewport);
     Copy::go(testDepthSRV, *depthBufferRenderTarget, &viewport);
 
-    // Run MLAA
+    // Run SMAA
     if (hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked()) {
-        MLAA::Input input = MLAA::Input(int(hud.GetComboBox(IDC_DETECTIONMODE)->GetSelectedData()));
+        SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTIONMODE)->GetSelectedData()));
         int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? timer->getRepetitionsCount() : 1;
 
         timer->start();
         for (int i = 0; i < n; i++) { // This loop is just for profiling.
             switch (input) {
-                case MLAA::INPUT_LUMA:
-                case MLAA::INPUT_COLOR:
-                    mlaa->go(*finalRenderTarget, *finalRenderTargetSRGB, *backbufferRenderTarget, *depthStencil, input);
+                case SMAA::INPUT_LUMA:
+                case SMAA::INPUT_COLOR:
+                    smaa->go(*finalRenderTarget, *finalRenderTargetSRGB, *backbufferRenderTarget, *depthStencil, input);
                     break;
-                case MLAA::INPUT_DEPTH:
-                    mlaa->go(*depthBufferRenderTarget, *finalRenderTargetSRGB, *backbufferRenderTarget, *depthStencil, input);
+                case SMAA::INPUT_DEPTH:
+                    smaa->go(*depthBufferRenderTarget, *finalRenderTargetSRGB, *backbufferRenderTarget, *depthStencil, input);
                     break;
             }
         }
-        timer->clock(L"MLAA");
+        timer->clock(L"SMAA");
     } else {
         Copy::go(*finalRenderTargetSRGB, *backbufferRenderTarget);
     }
@@ -579,7 +579,7 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 slider->GetRange(min, max);
 
                 float scale = float(slider->GetValue()) / (max - min);
-                mlaa->setMaxSearchSteps(int(round(scale * 98.0f)));
+                smaa->setMaxSearchSteps(int(round(scale * 98.0f)));
             
                 wstringstream s;
                 s << L"Max Search Steps: " << int(round(scale * 98.0f));
@@ -593,7 +593,7 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 slider->GetRange(min, max);
 
                 float scale = float(slider->GetValue()) / (max - min);
-                mlaa->setThreshold(scale * 0.5f);
+                smaa->setThreshold(scale * 0.5f);
             
                 wstringstream s;
                 s << L"Threshold: " << scale * 0.5f;
@@ -634,7 +634,7 @@ void initApp() {
         hud.GetComboBox(IDC_INPUT)->SetSelectedByData((LPVOID) -1);
     }
 
-    hud.AddCheckBox(IDC_ANTIALIASING, L"MLAA Anti-Aliasing", 35, iY += 24, HUD_WIDTH, 22, true);
+    hud.AddCheckBox(IDC_ANTIALIASING, L"SMAA Anti-Aliasing", 35, iY += 24, HUD_WIDTH, 22, true);
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, HUD_WIDTH, 22, false);
 
     wstringstream s;
@@ -693,7 +693,7 @@ INT WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
         return -1;
 
     DXUTSetCursorSettings(true, true);
-    if (FAILED(DXUTCreateWindow(L"Practical Morphological Anti-Aliasing Demo (Jimenez's MLAA)")))
+    if (FAILED(DXUTCreateWindow(L"SMAA: Subpixel Morphological Antialiasing")))
         return -1;
 
     if (FAILED(DXUTCreateDevice(true, 1280, 720)))

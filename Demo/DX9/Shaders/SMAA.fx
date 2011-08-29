@@ -16,8 +16,8 @@
  *       in the documentation and/or other materials provided with the 
  *       distribution:
  * 
- *      "Uses Jimenez's MLAA. Copyright (C) 2011 by Jorge Jimenez, Belen Masia,
- *       Jose I. Echevarria, Fernando Navarro and Diego Gutierrez."
+ *      "Uses SMAA. Copyright (C) 2011 by Jorge Jimenez, Jose I. Echevarria,
+ *       Belen Masia, Fernando Navarro and Diego Gutierrez."
  * 
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS 
  * IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
@@ -44,21 +44,21 @@ float maxSearchSteps;
 /**
  * Setup mandatory defines. Use a real macro here for maximum performance!
  */
-#ifndef MLAA_PIXEL_SIZE // It's actually set on runtime, this is for compilation time syntax checking.
-#define MLAA_PIXEL_SIZE float2(1.0 / 1280.0, 1.0 / 720.0)
+#ifndef SMAA_PIXEL_SIZE // It's actually set on runtime, this is for compilation time syntax checking.
+#define SMAA_PIXEL_SIZE float2(1.0 / 1280.0, 1.0 / 720.0)
 #endif
 
 /**
  * Setup optional defines.
  */
-#define MLAA_THRESHOLD threshold
-#define MLAA_MAX_SEARCH_STEPS maxSearchSteps
+#define SMAA_THRESHOLD threshold
+#define SMAA_MAX_SEARCH_STEPS maxSearchSteps
 
 // Set the HLSL version:
-#define MLAA_HLSL_3 1
+#define SMAA_HLSL_3 1
 
 // And include our header!
-#include "MLAA.h"
+#include "SMAA.h"
 
 
 /**
@@ -129,63 +129,63 @@ sampler2D searchTex {
 /**
  * Function wrappers
  */
-void DX9_MLAAEdgeDetectionVS(inout float4 position : POSITION,
+void DX9_SMAAEdgeDetectionVS(inout float4 position : POSITION,
                              inout float2 texcoord : TEXCOORD0,
                              out float4 offset[2] : TEXCOORD1) {
-    MLAAEdgeDetectionVS(position, position, texcoord, offset);
+    SMAAEdgeDetectionVS(position, position, texcoord, offset);
 }
 
-void DX9_MLAABlendWeightCalculationVS(inout float4 position : POSITION,
+void DX9_SMAABlendWeightCalculationVS(inout float4 position : POSITION,
                                       inout float2 texcoord : TEXCOORD0,
                                       out float2 pixcoord : TEXCOORD1,
                                       out float4 offset[3] : TEXCOORD2) {
-    MLAABlendWeightCalculationVS(position, position, texcoord, pixcoord, offset);
+    SMAABlendWeightCalculationVS(position, position, texcoord, pixcoord, offset);
 }
 
-void DX9_MLAANeighborhoodBlendingVS(inout float4 position : POSITION,
+void DX9_SMAANeighborhoodBlendingVS(inout float4 position : POSITION,
                                     inout float2 texcoord : TEXCOORD0,
                                     out float4 offset[2] : TEXCOORD1) {
-    MLAANeighborhoodBlendingVS(position, position, texcoord, offset);
+    SMAANeighborhoodBlendingVS(position, position, texcoord, offset);
 }
 
 
-float4 DX9_MLAALumaEdgeDetectionPS(float4 position : SV_POSITION,
+float4 DX9_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
                                    float2 texcoord : TEXCOORD0,
                                    float4 offset[2] : TEXCOORD1,
-                                   uniform MLAATexture2D colorGammaTex) : COLOR {
-    return MLAALumaEdgeDetectionPS(texcoord, offset, colorGammaTex);
+                                   uniform SMAATexture2D colorGammaTex) : COLOR {
+    return SMAALumaEdgeDetectionPS(texcoord, offset, colorGammaTex);
 }
 
-float4 DX9_MLAAColorEdgeDetectionPS(float4 position : SV_POSITION,
+float4 DX9_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
                                     float4 offset[2] : TEXCOORD1,
-                                    uniform MLAATexture2D colorGammaTex) : COLOR {
-    return MLAAColorEdgeDetectionPS(texcoord, offset, colorGammaTex);
+                                    uniform SMAATexture2D colorGammaTex) : COLOR {
+    return SMAAColorEdgeDetectionPS(texcoord, offset, colorGammaTex);
 }
 
-float4 DX9_MLAADepthEdgeDetectionPS(float4 position : SV_POSITION,
+float4 DX9_SMAADepthEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
                                     float4 offset[2] : TEXCOORD1,
-                                    uniform MLAATexture2D depthTex) : COLOR {
-    return MLAADepthEdgeDetectionPS(texcoord, offset, depthTex);
+                                    uniform SMAATexture2D depthTex) : COLOR {
+    return SMAADepthEdgeDetectionPS(texcoord, offset, depthTex);
 }
 
-float4 DX9_MLAABlendingWeightCalculationPS(float4 position : SV_POSITION,
+float4 DX9_SMAABlendingWeightCalculationPS(float4 position : SV_POSITION,
                                            float2 texcoord : TEXCOORD0,
                                            float2 pixcoord : TEXCOORD1,
                                            float4 offset[3] : TEXCOORD2,
-                                           uniform MLAATexture2D edgesTex, 
-                                           uniform MLAATexture2D areaTex, 
-                                           uniform MLAATexture2D searchTex) : COLOR {
-    return MLAABlendingWeightCalculationPS(texcoord, pixcoord, offset, edgesTex, areaTex, searchTex);
+                                           uniform SMAATexture2D edgesTex, 
+                                           uniform SMAATexture2D areaTex, 
+                                           uniform SMAATexture2D searchTex) : COLOR {
+    return SMAABlendingWeightCalculationPS(texcoord, pixcoord, offset, edgesTex, areaTex, searchTex);
 }
 
-float4 DX9_MLAANeighborhoodBlendingPS(float4 position : SV_POSITION,
+float4 DX9_SMAANeighborhoodBlendingPS(float4 position : SV_POSITION,
                                       float2 texcoord : TEXCOORD0,
                                       float4 offset[2] : TEXCOORD1,
-                                      uniform MLAATexture2D colorTex,
-                                      uniform MLAATexture2D blendTex) : COLOR {
-    return MLAANeighborhoodBlendingPS(texcoord, offset, colorTex, blendTex);
+                                      uniform SMAATexture2D colorTex,
+                                      uniform SMAATexture2D blendTex) : COLOR {
+    return SMAANeighborhoodBlendingPS(texcoord, offset, colorTex, blendTex);
 }
 
 
@@ -194,8 +194,8 @@ float4 DX9_MLAANeighborhoodBlendingPS(float4 position : SV_POSITION,
  */
 technique LumaEdgeDetection {
     pass LumaEdgeDetection {
-        VertexShader = compile vs_3_0 DX9_MLAAEdgeDetectionVS();
-        PixelShader = compile ps_3_0 DX9_MLAALumaEdgeDetectionPS(colorTexG);
+        VertexShader = compile vs_3_0 DX9_SMAAEdgeDetectionVS();
+        PixelShader = compile ps_3_0 DX9_SMAALumaEdgeDetectionPS(colorTexG);
         ZEnable = false;        
         SRGBWriteEnable = false;
         AlphaBlendEnable = false;
@@ -209,8 +209,8 @@ technique LumaEdgeDetection {
 
 technique ColorEdgeDetection {
     pass ColorEdgeDetection {
-        VertexShader = compile vs_3_0 DX9_MLAAEdgeDetectionVS();
-        PixelShader = compile ps_3_0 DX9_MLAAColorEdgeDetectionPS(colorTexG);
+        VertexShader = compile vs_3_0 DX9_SMAAEdgeDetectionVS();
+        PixelShader = compile ps_3_0 DX9_SMAAColorEdgeDetectionPS(colorTexG);
         ZEnable = false;        
         SRGBWriteEnable = false;
         AlphaBlendEnable = false;
@@ -224,8 +224,8 @@ technique ColorEdgeDetection {
 
 technique DepthEdgeDetection {
     pass DepthEdgeDetection {
-        VertexShader = compile vs_3_0 DX9_MLAAEdgeDetectionVS();
-        PixelShader = compile ps_3_0 DX9_MLAADepthEdgeDetectionPS(depthTex);
+        VertexShader = compile vs_3_0 DX9_SMAAEdgeDetectionVS();
+        PixelShader = compile ps_3_0 DX9_SMAADepthEdgeDetectionPS(depthTex);
         ZEnable = false;        
         SRGBWriteEnable = false;
         AlphaBlendEnable = false;
@@ -239,8 +239,8 @@ technique DepthEdgeDetection {
 
 technique BlendWeightCalculation {
     pass BlendWeightCalculation {
-        VertexShader = compile vs_3_0 DX9_MLAABlendWeightCalculationVS();
-        PixelShader = compile ps_3_0 DX9_MLAABlendingWeightCalculationPS(edgesTex, areaTex, searchTex);
+        VertexShader = compile vs_3_0 DX9_SMAABlendWeightCalculationVS();
+        PixelShader = compile ps_3_0 DX9_SMAABlendingWeightCalculationPS(edgesTex, areaTex, searchTex);
         ZEnable = false;
         SRGBWriteEnable = false;
         AlphaBlendEnable = false;
@@ -255,8 +255,8 @@ technique BlendWeightCalculation {
 
 technique NeighborhoodBlending {
     pass NeighborhoodBlending {
-        VertexShader = compile vs_3_0 DX9_MLAANeighborhoodBlendingVS();
-        PixelShader = compile ps_3_0 DX9_MLAANeighborhoodBlendingPS(colorTex, blendTex);
+        VertexShader = compile vs_3_0 DX9_SMAANeighborhoodBlendingVS();
+        PixelShader = compile ps_3_0 DX9_SMAANeighborhoodBlendingPS(colorTex, blendTex);
         ZEnable = false;
         SRGBWriteEnable = true;
         AlphaBlendEnable = false;

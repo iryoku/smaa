@@ -38,7 +38,7 @@
 #include "DXUTSettingsDlg.h"
 #include "SDKmisc.h"
 
-#include "MLAA.h"
+#include "SMAA.h"
 #include "Timer.h"
 
 using namespace std;
@@ -50,7 +50,7 @@ CDXUTDialog hud;
 ID3DXFont *font = NULL;
 
 Timer *timer = NULL;
-MLAA *mlaa = NULL;
+SMAA *smaa = NULL;
 IDirect3DSurface9 *backbufferSurface = NULL;
 IDirect3DTexture9 *finalbufferColorTex = NULL;
 IDirect3DSurface9 *finalbufferColorSurface = NULL;
@@ -106,7 +106,7 @@ HRESULT CALLBACK onResetDevice(IDirect3DDevice9 *device, const D3DSURFACE_DESC *
     timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
     timer->setRepetitionsCount(100);
 
-    mlaa = new MLAA(device, desc->Width, desc->Height);
+    smaa = new SMAA(device, desc->Width, desc->Height);
 
     V(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbufferSurface));
 
@@ -136,7 +136,7 @@ void CALLBACK onLostDevice(void *userContext) {
     dialogResourceManager.OnD3D9LostDevice();
     if (font) font->OnLostDevice();
     SAFE_DELETE(timer);
-    SAFE_DELETE(mlaa);
+    SAFE_DELETE(smaa);
     SAFE_RELEASE(backbufferSurface);
     SAFE_RELEASE(finalbufferColorTex);
     SAFE_RELEASE(finalbufferColorSurface);
@@ -192,30 +192,30 @@ void mainPass(IDirect3DDevice9 *device) {
 void CALLBACK onFrameRender(IDirect3DDevice9 *device, double time, float elapsedTime, void *userContext) {
     HRESULT hr;
 
-    // IMPORTANT: stencil must be cleared to zero before executing 'mlaa->go'
+    // IMPORTANT: stencil must be cleared to zero before executing 'smaa->go'
     V(device->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0));
 
     V(device->BeginScene());
         // This emulates main pass.
         mainPass(device);
 
-        // Run MLAA
-        MLAA::Input input = MLAA::Input(int(hud.GetComboBox(IDC_DETECTIONMODE)->GetSelectedData()));
+        // Run SMAA
+        SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTIONMODE)->GetSelectedData()));
         int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? timer->getRepetitionsCount() : 1;
 
         timer->start();
         for (int i = 0; i < n; i++) { // This loop is just for profiling.
             switch (input) {
-                case MLAA::INPUT_LUMA:
-                case MLAA::INPUT_COLOR:
-                    mlaa->go(finalbufferColorTex, finalbufferColorTex, backbufferSurface, input);
+                case SMAA::INPUT_LUMA:
+                case SMAA::INPUT_COLOR:
+                    smaa->go(finalbufferColorTex, finalbufferColorTex, backbufferSurface, input);
                     break;
-                case MLAA::INPUT_DEPTH:
-                    mlaa->go(finalbufferDepthTex, finalbufferColorTex, backbufferSurface, input);
+                case SMAA::INPUT_DEPTH:
+                    smaa->go(finalbufferDepthTex, finalbufferColorTex, backbufferSurface, input);
                     break;
             }
         }
-        timer->clock(L"MLAA");
+        timer->clock(L"SMAA");
 
         // Draw the HUD
         DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats"); // These events are to help PIX identify what the code is doing
@@ -350,7 +350,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
         return -1;
 
     DXUTSetCursorSettings( true, true );
-    if (FAILED(DXUTCreateWindow(L"Practical Morphological Anti-Aliasing Demo (Jimenez's MLAA)")))
+    if (FAILED(DXUTCreateWindow(L"SMAA: Subpixel Morphological Antialiasing")))
         return -1;
 
     if (FAILED(DXUTCreateDevice(true, 1280, 720)))

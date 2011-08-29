@@ -16,8 +16,8 @@
  *       in the documentation and/or other materials provided with the 
  *       distribution:
  * 
- *      "Uses Jimenez's MLAA. Copyright (C) 2011 by Jorge Jimenez, Belen Masia,
- *       Jose I. Echevarria, Fernando Navarro and Diego Gutierrez."
+ *      "Uses SMAA. Copyright (C) 2011 by Jorge Jimenez, Jose I. Echevarria,
+ *       Belen Masia, Fernando Navarro and Diego Gutierrez."
  * 
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS 
  * IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
@@ -37,15 +37,15 @@
  */
 
 
-#ifndef MLAA_H
-#define MLAA_H
+#ifndef SMAA_H
+#define SMAA_H
 
 #include <dxgi.h>
 #include <d3d10.h>
 #include "RenderTarget.h"
 
 
-class MLAA {
+class SMAA {
     public:
         class ExternalStorage;
 
@@ -62,8 +62,8 @@ class MLAA {
          * By default, two render targets will be created for storing
          * intermediate calculations.
          */
-        MLAA(ID3D10Device *device, int width, int height, const ExternalStorage &storage=ExternalStorage());
-        ~MLAA();
+        SMAA(ID3D10Device *device, int width, int height, const ExternalStorage &storage=ExternalStorage());
+        ~SMAA();
 
         /**
          * 'edgesSRV' should be the input for using for edge detection:
@@ -105,7 +105,7 @@ class MLAA {
         RenderTarget *getBlendRenderTarget() { return blendRenderTarget; }
 
         /**
-         * This class allows to pass spare storage buffers to the MLAA class.
+         * This class allows to pass spare storage buffers to the SMAA class.
          */
         class ExternalStorage {
             public:

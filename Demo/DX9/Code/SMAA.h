@@ -16,8 +16,8 @@
  *       in the documentation and/or other materials provided with the 
  *       distribution:
  * 
- *      "Uses Jimenez's MLAA. Copyright (C) 2011 by Jorge Jimenez, Belen Masia,
- *       Jose I. Echevarria, Fernando Navarro and Diego Gutierrez."
+ *      "Uses SMAA. Copyright (C) 2011 by Jorge Jimenez, Jose I. Echevarria,
+ *       Belen Masia, Fernando Navarro and Diego Gutierrez."
  * 
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS 
  * IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
@@ -37,8 +37,8 @@
  */
 
 
-#ifndef MLAA_H
-#define MLAA_H
+#ifndef SMAA_H
+#define SMAA_H
 
 #include <dxgi.h>
 #include <d3d9.h>
@@ -46,7 +46,7 @@
 #include <dxerr.h>
 
 
-class MLAA {
+class SMAA {
     public:
         class ExternalStorage;
 
@@ -63,9 +63,9 @@ class MLAA {
          * By default, two render targets will be created for storing
          * intermediate calculations.
          */
-        MLAA(IDirect3DDevice9 *device, int width, int height, 
+        SMAA(IDirect3DDevice9 *device, int width, int height, 
              const ExternalStorage &storage=ExternalStorage());
-        ~MLAA();
+        ~SMAA();
 
         /**
          * Processes input texture 'src', storing the antialiased image into
@@ -103,7 +103,7 @@ class MLAA {
         void setThreshold(float threshold) { this->threshold = threshold; }
 
         /**
-         * This class allows to pass spare storage buffers to the MLAA class.
+         * This class allows to pass spare storage buffers to the SMAA class.
          */
         class ExternalStorage {
             public:

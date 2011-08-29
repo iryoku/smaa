@@ -16,8 +16,8 @@
  *       in the documentation and/or other materials provided with the 
  *       distribution:
  * 
- *      "Uses Jimenez's MLAA. Copyright (C) 2011 by Jorge Jimenez, Belen Masia,
- *       Jose I. Echevarria, Fernando Navarro and Diego Gutierrez."
+ *      "Uses SMAA. Copyright (C) 2011 by Jorge Jimenez, Jose I. Echevarria,
+ *       Belen Masia, Fernando Navarro and Diego Gutierrez."
  * 
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS 
  * IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
@@ -38,7 +38,7 @@
 
 
 #include <sstream>
-#include "MLAA.h"
+#include "SMAA.h"
 #include "SearchTex.h"
 #include "AreaTex.h"
 using namespace std;
@@ -94,7 +94,7 @@ class ID3D10IncludeResource : public ID3DXInclude {
 #pragma endregion
 
 
-MLAA::MLAA(IDirect3DDevice9 *device, int width, int height, const ExternalStorage &storage)
+SMAA::SMAA(IDirect3DDevice9 *device, int width, int height, const ExternalStorage &storage)
         : device(device),
           threshold(0.1f),
           maxSearchSteps(8),
@@ -107,7 +107,7 @@ MLAA::MLAA(IDirect3DDevice9 *device, int width, int height, const ExternalStorag
     string pixelSizeText = s.str();
 
     D3DXMACRO defines[4] = {
-        {"MLAA_PIXEL_SIZE", pixelSizeText.c_str()},
+        {"SMAA_PIXEL_SIZE", pixelSizeText.c_str()},
         {NULL, NULL}
     };
 
@@ -118,12 +118,12 @@ MLAA::MLAA(IDirect3DDevice9 *device, int width, int height, const ExternalStorag
     #endif
 
     /**
-     * IMPORTANT! Here we load and compile the MLAA effect from a *RESOURCE*
+     * IMPORTANT! Here we load and compile the SMAA effect from a *RESOURCE*
      * (Yeah, we like all-in-one executables for demos =)
      * In case you want it to be loaded from other place change this line accordingly.
      */
     ID3D10IncludeResource includeResource;
-    V(D3DXCreateEffectFromResource(device, NULL, L"MLAA.fx", defines, &includeResource, flags, NULL, &effect, NULL));
+    V(D3DXCreateEffectFromResource(device, NULL, L"SMAA.fx", defines, &includeResource, flags, NULL, &effect, NULL));
 
     // Vertex declaration for rendering the typical fullscreen quad later on.
     const D3DVERTEXELEMENT9 vertexElements[3] = {
@@ -176,7 +176,7 @@ MLAA::MLAA(IDirect3DDevice9 *device, int width, int height, const ExternalStorag
 }
 
 
-MLAA::~MLAA() {
+SMAA::~SMAA() {
     SAFE_RELEASE(effect);
     SAFE_RELEASE(vertexDeclaration);
 
@@ -195,7 +195,7 @@ MLAA::~MLAA() {
 }
 
 
-void MLAA::go(IDirect3DTexture9 *edges,
+void SMAA::go(IDirect3DTexture9 *edges,
               IDirect3DTexture9 *src, 
               IDirect3DSurface9 *dst,
               Input input) {
@@ -211,7 +211,7 @@ void MLAA::go(IDirect3DTexture9 *edges,
 }
 
 
-void MLAA::loadAreaTex() {
+void SMAA::loadAreaTex() {
     HRESULT hr;
     V(device->CreateTexture(AREATEX_WIDTH, AREATEX_HEIGHT, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8L8, D3DPOOL_DEFAULT, &areaTex, NULL));
     D3DLOCKED_RECT rect;
@@ -222,7 +222,7 @@ void MLAA::loadAreaTex() {
 }
 
 
-void MLAA::loadSearchTex() {
+void SMAA::loadSearchTex() {
     HRESULT hr;
     V(device->CreateTexture(SEARCHTEX_WIDTH, SEARCHTEX_HEIGHT, 1, D3DUSAGE_DYNAMIC, D3DFMT_L8, D3DPOOL_DEFAULT, &searchTex, NULL));
     D3DLOCKED_RECT rect;
@@ -233,7 +233,7 @@ void MLAA::loadSearchTex() {
 }
 
 
-void MLAA::edgesDetectionPass(IDirect3DTexture9 *edges, Input input) {
+void SMAA::edgesDetectionPass(IDirect3DTexture9 *edges, Input input) {
     HRESULT hr;
 
     // Set the render target and clear both the color and the stencil buffers.
@@ -272,7 +272,7 @@ void MLAA::edgesDetectionPass(IDirect3DTexture9 *edges, Input input) {
 }
 
 
-void MLAA::blendingWeightsCalculationPass() {
+void SMAA::blendingWeightsCalculationPass() {
     HRESULT hr;
 
     // Set the render target and clear it.
@@ -295,7 +295,7 @@ void MLAA::blendingWeightsCalculationPass() {
 }
 
 
-void MLAA::neighborhoodBlendingPass(IDirect3DTexture9 *src, IDirect3DSurface9 *dst) { 
+void SMAA::neighborhoodBlendingPass(IDirect3DTexture9 *src, IDirect3DSurface9 *dst) { 
     HRESULT hr;
 
     // Blah blah blah
@@ -314,7 +314,7 @@ void MLAA::neighborhoodBlendingPass(IDirect3DTexture9 *src, IDirect3DSurface9 *d
 }
 
 
-void MLAA::quad(int width, int height) {
+void SMAA::quad(int width, int height) {
     // Typical aligned fullscreen quad.
     HRESULT hr;
     D3DXVECTOR2 pixelSize = D3DXVECTOR2(1.0f / float(width), 1.0f / float(height));

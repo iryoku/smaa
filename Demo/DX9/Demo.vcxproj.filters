@@ -67,14 +67,20 @@
     <ClCompile Include="DXUT\Optional\SDKmisc.cpp">
       <Filter>DXUT</Filter>
     </ClCompile>
-    <ClInclude Include="Code\MLAA.h">
-      <Filter>Code</Filter>
-    </ClInclude>
     <ClInclude Include="Code\Timer.h">
       <Filter>Code</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\MLAA.h">
+    <ClInclude Include="..\..\Textures\AreaTex.h">
+      <Filter>Code</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Textures\SearchTex.h">
+      <Filter>Code</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\SMAA.h">
       <Filter>Shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="Code\SMAA.h">
+      <Filter>Code</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -84,15 +90,15 @@
     <ClCompile Include="Code\Demo.cpp">
       <Filter>Code</Filter>
     </ClCompile>
-    <ClCompile Include="Code\MLAA.cpp">
+    <ClCompile Include="Code\Timer.cpp">
       <Filter>Code</Filter>
     </ClCompile>
-    <ClCompile Include="Code\Timer.cpp">
+    <ClCompile Include="Code\SMAA.cpp">
       <Filter>Code</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="Shaders\MLAA.fx">
+    <CustomBuild Include="Shaders\SMAA.fx">
       <Filter>Shaders</Filter>
     </CustomBuild>
   </ItemGroup>

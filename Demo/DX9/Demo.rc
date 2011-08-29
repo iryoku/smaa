@@ -1,8 +1,7 @@
 1 ICON "Icon.ico"
 	
-MLAA.fx RCDATA Shaders\MLAA.fx
-
-MLAA.h RCDATA "..\\..\\MLAA.h"
+SMAA.fx RCDATA Shaders\SMAA.fx
+SMAA.h RCDATA "..\\..\\SMAA.h"
 
 Unigine01.png RCDATA Media\Images\Unigine01.png
 Unigine01.dds RCDATA Media\Images\Unigine01.dds

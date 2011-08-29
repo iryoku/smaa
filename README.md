@@ -1,15 +1,17 @@
-Jimenez's MLAA
-==============
+SMAA: Subpixel Morphological Antialiasing
+=========================================
 
-Jimenez's MLAA is a very efficient GPU-based MLAA implementation.
+**NOTE THAT SMAA DEVELOPMENT IS IN PROGRESS, WITH MOST FEATURES STILL MISSING.**
 
-Checkout http://www.iryoku.com/mlaa for more info!
+SMAA is a very efficient GPU-based MLAA implementation, capable of handling subpixel features seamlessly, and featuring an advanced pattern detection & handling mechanism.
+
+Checkout the [technical paper](http://www.iryoku.com/papers/SMAA-Enhanced-Subpixel-Morphological-Antialiasing.pdf) for more info!
 
 
 Usage
 -----
 
-See [MLAA.h](https://github.com/iryoku/jimenez-mlaa/blob/master/MLAA.h) for integration info. You'll also need some precomputed textures, which can be found as C++ headers ([Textures/AreaTex.h](https://github.com/iryoku/jimenez-mlaa/blob/master/Textures/AreaTex.h) and [Textures/SearchTex.h](https://github.com/iryoku/jimenez-mlaa/blob/master/Textures/SearchTex.h)), or as regular DDS files (see [Textures](https://github.com/iryoku/jimenez-mlaa/blob/master/Textures)). The directories [DX9](https://github.com/iryoku/jimenez-mlaa/blob/master/Demo/DX9) and [DX10](https://github.com/iryoku/jimenez-mlaa/blob/master/Demo/DX10) contain integration examples for DirectX 9 and 10 respectively.
+See [SMAA.h](https://github.com/iryoku/smaa/blob/master/SMAA.h) for integration info. You'll also need some precomputed textures, which can be found as C++ headers ([Textures/AreaTex.h](https://github.com/iryoku/smaa/blob/master/Textures/AreaTex.h) and [Textures/SearchTex.h](https://github.com/iryoku/smaa/blob/master/Textures/SearchTex.h)), or as regular DDS files (see [Textures](https://github.com/iryoku/smaa/blob/master/Textures) directory). The directories [DX9](https://github.com/iryoku/smaa/blob/master/Demo/DX9) and [DX10](https://github.com/iryoku/smaa/blob/master/Demo/DX10) contain integration examples for DirectX 9 and 10 respectively.
 
 
 Bug Tracker
@@ -17,7 +19,7 @@ Bug Tracker
 
 Found a bug? Please create an issue here on GitHub!
 
-https://github.com/iryoku/jimenez-mlaa/issues
+https://github.com/iryoku/smaa/issues
 
 
 Authors
@@ -65,8 +67,8 @@ modification, are permitted provided that the following conditions are met:
       in the documentation and/or other materials provided with the 
       distribution:
 
-      "Uses Jimenez's MLAA. Copyright (C) 2011 by Jorge Jimenez, Belen Masia,
-       Jose I. Echevarria, Fernando Navarro and Diego Gutierrez."
+      "Uses SMAA. Copyright (C) 2011 by Jorge Jimenez, Jose I. Echevarria,
+       Belen Masia, Fernando Navarro and Diego Gutierrez."
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS 
 IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
