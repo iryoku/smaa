@@ -37,6 +37,7 @@
  */
 
 
+#include <vector>
 #include <sstream>
 #include "SMAA.h"
 #include "SearchTex.h"
@@ -94,7 +95,7 @@ class ID3D10IncludeResource : public ID3DXInclude {
 #pragma endregion
 
 
-SMAA::SMAA(IDirect3DDevice9 *device, int width, int height, const ExternalStorage &storage)
+SMAA::SMAA(IDirect3DDevice9 *device, int width, int height, Preset preset, const ExternalStorage &storage)
         : device(device),
           threshold(0.1f),
           maxSearchSteps(8),
@@ -102,14 +103,27 @@ SMAA::SMAA(IDirect3DDevice9 *device, int width, int height, const ExternalStorag
     HRESULT hr;
 
     // Setup the defines for compiling the effect.
+    vector<D3DXMACRO> defines;
     stringstream s;
+
+    // Setup pixel size macro
     s << "float2(1.0 / " << width << ", 1.0 / " << height << ")";
     string pixelSizeText = s.str();
+    D3DXMACRO pixelSizeMacro = { "SMAA_PIXEL_SIZE", pixelSizeText.c_str() };
+    defines.push_back(pixelSizeMacro);
 
-    D3DXMACRO defines[4] = {
-        {"SMAA_PIXEL_SIZE", pixelSizeText.c_str()},
-        {NULL, NULL}
+    // Setup preset macro
+    D3DXMACRO presetMacros[] = {
+        { "SMAA_PRESET_LOW", "1" },
+        { "SMAA_PRESET_MEDIUM", "1" },
+        { "SMAA_PRESET_HIGH", "1" },
+        { "SMAA_PRESET_ULTRA", "1" },
+        { "SMAA_PRESET_CUSTOM", "1" }
     };
+    defines.push_back(presetMacros[int(preset)]);
+
+    D3DXMACRO null = { NULL, NULL };
+    defines.push_back(null);
 
     // Setup the flags for the effect.
     DWORD flags = D3DXFX_NOT_CLONEABLE;
@@ -123,7 +137,7 @@ SMAA::SMAA(IDirect3DDevice9 *device, int width, int height, const ExternalStorag
      * In case you want it to be loaded from other place change this line accordingly.
      */
     ID3D10IncludeResource includeResource;
-    V(D3DXCreateEffectFromResource(device, NULL, L"SMAA.fx", defines, &includeResource, flags, NULL, &effect, NULL));
+    V(D3DXCreateEffectFromResource(device, NULL, L"SMAA.fx", &defines.front(), &includeResource, flags, NULL, &effect, NULL));
 
     // Vertex declaration for rendering the typical fullscreen quad later on.
     const D3DVERTEXELEMENT9 vertexElements[3] = {

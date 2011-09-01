@@ -128,9 +128,9 @@
     <ClCompile Include="Code\Timer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\AreaTex.h" />
     <ClInclude Include="..\..\SMAA.h" />
-    <ClInclude Include="..\..\SearchTex.h" />
+    <ClInclude Include="..\..\Textures\AreaTex.h" />
+    <ClInclude Include="..\..\Textures\SearchTex.h" />
     <ClInclude Include="Code\Copy.h" />
     <ClInclude Include="DXUT\Core\DXUT.h" />
     <ClInclude Include="DXUT\Optional\DXUTcamera.h" />

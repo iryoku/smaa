@@ -7,11 +7,11 @@
     <Filter Include="Shaders">
       <UniqueIdentifier>{b25203f9-3660-40d6-ad44-0aae8ba8f704}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Headers">
-      <UniqueIdentifier>{2292fbcb-99df-4342-ba15-2062bda890ff}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source">
+    <Filter Include="Code">
       <UniqueIdentifier>{4fd7ab92-a9e9-48d8-b164-aa6c331ee28a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Code\Support">
+      <UniqueIdentifier>{b4342701-eefd-4d50-a33e-06e18f78c15c}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -43,19 +43,19 @@
       <Filter>DXUT</Filter>
     </ClCompile>
     <ClCompile Include="Code\Demo.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Code\RenderTarget.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Code\Timer.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Code\Copy.cpp">
-      <Filter>Source</Filter>
+      <Filter>Code</Filter>
     </ClCompile>
     <ClCompile Include="Code\SMAA.cpp">
-      <Filter>Source</Filter>
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\RenderTarget.cpp">
+      <Filter>Code\Support</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\Timer.cpp">
+      <Filter>Code\Support</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\Copy.cpp">
+      <Filter>Code\Support</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -86,26 +86,26 @@
     <ClInclude Include="DXUT\Optional\SDKmisc.h">
       <Filter>DXUT</Filter>
     </ClInclude>
-    <ClInclude Include="Code\RenderTarget.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="Code\Timer.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="Code\Copy.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\SearchTex.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\AreaTex.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\SMAA.h">
       <Filter>Shaders</Filter>
     </ClInclude>
+    <ClInclude Include="Code\Timer.h">
+      <Filter>Code\Support</Filter>
+    </ClInclude>
+    <ClInclude Include="Code\RenderTarget.h">
+      <Filter>Code\Support</Filter>
+    </ClInclude>
+    <ClInclude Include="Code\Copy.h">
+      <Filter>Code\Support</Filter>
+    </ClInclude>
     <ClInclude Include="Code\SMAA.h">
-      <Filter>Headers</Filter>
+      <Filter>Code</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Textures\AreaTex.h">
+      <Filter>Code</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Textures\SearchTex.h">
+      <Filter>Code</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

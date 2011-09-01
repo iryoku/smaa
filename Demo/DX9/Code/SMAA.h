@@ -50,6 +50,7 @@ class SMAA {
     public:
         class ExternalStorage;
 
+        enum Preset { PRESET_LOW, PRESET_MEDIUM, PRESET_HIGH, PRESET_ULTRA, PRESET_CUSTOM };
         enum Input { INPUT_LUMA, INPUT_COLOR, INPUT_DEPTH };
 
         /**
@@ -63,7 +64,7 @@ class SMAA {
          * By default, two render targets will be created for storing
          * intermediate calculations.
          */
-        SMAA(IDirect3DDevice9 *device, int width, int height, 
+        SMAA(IDirect3DDevice9 *device, int width, int height, Preset preset,
              const ExternalStorage &storage=ExternalStorage());
         ~SMAA();
 

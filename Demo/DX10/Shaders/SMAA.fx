@@ -37,10 +37,6 @@
  */
 
 
-// Some configuration variables:
-float threshold;
-float maxSearchSteps;
-
 /**
  * Setup mandatory defines. Use a real macro here for maximum performance!
  */
@@ -49,10 +45,19 @@ float maxSearchSteps;
 #endif
 
 /**
- * Setup optional defines.
+ * This can be ignored; its purpose is to support interactive custom parameter
+ * tweaking.
  */
+float threshold;
+float maxSearchSteps;
+float maxSearchStepsDiag;
+
+#ifdef SMAA_PRESET_CUSTOM
 #define SMAA_THRESHOLD threshold
 #define SMAA_MAX_SEARCH_STEPS maxSearchSteps
+#define SMAA_MAX_SEARCH_STEPS_DIAG maxSearchStepsDiag
+#define SMAA_FORCE_DIAGONALS 1
+#endif
 
 // Set the HLSL version:
 #define SMAA_HLSL_4 1

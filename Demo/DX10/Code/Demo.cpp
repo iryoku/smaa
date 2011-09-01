@@ -81,18 +81,21 @@ struct {
 } commandlineOptions = {0.1f, 8, L"", L""};
 
 
-#define IDC_TOGGLEFULLSCREEN      1
-#define IDC_CHANGEDEVICE          2
-#define IDC_LOADIMAGE             3
-#define IDC_DETECTIONMODE         4
-#define IDC_VIEWMODE              5
-#define IDC_INPUT                 6
-#define IDC_ANTIALIASING          7
-#define IDC_PROFILE               8
-#define IDC_MAXSEARCHSTEPS_LABEL  9
-#define IDC_MAXSEARCHSTEPS       10
-#define IDC_THRESHOLD_LABEL      11
-#define IDC_THRESHOLD            12
+#define IDC_TOGGLEFULLSCREEN          1
+#define IDC_CHANGEDEVICE              2
+#define IDC_LOADIMAGE                 3
+#define IDC_INPUT                     4
+#define IDC_VIEWMODE                  5
+#define IDC_PRESET                    6
+#define IDC_DETECTIONMODE             7
+#define IDC_ANTIALIASING              8
+#define IDC_PROFILE                   9
+#define IDC_THRESHOLD_LABEL          10
+#define IDC_THRESHOLD                11
+#define IDC_MAXSEARCHSTEPS_LABEL     12
+#define IDC_MAXSEARCHSTEPS           13
+#define IDC_MAXDIAGSEARCHSTEPS_LABEL 14
+#define IDC_MAXDIAGSEARCHSTEPS       15
 
 
 float round(float n) {
@@ -239,7 +242,8 @@ HRESULT CALLBACK onResizedSwapChain(ID3D10Device *device, IDXGISwapChain *swapCh
 
     hud.SetLocation(desc->Width - (45 + HUD_WIDTH), 0);
 
-    smaa = new SMAA(device, desc->Width, desc->Height);
+    SMAA::Preset preset = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
+    smaa = new SMAA(device, desc->Width, desc->Height, preset);
     initSMAA();
     depthStencil = new DepthStencil(device, desc->Width, desc->Height,  DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
     depthBufferRenderTarget = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R32_FLOAT);
@@ -275,6 +279,7 @@ void drawHud(ID3D10Device *device, float elapsedTime) {
         txtHelper->DrawTextLine(DXUTGetDeviceStats());
         txtHelper->DrawTextLine(L"Press 'tab' to toogle the HUD, 'a' and 'd' to quickly cycle through the images");
 
+        txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 0.5f, 0.0f, 1.0f));
         if (timer->isEnabled()) {
             wstringstream s;
             s << setprecision(2) << std::fixed;
@@ -544,6 +549,15 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
             }
         }
+        case IDC_INPUT:
+            if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
+                timer->reset();            
+                loadImage();
+                resizeWindow();
+                onReleasingSwapChain(NULL);
+                onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
+            }
+            break;
         case IDC_VIEWMODE:
             if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
                 if (int(hud.GetComboBox(IDC_VIEWMODE)->GetSelectedData()) > 0) {
@@ -551,11 +565,16 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 }
             }
             break;
-        case IDC_INPUT:
+        case IDC_PRESET:
             if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
-                timer->reset();            
-                loadImage();
-                resizeWindow();
+                SMAA::Preset selected;
+                selected = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
+                hud.GetStatic(IDC_MAXSEARCHSTEPS_LABEL)->SetVisible(selected == SMAA::PRESET_CUSTOM);
+                hud.GetSlider(IDC_MAXSEARCHSTEPS)->SetVisible(selected == SMAA::PRESET_CUSTOM);
+                hud.GetStatic(IDC_MAXDIAGSEARCHSTEPS_LABEL)->SetVisible(selected == SMAA::PRESET_CUSTOM);
+                hud.GetSlider(IDC_MAXDIAGSEARCHSTEPS)->SetVisible(selected == SMAA::PRESET_CUSTOM);
+                hud.GetStatic(IDC_THRESHOLD_LABEL)->SetVisible(selected == SMAA::PRESET_CUSTOM);
+                hud.GetSlider(IDC_THRESHOLD)->SetVisible(selected == SMAA::PRESET_CUSTOM);
                 onReleasingSwapChain(NULL);
                 onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
             }
@@ -572,6 +591,20 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
             }
             break;
+        case IDC_THRESHOLD:
+            if (event == EVENT_SLIDER_VALUE_CHANGED) {
+                CDXUTSlider *slider = (CDXUTSlider *) control;
+                int min, max;
+                slider->GetRange(min, max);
+
+                float scale = float(slider->GetValue()) / (max - min);
+                smaa->setThreshold(scale * 0.5f);
+            
+                wstringstream s;
+                s << L"Threshold: " << scale * 0.5f;
+                hud.GetStatic(IDC_THRESHOLD_LABEL)->SetText(s.str().c_str());
+            }
+            break;
         case IDC_MAXSEARCHSTEPS:
             if (event == EVENT_SLIDER_VALUE_CHANGED) {
                 CDXUTSlider *slider = (CDXUTSlider *) control;
@@ -586,18 +619,18 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 hud.GetStatic(IDC_MAXSEARCHSTEPS_LABEL)->SetText(s.str().c_str());
             }
             break;
-        case IDC_THRESHOLD:
+        case IDC_MAXDIAGSEARCHSTEPS:
             if (event == EVENT_SLIDER_VALUE_CHANGED) {
                 CDXUTSlider *slider = (CDXUTSlider *) control;
                 int min, max;
                 slider->GetRange(min, max);
 
                 float scale = float(slider->GetValue()) / (max - min);
-                smaa->setThreshold(scale * 0.5f);
+                smaa->setMaxSearchStepsDiag(int(round(scale * 20.0f)));
             
                 wstringstream s;
-                s << L"Threshold: " << scale * 0.5f;
-                hud.GetStatic(IDC_THRESHOLD_LABEL)->SetText(s.str().c_str());
+                s << L"Max Diag. Search Steps: " << int(round(scale * 20.0f));
+                hud.GetStatic(IDC_MAXDIAGSEARCHSTEPS_LABEL)->SetText(s.str().c_str());
             }
             break;
         default:
@@ -616,16 +649,8 @@ void initApp() {
     hud.AddButton(IDC_TOGGLEFULLSCREEN, L"Toggle full screen", 35, iY, HUD_WIDTH, 22);
     hud.AddButton(IDC_CHANGEDEVICE, L"Change device", 35, iY += 24, HUD_WIDTH, 22, VK_F2);
     hud.AddButton(IDC_LOADIMAGE, L"Load image", 35, iY += 24, HUD_WIDTH, 22);
-    
-    hud.AddComboBox(IDC_DETECTIONMODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
-    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
-    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Color edge det.", (LPVOID) 1);
-    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
 
-    hud.AddComboBox(IDC_VIEWMODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
-    hud.GetComboBox(IDC_VIEWMODE)->AddItem(L"View image", (LPVOID) 0);
-    hud.GetComboBox(IDC_VIEWMODE)->AddItem(L"View edges", (LPVOID) 1);
-    hud.GetComboBox(IDC_VIEWMODE)->AddItem(L"View weights", (LPVOID) 2);
+    iY += 24;
 
     hud.AddComboBox(IDC_INPUT, 35, iY += 24, HUD_WIDTH, 22, 0, false);
     buildInputComboBox();
@@ -634,18 +659,51 @@ void initApp() {
         hud.GetComboBox(IDC_INPUT)->SetSelectedByData((LPVOID) -1);
     }
 
+    hud.AddComboBox(IDC_VIEWMODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
+    hud.GetComboBox(IDC_VIEWMODE)->AddItem(L"View image", (LPVOID) 0);
+    hud.GetComboBox(IDC_VIEWMODE)->AddItem(L"View edges", (LPVOID) 1);
+    hud.GetComboBox(IDC_VIEWMODE)->AddItem(L"View weights", (LPVOID) 2);
+
+    iY += 24;
+
+    hud.AddComboBox(IDC_PRESET, 35, iY += 24, HUD_WIDTH, 22, 0, false);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Low", (LPVOID) 0);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Medium", (LPVOID) 1);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA High", (LPVOID) 2);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Ultra", (LPVOID) 3);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Custom", (LPVOID) 4);
+    hud.GetComboBox(IDC_PRESET)->SetSelectedByData((LPVOID) 2);
+
+    hud.AddComboBox(IDC_DETECTIONMODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
+    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
+    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Color edge det.", (LPVOID) 1);
+    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
+
     hud.AddCheckBox(IDC_ANTIALIASING, L"SMAA Anti-Aliasing", 35, iY += 24, HUD_WIDTH, 22, true);
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, HUD_WIDTH, 22, false);
 
-    wstringstream s;
-    s << L"Max Search Steps: " << commandlineOptions.distance;
-    hud.AddStatic(IDC_MAXSEARCHSTEPS_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
-    hud.AddSlider(IDC_MAXSEARCHSTEPS, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.distance / 98.0f));
+    iY += 24;
 
-    s = wstringstream();
+    wstringstream s;
     s << L"Threshold: " << commandlineOptions.threshold;
     hud.AddStatic(IDC_THRESHOLD_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
     hud.AddSlider(IDC_THRESHOLD, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.threshold / 0.5f));
+    hud.GetStatic(IDC_THRESHOLD_LABEL)->SetVisible(false);
+    hud.GetSlider(IDC_THRESHOLD)->SetVisible(false);
+
+    s = wstringstream();
+    s << L"Max Search Steps: " << commandlineOptions.distance;
+    hud.AddStatic(IDC_MAXSEARCHSTEPS_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
+    hud.AddSlider(IDC_MAXSEARCHSTEPS, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.distance / 98.0f));
+    hud.GetStatic(IDC_MAXSEARCHSTEPS_LABEL)->SetVisible(false);
+    hud.GetSlider(IDC_MAXSEARCHSTEPS)->SetVisible(false);
+
+    s = wstringstream();
+    s << L"Max Diag. Search Steps: " << commandlineOptions.distance;
+    hud.AddStatic(IDC_MAXDIAGSEARCHSTEPS_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
+    hud.AddSlider(IDC_MAXDIAGSEARCHSTEPS, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.distance / 20.0f));
+    hud.GetStatic(IDC_MAXDIAGSEARCHSTEPS_LABEL)->SetVisible(false);
+    hud.GetSlider(IDC_MAXDIAGSEARCHSTEPS)->SetVisible(false);
 }
 
 

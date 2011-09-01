@@ -94,21 +94,36 @@ class ID3D10IncludeResource : public ID3D10Include {
 #pragma endregion
 
 
-SMAA::SMAA(ID3D10Device *device, int width, int height, const ExternalStorage &storage)
+SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, const ExternalStorage &storage)
         : device(device),
-          maxSearchSteps(8),
+          preset(preset),
+          maxSearchSteps(16),
+          maxSearchStepsDiag(8),
           threshold(0.1f) {
     HRESULT hr;
-    
+
     // Setup the defines for compiling the effect.
+    vector<D3D10_SHADER_MACRO> defines;
     stringstream s;
+
+    // Setup pixel size macro
     s << "float2(1.0 / " << width << ", 1.0 / " << height << ")";
     string pixelSizeText = s.str();
+    D3D10_SHADER_MACRO pixelSizeMacro = { "SMAA_PIXEL_SIZE", pixelSizeText.c_str() };
+    defines.push_back(pixelSizeMacro);
 
-    D3D10_SHADER_MACRO defines[3] = {
-        {"SMAA_PIXEL_SIZE", pixelSizeText.c_str()},
-        {NULL, NULL}
+    // Setup preset macro
+    D3D10_SHADER_MACRO presetMacros[] = {
+        { "SMAA_PRESET_LOW", "1" },
+        { "SMAA_PRESET_MEDIUM", "1" },
+        { "SMAA_PRESET_HIGH", "1" },
+        { "SMAA_PRESET_ULTRA", "1" },
+        { "SMAA_PRESET_CUSTOM", "1" }
     };
+    defines.push_back(presetMacros[int(preset)]);
+
+    D3D10_SHADER_MACRO null = { NULL, NULL };
+    defines.push_back(null);
 
     /**
      * IMPORTANT! Here we load and compile the SMAA effect from a *RESOURCE*
@@ -116,7 +131,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, const ExternalStorage &s
      * In case you want it to be loaded from other place change this line accordingly.
      */
     ID3D10IncludeResource includeResource;
-    V(D3DX10CreateEffectFromResource(GetModuleHandle(NULL), L"SMAA.fx", NULL, defines, &includeResource, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, NULL, NULL, &effect, NULL, NULL));
+    V(D3DX10CreateEffectFromResource(GetModuleHandle(NULL), L"SMAA.fx", NULL, &defines.front(), &includeResource, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, NULL, NULL, &effect, NULL, NULL));
 
     // This is for rendering the typical fullscreen quad later on.
     D3D10_PASS_DESC desc;
@@ -142,6 +157,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, const ExternalStorage &s
     // Create some handles for techniques and variables.
     thresholdVariable = effect->GetVariableByName("threshold")->AsScalar();
     maxSearchStepsVariable = effect->GetVariableByName("maxSearchSteps")->AsScalar();
+    maxSearchStepsDiagVariable = effect->GetVariableByName("maxSearchStepsDiag")->AsScalar();
     areaTexVariable = effect->GetVariableByName("areaTex")->AsShaderResource();
     searchTexVariable = effect->GetVariableByName("searchTex")->AsShaderResource();
     colorTexVariable = effect->GetVariableByName("colorTex")->AsShaderResource();
@@ -194,8 +210,11 @@ void SMAA::go(ID3D10ShaderResourceView *edgesSRV,
     device->ClearRenderTargetView(*blendRenderTarget, clearColor);
 
     // Setup variables.
-    V(thresholdVariable->SetFloat(threshold));
-    V(maxSearchStepsVariable->SetFloat(float(maxSearchSteps)));
+    if (preset == PRESET_CUSTOM) {
+        V(thresholdVariable->SetFloat(threshold));
+        V(maxSearchStepsVariable->SetFloat(float(maxSearchSteps)));
+        V(maxSearchStepsDiagVariable->SetFloat(float(maxSearchStepsDiag)));
+    }
     V(colorTexVariable->SetResource(srcSRV));
     V(edgesTexVariable->SetResource(*edgeRenderTarget));
     V(blendTexVariable->SetResource(*blendRenderTarget));

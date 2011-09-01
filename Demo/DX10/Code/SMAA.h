@@ -49,6 +49,7 @@ class SMAA {
     public:
         class ExternalStorage;
 
+        enum Preset { PRESET_LOW, PRESET_MEDIUM, PRESET_HIGH, PRESET_ULTRA, PRESET_CUSTOM };
         enum Input { INPUT_LUMA, INPUT_COLOR, INPUT_DEPTH };
 
         /**
@@ -62,7 +63,8 @@ class SMAA {
          * By default, two render targets will be created for storing
          * intermediate calculations.
          */
-        SMAA(ID3D10Device *device, int width, int height, const ExternalStorage &storage=ExternalStorage());
+        SMAA(ID3D10Device *device, int width, int height, Preset preset, 
+             const ExternalStorage &storage=ExternalStorage());
         ~SMAA();
 
         /**
@@ -87,16 +89,23 @@ class SMAA {
                 Input input);
 
         /**
-         * Maximum length to search for patterns. Each step is two pixels wide.
-         */
-        int getMaxSearchSteps() const { return maxSearchSteps; }
-        void setMaxSearchSteps(int maxSearchSteps) { this->maxSearchSteps = maxSearchSteps; }
-        
-        /**
          * Threshold for the edge detection.
          */
         float getThreshold() const { return threshold; }
         void setThreshold(float threshold) { this->threshold = threshold; }
+
+        /**
+         * Maximum length to search for horizontal/vertical patterns. Each step
+         * is two pixels wide.
+         */
+        int getMaxSearchSteps() const { return maxSearchSteps; }
+        void setMaxSearchSteps(int maxSearchSteps) { this->maxSearchSteps = maxSearchSteps; }
+
+        /**
+         * Maximum length to search for diagonal patterns.
+         */
+        int getMaxSearchStepsDiag() const { return maxSearchStepsDiag; }
+        void setMaxSearchStepsDiag(int maxSearchStepsDiag) { this->maxSearchStepsDiag = maxSearchStepsDiag; }
 
         /**
          * These two are just for debugging purposes.
@@ -130,6 +139,7 @@ class SMAA {
         void neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthStencilView *dsv);
 
         ID3D10Device *device;
+        Preset preset;
         ID3D10Effect *effect;
         Quad *quad;
 
@@ -142,7 +152,7 @@ class SMAA {
         ID3D10ShaderResourceView *searchTexSRV;
 
         ID3D10EffectScalarVariable *thresholdVariable;
-        ID3D10EffectScalarVariable *maxSearchStepsVariable;
+        ID3D10EffectScalarVariable *maxSearchStepsVariable, *maxSearchStepsDiagVariable;
         ID3D10EffectShaderResourceVariable *areaTexVariable, *searchTexVariable,
                                            *colorTexVariable, *colorGammaTexVariable, *depthTexVariable,
                                            *edgesTexVariable, *blendTexVariable;
@@ -153,7 +163,7 @@ class SMAA {
                               *blendWeightCalculationTechnique,
                               *neighborhoodBlendingTechnique;
 
-        int maxSearchSteps;
+        int maxSearchSteps, maxSearchStepsDiag;
         float threshold;
 };
 

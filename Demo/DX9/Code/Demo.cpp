@@ -65,8 +65,10 @@ bool showHud = true;
 
 
 #define IDC_TOGGLEFULLSCREEN    1
-#define IDC_PROFILE             2
+#define IDC_PRESET              2
 #define IDC_DETECTIONMODE       3
+#define IDC_ANTIALIASING        4
+#define IDC_PROFILE             5
 
 
 bool CALLBACK isDeviceAcceptable(D3DCAPS9 *caps, D3DFORMAT adapterFormat, D3DFORMAT backBufferFormat, bool windowed, void *userContext) {
@@ -106,7 +108,8 @@ HRESULT CALLBACK onResetDevice(IDirect3DDevice9 *device, const D3DSURFACE_DESC *
     timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
     timer->setRepetitionsCount(100);
 
-    smaa = new SMAA(device, desc->Width, desc->Height);
+    SMAA::Preset preset = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
+    smaa = new SMAA(device, desc->Width, desc->Height, preset);
 
     V(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbufferSurface));
 
@@ -156,7 +159,8 @@ void drawHud() {
     txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 1.0f, 1.0f, 1.0f));
     txtHelper->DrawTextLine(DXUTGetFrameStats(DXUTIsVsyncEnabled()));
     txtHelper->DrawTextLine(DXUTGetDeviceStats());
-
+    
+    txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 0.5f, 0.0f, 1.0f));
     if (timer->isEnabled()) {
         wstringstream s;
         s << setprecision(5) << std::fixed;
@@ -189,6 +193,21 @@ void mainPass(IDirect3DDevice9 *device) {
 }
 
 
+void copy(IDirect3DDevice9 *device) {
+    HRESULT hr;
+
+    // A dummy copy over here.
+    IDirect3DSurface9 *colorSurface = NULL;
+    V(colorTex->GetSurfaceLevel(0, &colorSurface));
+    D3DSURFACE_DESC desc;
+    colorSurface->GetDesc(&desc);
+    const D3DSURFACE_DESC *backbufferDesc = DXUTGetD3D9BackBufferSurfaceDesc();
+    RECT rect = {0, 0, min(desc.Width, backbufferDesc->Width), min(desc.Height, backbufferDesc->Height)};
+    V(device->StretchRect(colorSurface, &rect, backbufferSurface, &rect, D3DTEXF_POINT));
+    SAFE_RELEASE(colorSurface);
+}
+
+
 void CALLBACK onFrameRender(IDirect3DDevice9 *device, double time, float elapsedTime, void *userContext) {
     HRESULT hr;
 
@@ -200,22 +219,26 @@ void CALLBACK onFrameRender(IDirect3DDevice9 *device, double time, float elapsed
         mainPass(device);
 
         // Run SMAA
-        SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTIONMODE)->GetSelectedData()));
-        int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? timer->getRepetitionsCount() : 1;
+        if (hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked()) {
+            SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTIONMODE)->GetSelectedData()));
+            int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? timer->getRepetitionsCount() : 1;
 
-        timer->start();
-        for (int i = 0; i < n; i++) { // This loop is just for profiling.
-            switch (input) {
-                case SMAA::INPUT_LUMA:
-                case SMAA::INPUT_COLOR:
-                    smaa->go(finalbufferColorTex, finalbufferColorTex, backbufferSurface, input);
-                    break;
-                case SMAA::INPUT_DEPTH:
-                    smaa->go(finalbufferDepthTex, finalbufferColorTex, backbufferSurface, input);
-                    break;
+            timer->start();
+            for (int i = 0; i < n; i++) { // This loop is just for profiling.
+                switch (input) {
+                    case SMAA::INPUT_LUMA:
+                    case SMAA::INPUT_COLOR:
+                        smaa->go(finalbufferColorTex, finalbufferColorTex, backbufferSurface, input);
+                        break;
+                    case SMAA::INPUT_DEPTH:
+                        smaa->go(finalbufferDepthTex, finalbufferColorTex, backbufferSurface, input);
+                        break;
+                }
             }
+            timer->clock(L"SMAA");
+        } else {
+            copy(device);
         }
-        timer->clock(L"SMAA");
 
         // Draw the HUD
         DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats"); // These events are to help PIX identify what the code is doing
@@ -252,6 +275,9 @@ void CALLBACK onKeyboard(UINT nchar, bool keyDown, bool altDown, void *userConte
         case 'X':
             hud.GetCheckBox(IDC_PROFILE)->SetChecked(!hud.GetCheckBox(IDC_PROFILE)->GetChecked());
             timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
+            break;
+        case 'Z':
+            hud.GetCheckBox(IDC_ANTIALIASING)->SetChecked(!hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked());
             break;
     }
 }
@@ -303,6 +329,18 @@ void CALLBACK onGUIEvent(UINT event, int controlId, CDXUTControl* control, void 
         case IDC_TOGGLEFULLSCREEN:
             DXUTToggleFullScreen();
             break;
+        case IDC_PRESET:
+            if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
+                SMAA::Preset selected;
+                selected = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
+                onLostDevice(NULL);
+                onResetDevice(DXUTGetD3D9Device(), DXUTGetD3D9BackBufferSurfaceDesc(), NULL);
+            }
+            break;
+        case IDC_ANTIALIASING:
+            if (event == EVENT_CHECKBOX_CHANGED)
+                timer->reset();
+            break;
         case IDC_PROFILE:
             if (event == EVENT_CHECKBOX_CHANGED) {
                 timer->reset();
@@ -318,10 +356,23 @@ void initApp() {
 
     hud.SetCallback(onGUIEvent); int iY = 10;
     hud.AddButton(IDC_TOGGLEFULLSCREEN, L"Toggle full screen", 35, iY, 125, 22);
+
+    iY += 24;
+
+    hud.AddComboBox(IDC_PRESET, 35, iY += 24, 125, 22, 0, false);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Low", (LPVOID) 0);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Medium", (LPVOID) 1);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA High", (LPVOID) 2);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Ultra", (LPVOID) 3);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Custom", (LPVOID) 4);
+    hud.GetComboBox(IDC_PRESET)->SetSelectedByData((LPVOID) 2);
+
     hud.AddComboBox(IDC_DETECTIONMODE, 35, iY += 24, 125, 22, 0, false);
     hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
     hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Color edge det.", (LPVOID) 1);
     hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
+
+    hud.AddCheckBox(IDC_ANTIALIASING, L"SMAA Anti-Aliasing", 35, iY += 24, 125, 22, true);
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, 125, 22, false);
 }
 
