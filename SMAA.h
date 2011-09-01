@@ -86,6 +86,9 @@
  *     C++ headers, and also as regular DDS files. They'll be needed for the
  *     'SMAABlendingWeightCalculation' pass.
  *
+ *     If you use the C++ headers, be sure to load them in the format specified
+ *     inside of them.
+ *
  *  4. In DX9, all samplers must be set to linear filtering and clamp, with the
  *     exception of 'searchTex', that must be set to point filtering.
  *
@@ -159,7 +162,7 @@
 // Configurable Defines
 
 /**
- * SMAA_THRESHOLD specifices the threshold or sensivity to edges.
+ * SMAA_THRESHOLD specifies the threshold or sensitivity to edges.
  * Lowering this value you will be able to detect more edges at the expense of
  * performance. 
  * 0.1 is a reasonable value, and allows to catch most visible edges.
@@ -171,7 +174,7 @@
 
 /**
  * SMAA_MAX_SEARCH_STEPS specifies the maximum steps performed in the
- * horizontal/vertical pattern searchs, at each side of the pixel.
+ * horizontal/vertical pattern searches, at each side of the pixel.
  *
  * In number of pixels, it's actually the double. So the maximum line length
  * perfectly handled by, for example 16, is 64 (by perfectly, we meant that
@@ -442,7 +445,7 @@ float4 SMAADepthEdgeDetectionPS(float2 texcoord,
 #if SMAA_MAX_SEARCH_STEPS_DIAG > 0 || SMAA_FORCE_DIAGONALS == 1
 
 /**
- * These functions allows to perform diagonal pattern searchs.
+ * These functions allows to perform diagonal pattern searches.
  */
 float SMAASearchDiag1(SMAATexture2D edgesTex, float2 texcoord, float2 dir, float c) {
     texcoord += dir * SMAA_PIXEL_SIZE;
@@ -489,7 +492,7 @@ float2 SMAAAreaDiag(SMAATexture2D areaTex, float2 distance, float2 e) {
 }
 
 /**
- * This searchs for diagonal patterns and returns the corresponding weights.
+ * This searches for diagonal patterns and returns the corresponding weights.
  */
 float2 SMAACalculateDiagWeights(SMAATexture2D edgesTex, SMAATexture2D areaTex, float2 texcoord, float2 e) {
     float2 weights = 0.0;
@@ -540,7 +543,7 @@ float2 SMAACalculateDiagWeights(SMAATexture2D edgesTex, SMAATexture2D areaTex, f
 
 /**
  * This allows to determine how much length should we add in the last step
- * of the searchs. It takes the bilinearly interpolated edge (see 
+ * of the searches. It takes the bilinearly interpolated edge (see 
  * @PSEUDO_GATHER4), and adds 0, 1 or 2, depending on which edges and
  * crossing edges are active.
  */
@@ -575,7 +578,7 @@ float SMAASearchXLeft(SMAATexture2D edgesTex, SMAATexture2D searchTex, float2 te
     // We correct the previous (-0.25, -0.125) offset we applied:
     texcoord.x += 0.25 * SMAA_PIXEL_SIZE.x;
 
-    // The searchs are bias by 1, so adjust the coords accordingly:
+    // The searches are bias by 1, so adjust the coords accordingly:
     texcoord.x += SMAA_PIXEL_SIZE.x;
 
     // Disambiguate the length added by the last step:
@@ -785,7 +788,7 @@ float4 SMAANeighborhoodBlendingPS(float2 texcoord,
 
         #if SMAA_HLSL_4 == 1 || SMAA_DIRECTX9_LINEAR_BLEND == 0
         // We exploit bilinear filtering to mix current pixel with the chosen
-        // neighbour:
+        // neighbor:
         texcoord += offset * SMAA_PIXEL_SIZE;
         return SMAASampleLevelZero(colorTex, texcoord);
         #else

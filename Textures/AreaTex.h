@@ -46,7 +46,9 @@
 #define AREATEX_SIZE (AREATEX_HEIGHT * AREATEX_PITCH)
 
 /**
- * Stored in R8G8 format.
+ * Stored in R8G8 format. Load it in the following format:
+ *  - DX9:  D3DFMT_A8L8 
+ *  - DX10: DXGI_FORMAT_R8G8_UNORM
  */
 static const unsigned char areaTexBytes[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 

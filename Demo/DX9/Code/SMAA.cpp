@@ -45,6 +45,10 @@
 using namespace std;
 
 
+// This define is for testing the precomputed textures files:
+// #define SMAA_TEST_DDS_FILES
+
+
 #pragma region Useful Macros from DXUT (copy-pasted here as we prefer this to be as self-contained as possible)
 #if defined(DEBUG) || defined(_DEBUG)
 #ifndef V
@@ -219,13 +223,14 @@ void SMAA::go(IDirect3DTexture9 *edges,
     V(device->SetVertexDeclaration(vertexDeclaration));
 
     // And here we go!
-    edgesDetectionPass(edges, input);
+    edgesDetectionPass(edges, input); 
     blendingWeightsCalculationPass();
     neighborhoodBlendingPass(src, dst);
 }
 
 
 void SMAA::loadAreaTex() {
+    #ifndef SMAA_TEST_DDS_FILES
     HRESULT hr;
     V(device->CreateTexture(AREATEX_WIDTH, AREATEX_HEIGHT, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8L8, D3DPOOL_DEFAULT, &areaTex, NULL));
     D3DLOCKED_RECT rect;
@@ -233,10 +238,17 @@ void SMAA::loadAreaTex() {
     for (int i = 0; i < AREATEX_HEIGHT; i++)
         CopyMemory(((char *) rect.pBits) + i * rect.Pitch, areaTexBytes + i * AREATEX_PITCH, AREATEX_PITCH);
     V(areaTex->UnlockRect(0));
+    #else
+    HRESULT hr;
+    D3DXIMAGE_INFO info;
+    V(D3DXGetImageInfoFromFile(L"../../Textures/AreaTexDX9.dds", &info));
+    V(D3DXCreateTextureFromFileEx(device, L"../../Textures/AreaTexDX9.dds", info.Width, info.Height, 1, 0, D3DFMT_A8L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &areaTex));
+    #endif
 }
 
 
 void SMAA::loadSearchTex() {
+    #ifndef SMAA_TEST_DDS_FILES
     HRESULT hr;
     V(device->CreateTexture(SEARCHTEX_WIDTH, SEARCHTEX_HEIGHT, 1, D3DUSAGE_DYNAMIC, D3DFMT_L8, D3DPOOL_DEFAULT, &searchTex, NULL));
     D3DLOCKED_RECT rect;
@@ -244,6 +256,12 @@ void SMAA::loadSearchTex() {
     for (int i = 0; i < SEARCHTEX_HEIGHT; i++)
         CopyMemory(((char *) rect.pBits) + i * rect.Pitch, searchTexBytes + i * SEARCHTEX_PITCH, SEARCHTEX_PITCH);
     V(searchTex->UnlockRect(0));
+    #else
+    HRESULT hr;
+    D3DXIMAGE_INFO info;
+    V(D3DXGetImageInfoFromFile(L"../../Textures/SearchTex.dds", &info));
+    V(D3DXCreateTextureFromFileEx(device, L"../../Textures/SearchTex.dds", info.Width, info.Height, 1, 0, D3DFMT_L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &searchTex));
+    #endif
 }
 
 

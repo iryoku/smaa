@@ -44,6 +44,10 @@
 using namespace std;
 
 
+// This define is for testing the precomputed textures files:
+// #define SMAA_TEST_DDS_FILES
+
+
 #pragma region Useful Macros from DXUT (copy-pasted here as we prefer this to be as self-contained as possible)
 #if defined(DEBUG) || defined(_DEBUG)
 #ifndef V
@@ -234,6 +238,7 @@ void SMAA::go(ID3D10ShaderResourceView *edgesSRV,
 
 
 void SMAA::loadAreaTex() {
+    #ifndef SMAA_TEST_DDS_FILES
     HRESULT hr;
 
     D3D10_SUBRESOURCE_DATA data;
@@ -260,9 +265,19 @@ void SMAA::loadAreaTex() {
     descSRV.Texture2D.MostDetailedMip = 0;
     descSRV.Texture2D.MipLevels = 1;
     V(device->CreateShaderResourceView(areaTex, &descSRV, &areaTexSRV));
+    #else
+    areaTex = NULL;
+    HRESULT hr;
+    D3DX10_IMAGE_LOAD_INFO info = D3DX10_IMAGE_LOAD_INFO();
+    info.MipLevels = 1;
+    info.Format = DXGI_FORMAT_R8G8_UNORM;
+    V(D3DX10CreateShaderResourceViewFromFile(device, L"../../Textures/AreaTexDX10.dds", &info, NULL, &areaTexSRV, NULL));
+    #endif
 }
 
+
 void SMAA::loadSearchTex() {
+    #ifndef SMAA_TEST_DDS_FILES
     HRESULT hr;
 
     D3D10_SUBRESOURCE_DATA data;
@@ -289,6 +304,14 @@ void SMAA::loadSearchTex() {
     descSRV.Texture2D.MostDetailedMip = 0;
     descSRV.Texture2D.MipLevels = 1;
     V(device->CreateShaderResourceView(searchTex, &descSRV, &searchTexSRV));
+    #else
+    searchTex = NULL;
+    HRESULT hr;
+    D3DX10_IMAGE_LOAD_INFO info = D3DX10_IMAGE_LOAD_INFO();
+    info.MipLevels = 1;
+    info.Format = DXGI_FORMAT_R8_UNORM;
+    V(D3DX10CreateShaderResourceViewFromFile(device, L"../../Textures/SearchTex.dds", &info, NULL, &searchTexSRV, NULL));
+    #endif
 }
 
 
