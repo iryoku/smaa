@@ -38,6 +38,18 @@
 
 
 /**
+ *                  _______  ___  ___       ___           ___
+ *                 /       ||   \/   |     /   \         /   \
+ *                |   (---- |  \  /  |    /  ^  \       /  ^  \
+ *                 \   \    |  |\/|  |   /  /_\  \     /  /_\  \
+ *              ----)   |   |  |  |  |  /  _____  \   /  _____  \
+ *             |_______/    |__|  |__| /__/     \__\ /__/     \__\
+ * 
+ *                               E N H A N C E D
+ *       S U B P I X E L   M O R P H O L O G I C A L   A N T I A L I A S I N G
+ *
+ *                         http://www.iryoku.com/smaa/
+ *
  * Hi, welcome aboard!
  * 
  * Here you will find instructions to get the shader up and running as fast as
@@ -144,18 +156,22 @@
 #define SMAA_THRESHOLD 0.15
 #define SMAA_MAX_SEARCH_STEPS 4
 #define SMAA_MAX_SEARCH_STEPS_DIAG 0
+#define SMAA_CORNER_ROUNDING 100
 #elif SMAA_PRESET_MEDIUM == 1
 #define SMAA_THRESHOLD 0.1
 #define SMAA_MAX_SEARCH_STEPS 8
 #define SMAA_MAX_SEARCH_STEPS_DIAG 0
+#define SMAA_CORNER_ROUNDING 100
 #elif SMAA_PRESET_HIGH == 1
 #define SMAA_THRESHOLD 0.1
 #define SMAA_MAX_SEARCH_STEPS 16
 #define SMAA_MAX_SEARCH_STEPS_DIAG 8
+#define SMAA_CORNER_ROUNDING 25
 #elif SMAA_PRESET_ULTRA == 1
 #define SMAA_THRESHOLD 0.05
 #define SMAA_MAX_SEARCH_STEPS 32
 #define SMAA_MAX_SEARCH_STEPS_DIAG 16
+#define SMAA_CORNER_ROUNDING 25
 #endif
 
 //-----------------------------------------------------------------------------
@@ -165,8 +181,10 @@
  * SMAA_THRESHOLD specifies the threshold or sensitivity to edges.
  * Lowering this value you will be able to detect more edges at the expense of
  * performance. 
- * 0.1 is a reasonable value, and allows to catch most visible edges.
- * 0.05 is a rather overkill value, that allows to catch 'em all.
+ *
+ * Range: [0.0 .. 0.5]
+ *   0.1 is a reasonable value, and allows to catch most visible edges.
+ *   0.05 is a rather overkill value, that allows to catch 'em all.
  */
 #ifndef SMAA_THRESHOLD
 #define SMAA_THRESHOLD 0.1
@@ -180,7 +198,7 @@
  * perfectly handled by, for example 16, is 64 (by perfectly, we meant that
  * longer lines won't look as good, but still antialiased).
  *
- * The maximum number of steps reachable with the bundled areas texture is 98.
+ * Range: [0 .. 98]
  */
 #ifndef SMAA_MAX_SEARCH_STEPS
 #define SMAA_MAX_SEARCH_STEPS 16
@@ -191,14 +209,22 @@
  * diagonal pattern searchs, at each side of the pixel. In this case we jump
  * one pixel at time, instead of two.
  *
- * Set it to 0 to disable diagonal processing. The maximum number of diagonal
- * steps reachable with the bundled areas texture is 20.
+ * Range: [0 .. 20]; set it to 0 to disable diagonal processing.
  *
  * On high-end machines it is cheap (between a 0.8x and 0.9x slower for 16 
  * steps), but it can have a significant impact on older machines.
  */
 #ifndef SMAA_MAX_SEARCH_STEPS_DIAG
 #define SMAA_MAX_SEARCH_STEPS_DIAG 8
+#endif
+
+/**
+ * SMAA_CORNER_ROUNDING specifies how much sharp corners will be rounded.
+ *
+ * Range: [0 .. 100]; set it to 100 to disable corner detection.
+ */
+#ifndef SMAA_CORNER_ROUNDING
+#define SMAA_CORNER_ROUNDING 25
 #endif
 
 /**
@@ -300,7 +326,9 @@ void SMAABlendWeightCalculationVS(float4 position,
     offset[1] = texcoord.xyxy + SMAA_PIXEL_SIZE.xyxy * float4(-0.125, -0.25, -0.125,  1.25);
 
     // And these for the searchs, they indicate the ends of the loops:
-    offset[2] = float4(offset[0].xz, offset[1].yw) + float4(-2.0, 2.0, -2.0, 2.0) * SMAA_PIXEL_SIZE.xxyy * SMAA_MAX_SEARCH_STEPS;
+    offset[2] = float4(offset[0].xz, offset[1].yw) + 
+                float4(-2.0, 2.0, -2.0, 2.0) *
+                SMAA_PIXEL_SIZE.xxyy * SMAA_MAX_SEARCH_STEPS;
 }
 
 /**
@@ -429,8 +457,9 @@ float4 SMAADepthEdgeDetectionPS(float2 texcoord,
     float Dleft = SMAASample(depthTex, offset[0].xy).r;
     float Dtop  = SMAASample(depthTex, offset[0].zw).r;
 
+    // Dividing by 10 give us results similar to the color-based detection, in
+    // our examples:
     float2 delta = abs(D.xx - float2(Dleft, Dtop));
-    // Dividing by 10 give us results similar to the color-based detection, in our examples:
     float2 edges = step(SMAA_THRESHOLD.xx / 10.0, delta);
 
     if (dot(edges, 1.0) == 0.0)
@@ -442,7 +471,7 @@ float4 SMAADepthEdgeDetectionPS(float2 texcoord,
 //-----------------------------------------------------------------------------
 // Diagonal Search Functions
 
-#if SMAA_MAX_SEARCH_STEPS_DIAG > 0 || SMAA_FORCE_DIAGONALS == 1
+#if SMAA_MAX_SEARCH_STEPS_DIAG > 0 || SMAA_FORCE_DIAGONAL_DETECTION == 1
 
 /**
  * These functions allows to perform diagonal pattern searches.
@@ -656,6 +685,41 @@ float2 SMAAArea(SMAATexture2D areaTex, float2 distance, float e1, float e2) {
 }
 
 //-----------------------------------------------------------------------------
+// Corner Detection Functions
+
+void SMAADetectHorizontalCornerPattern(SMAATexture2D edgesTex, inout float2 weights, float2 texcoord, float2 d) {
+    #if SMAA_CORNER_ROUNDING < 100 || SMAA_FORCE_CORNER_DETECTION == 1
+    float4 coords = mad(float4(d.x, 0.0, d.y, 0.0),
+                        SMAA_PIXEL_SIZE.xyxy, texcoord.xyxy);
+    float2 e;
+    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(0.0,  1.0)).r;
+    bool left = abs(d.x) < abs(d.y);
+    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(0.0, -2.0)).r;
+    if (left) weights *= saturate(SMAA_CORNER_ROUNDING / 100.0 + 1.0 - e);
+
+    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(1.0,  1.0)).r;
+    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(1.0, -2.0)).r;
+    if (!left) weights *= saturate(SMAA_CORNER_ROUNDING / 100.0 + 1.0 - e);
+    #endif
+}
+
+void SMAADetectVerticalCornerPattern(SMAATexture2D edgesTex, inout float2 weights, float2 texcoord, float2 d) {
+    #if SMAA_CORNER_ROUNDING < 100 || SMAA_FORCE_CORNER_DETECTION == 1
+    float4 coords = mad(float4(0.0, d.x, 0.0, d.y),
+                        SMAA_PIXEL_SIZE.xyxy, texcoord.xyxy);
+    float2 e;
+    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 1.0, 0.0)).g;
+    bool left = abs(d.x) < abs(d.y);
+    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-2.0, 0.0)).g;
+    if (left) weights *= saturate(SMAA_CORNER_ROUNDING / 100.0 + 1.0 - e);
+
+    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1.0, 1.0)).g;
+    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(-2.0, 1.0)).g;
+    if (!left) weights *= saturate(SMAA_CORNER_ROUNDING / 100.0 + 1.0 - e);
+    #endif
+}
+
+//-----------------------------------------------------------------------------
 // Blending Weight Calculation Pixel Shader (Second Pass)
 
 float4 SMAABlendingWeightCalculationPS(float2 texcoord,
@@ -670,7 +734,7 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
 
     [branch]
     if (e.g) { // Edge at north
-        #if SMAA_MAX_SEARCH_STEPS_DIAG > 0 || SMAA_FORCE_DIAGONALS == 1
+        #if SMAA_MAX_SEARCH_STEPS_DIAG > 0 || SMAA_FORCE_DIAGONAL_DETECTION == 1
         // Diagonals have both north and west edges, so searching for them in
         // one of the boundaries is enough.
         weights.rg = SMAACalculateDiagWeights(edgesTex, areaTex, texcoord, e);
@@ -704,16 +768,18 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
 
         // SMAAArea below needs a sqrt, as the areas texture is compressed 
         // quadratically:
-        d = sqrt(abs(d));
+        float2 sqrt_d = sqrt(abs(d));
 
         // Fetch the right crossing edges:
         float e2 = SMAASampleLevelZeroOffset(edgesTex, coords, int2(1, 0)).r;
 
         // Ok, we know how this pattern looks like, now it is time for getting
         // the actual area:
-        weights.rg = SMAAArea(areaTex, d, e1, e2);
+        weights.rg = SMAAArea(areaTex, sqrt_d, e1, e2);
 
-        #if SMAA_MAX_SEARCH_STEPS_DIAG > 0 || SMAA_FORCE_DIAGONALS == 1
+        SMAADetectHorizontalCornerPattern(edgesTex, weights.rg, texcoord, d);
+
+        #if SMAA_MAX_SEARCH_STEPS_DIAG > 0 || SMAA_FORCE_DIAGONAL_DETECTION == 1
         } else
             e.r = 0.0; // Skip vertical processing.
         #endif
@@ -741,13 +807,15 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
 
         // SMAAArea below needs a sqrt, as the areas texture is compressed 
         // quadratically:
-        d = sqrt(abs(d));
+        float2 sqrt_d = sqrt(abs(d));
 
         // Fetch the bottom crossing edges:
         float e2 = SMAASampleLevelZeroOffset(edgesTex, coords, int2(0, 1)).g;
 
         // Get the area for this direction:
-        weights.ba = SMAAArea(areaTex, d, e1, e2);
+        weights.ba = SMAAArea(areaTex, sqrt_d, e1, e2);
+
+        SMAADetectVerticalCornerPattern(edgesTex, weights.ba, texcoord, d);
     }
 
     return weights;

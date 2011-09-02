@@ -101,9 +101,10 @@ class ID3D10IncludeResource : public ID3D10Include {
 SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, const ExternalStorage &storage)
         : device(device),
           preset(preset),
+          threshold(0.1f),
+          cornerRounding(0.25f),
           maxSearchSteps(16),
-          maxSearchStepsDiag(8),
-          threshold(0.1f) {
+          maxSearchStepsDiag(8) {
     HRESULT hr;
 
     // Setup the defines for compiling the effect.
@@ -160,6 +161,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, const Ext
 
     // Create some handles for techniques and variables.
     thresholdVariable = effect->GetVariableByName("threshold")->AsScalar();
+    cornerRoundingVariable = effect->GetVariableByName("cornerRounding")->AsScalar();
     maxSearchStepsVariable = effect->GetVariableByName("maxSearchSteps")->AsScalar();
     maxSearchStepsDiagVariable = effect->GetVariableByName("maxSearchStepsDiag")->AsScalar();
     areaTexVariable = effect->GetVariableByName("areaTex")->AsShaderResource();
@@ -216,6 +218,7 @@ void SMAA::go(ID3D10ShaderResourceView *edgesSRV,
     // Setup variables.
     if (preset == PRESET_CUSTOM) {
         V(thresholdVariable->SetFloat(threshold));
+        V(cornerRoundingVariable->SetFloat(cornerRounding));
         V(maxSearchStepsVariable->SetFloat(float(maxSearchSteps)));
         V(maxSearchStepsDiagVariable->SetFloat(float(maxSearchStepsDiag)));
     }

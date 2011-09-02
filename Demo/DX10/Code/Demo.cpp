@@ -75,27 +75,31 @@ fstream benchmarkFile;
 
 struct {
     float threshold;
-    int distance;
+    int searchSteps;
+    int diagSearchSteps;
+    float cornerRounding;
     wstring src;
     wstring dst;
-} commandlineOptions = {0.1f, 8, L"", L""};
+} commandlineOptions = {0.1f, 16, 8, 25.0f, L"", L""};
 
 
-#define IDC_TOGGLEFULLSCREEN          1
-#define IDC_CHANGEDEVICE              2
-#define IDC_LOADIMAGE                 3
-#define IDC_INPUT                     4
-#define IDC_VIEWMODE                  5
-#define IDC_PRESET                    6
-#define IDC_DETECTIONMODE             7
-#define IDC_ANTIALIASING              8
-#define IDC_PROFILE                   9
-#define IDC_THRESHOLD_LABEL          10
-#define IDC_THRESHOLD                11
-#define IDC_MAXSEARCHSTEPS_LABEL     12
-#define IDC_MAXSEARCHSTEPS           13
-#define IDC_MAXDIAGSEARCHSTEPS_LABEL 14
-#define IDC_MAXDIAGSEARCHSTEPS       15
+#define IDC_TOGGLE_FULLSCREEN            1
+#define IDC_CHANGE_DEVICE                2
+#define IDC_LOAD_IMAGE                   3
+#define IDC_INPUT                        4
+#define IDC_VIEW_MODE                    5
+#define IDC_PRESET                       6
+#define IDC_DETECTION_MODE               7
+#define IDC_ANTIALIASING                 8
+#define IDC_PROFILE                      9
+#define IDC_THRESHOLD_LABEL             10
+#define IDC_THRESHOLD                   11
+#define IDC_MAX_SEARCH_STEPS_LABEL      12
+#define IDC_MAX_SEARCH_STEPS            13
+#define IDC_MAX_SEARCH_STEPS_DIAG_LABEL 14
+#define IDC_MAX_SEARCH_STEPS_DIAG       15
+#define IDC_CORNER_ROUNDING_LABEL       16
+#define IDC_CORNER_ROUNDING             17
 
 
 float round(float n) {
@@ -155,13 +159,13 @@ void loadImage() {
         }
     }
 
-    int selectedIndex = hud.GetComboBox(IDC_DETECTIONMODE)->GetSelectedIndex();
-    hud.GetComboBox(IDC_DETECTIONMODE)->RemoveAllItems();
-    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
-    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Color edge det.", (LPVOID) 1);
+    int selectedIndex = hud.GetComboBox(IDC_DETECTION_MODE)->GetSelectedIndex();
+    hud.GetComboBox(IDC_DETECTION_MODE)->RemoveAllItems();
+    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
+    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Color edge det.", (LPVOID) 1);
     if (testDepthSRV != NULL)
-        hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
-    hud.GetComboBox(IDC_DETECTIONMODE)->SetSelectedByIndex(selectedIndex);
+        hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
+    hud.GetComboBox(IDC_DETECTION_MODE)->SetSelectedByIndex(selectedIndex);
 }
 
 
@@ -223,15 +227,25 @@ void initSMAA() {
     int min, max;
     float scale;
 
-    CDXUTSlider *slider = hud.GetSlider(IDC_MAXSEARCHSTEPS);
+    CDXUTSlider *slider = hud.GetSlider(IDC_THRESHOLD);
     slider->GetRange(min, max);
     scale = float(slider->GetValue()) / (max - min);
-    smaa->setMaxSearchSteps(int(round(scale * 98.0f)));
+    smaa->setThreshold(0.5f * scale);
 
-    slider = hud.GetSlider(IDC_THRESHOLD);
+    slider = hud.GetSlider(IDC_MAX_SEARCH_STEPS);
     slider->GetRange(min, max);
     scale = float(slider->GetValue()) / (max - min);
-    smaa->setThreshold(scale * 0.5f);
+    smaa->setMaxSearchSteps(int(round(98.0f * scale)));
+
+    slider = hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG);
+    slider->GetRange(min, max);
+    scale = float(slider->GetValue()) / (max - min);
+    smaa->setMaxSearchStepsDiag(int(round(20.0f * scale)));
+
+    slider = hud.GetSlider(IDC_CORNER_ROUNDING);
+    slider->GetRange(min, max);
+    scale = float(slider->GetValue()) / (max - min);
+    smaa->setCornerRounding(100.0f * scale);
 }
 
 
@@ -319,7 +333,7 @@ void doBenchmark() {
 
 
 void drawTextures(ID3D10Device *device) {
-    switch (int(hud.GetComboBox(IDC_VIEWMODE)->GetSelectedData())) {
+    switch (int(hud.GetComboBox(IDC_VIEW_MODE)->GetSelectedData())) {
         case 1:
             Copy::go(*smaa->getEdgeRenderTarget(), *backbufferRenderTarget);
             break;
@@ -349,7 +363,7 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
 
     // Run SMAA
     if (hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked()) {
-        SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTIONMODE)->GetSelectedData()));
+        SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTION_MODE)->GetSelectedData()));
         int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? timer->getRepetitionsCount() : 1;
 
         timer->start();
@@ -402,29 +416,48 @@ LRESULT CALLBACK msgProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, bool
 }
 
 
+void setVisibleCustomControls(bool visible) {
+    hud.GetStatic(IDC_THRESHOLD_LABEL)->SetVisible(visible);
+    hud.GetSlider(IDC_THRESHOLD)->SetVisible(visible);
+    hud.GetStatic(IDC_MAX_SEARCH_STEPS_LABEL)->SetVisible(visible);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS)->SetVisible(visible);
+    hud.GetStatic(IDC_MAX_SEARCH_STEPS_DIAG_LABEL)->SetVisible(visible);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG)->SetVisible(visible);
+    hud.GetStatic(IDC_CORNER_ROUNDING_LABEL)->SetVisible(visible);
+    hud.GetSlider(IDC_CORNER_ROUNDING)->SetVisible(visible);
+}
+
+
 void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context) {
     if (keyDown)
     switch (nchar) {
         case VK_TAB: {
-            if (keyDown)
-                showHud = !showHud;
+            showHud = !showHud;
+            break;
+        }
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5': {
+            hud.GetComboBox(IDC_PRESET)->SetSelectedByIndex(nchar - '1');
+            SMAA::Preset selected = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
+            setVisibleCustomControls(selected == SMAA::PRESET_CUSTOM);
+            onReleasingSwapChain(NULL);
+            onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
             break;
         }
         case 'A': {
-            if (keyDown) {
-                int previous = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() - 1;
-                hud.GetComboBox(IDC_INPUT)->SetSelectedByIndex(previous > 0? previous : 0);
-                loadImage();
-            }
+            int previous = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() - 1;
+            hud.GetComboBox(IDC_INPUT)->SetSelectedByIndex(previous > 0? previous : 0);
+            loadImage();
             break;
         }          
         case 'D': {
-            if (keyDown) {
-                int next = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() + 1;
-                int n = hud.GetComboBox(IDC_INPUT)->GetNumItems();
-                hud.GetComboBox(IDC_INPUT)->SetSelectedByIndex(next < n? next : n);
-                loadImage();
-            }
+            int next = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() + 1;
+            int n = hud.GetComboBox(IDC_INPUT)->GetNumItems();
+            hud.GetComboBox(IDC_INPUT)->SetSelectedByIndex(next < n? next : n);
+            loadImage();
             break;
         }
         case 'X':
@@ -509,13 +542,13 @@ void buildInputComboBox() {
 
 void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *context) {
     switch (id) {
-        case IDC_TOGGLEFULLSCREEN:
+        case IDC_TOGGLE_FULLSCREEN:
             DXUTToggleFullScreen();
             break;
-        case IDC_CHANGEDEVICE:
+        case IDC_CHANGE_DEVICE:
             settingsDialog.SetActive(!settingsDialog.IsActive());
             break;
-        case IDC_LOADIMAGE: {
+        case IDC_LOAD_IMAGE: {
             if (!DXUTIsWindowed()) 
                 DXUTToggleFullScreen();
 
@@ -558,23 +591,17 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
             }
             break;
-        case IDC_VIEWMODE:
+        case IDC_VIEW_MODE:
             if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
-                if (int(hud.GetComboBox(IDC_VIEWMODE)->GetSelectedData()) > 0) {
+                if (int(hud.GetComboBox(IDC_VIEW_MODE)->GetSelectedData()) > 0) {
                     hud.GetCheckBox(IDC_ANTIALIASING)->SetChecked(true);
                 }
             }
             break;
         case IDC_PRESET:
             if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
-                SMAA::Preset selected;
-                selected = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
-                hud.GetStatic(IDC_MAXSEARCHSTEPS_LABEL)->SetVisible(selected == SMAA::PRESET_CUSTOM);
-                hud.GetSlider(IDC_MAXSEARCHSTEPS)->SetVisible(selected == SMAA::PRESET_CUSTOM);
-                hud.GetStatic(IDC_MAXDIAGSEARCHSTEPS_LABEL)->SetVisible(selected == SMAA::PRESET_CUSTOM);
-                hud.GetSlider(IDC_MAXDIAGSEARCHSTEPS)->SetVisible(selected == SMAA::PRESET_CUSTOM);
-                hud.GetStatic(IDC_THRESHOLD_LABEL)->SetVisible(selected == SMAA::PRESET_CUSTOM);
-                hud.GetSlider(IDC_THRESHOLD)->SetVisible(selected == SMAA::PRESET_CUSTOM);
+                SMAA::Preset selected = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
+                setVisibleCustomControls(selected == SMAA::PRESET_CUSTOM);
                 onReleasingSwapChain(NULL);
                 onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
             }
@@ -582,7 +609,7 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
         case IDC_ANTIALIASING:
             if (event == EVENT_CHECKBOX_CHANGED) {
                 timer->reset();
-                hud.GetComboBox(IDC_VIEWMODE)->SetSelectedByIndex(0);
+                hud.GetComboBox(IDC_VIEW_MODE)->SetSelectedByIndex(0);
             }
             break;
         case IDC_PROFILE:
@@ -605,7 +632,7 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 hud.GetStatic(IDC_THRESHOLD_LABEL)->SetText(s.str().c_str());
             }
             break;
-        case IDC_MAXSEARCHSTEPS:
+        case IDC_MAX_SEARCH_STEPS:
             if (event == EVENT_SLIDER_VALUE_CHANGED) {
                 CDXUTSlider *slider = (CDXUTSlider *) control;
                 int min, max;
@@ -613,13 +640,13 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
 
                 float scale = float(slider->GetValue()) / (max - min);
                 smaa->setMaxSearchSteps(int(round(scale * 98.0f)));
-            
+
                 wstringstream s;
                 s << L"Max Search Steps: " << int(round(scale * 98.0f));
-                hud.GetStatic(IDC_MAXSEARCHSTEPS_LABEL)->SetText(s.str().c_str());
+                hud.GetStatic(IDC_MAX_SEARCH_STEPS_LABEL)->SetText(s.str().c_str());
             }
             break;
-        case IDC_MAXDIAGSEARCHSTEPS:
+        case IDC_MAX_SEARCH_STEPS_DIAG:
             if (event == EVENT_SLIDER_VALUE_CHANGED) {
                 CDXUTSlider *slider = (CDXUTSlider *) control;
                 int min, max;
@@ -627,10 +654,24 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
 
                 float scale = float(slider->GetValue()) / (max - min);
                 smaa->setMaxSearchStepsDiag(int(round(scale * 20.0f)));
-            
+
                 wstringstream s;
                 s << L"Max Diag. Search Steps: " << int(round(scale * 20.0f));
-                hud.GetStatic(IDC_MAXDIAGSEARCHSTEPS_LABEL)->SetText(s.str().c_str());
+                hud.GetStatic(IDC_MAX_SEARCH_STEPS_DIAG_LABEL)->SetText(s.str().c_str());
+            }
+            break;
+        case IDC_CORNER_ROUNDING:
+            if (event == EVENT_SLIDER_VALUE_CHANGED) {
+                CDXUTSlider *slider = (CDXUTSlider *) control;
+                int min, max;
+                slider->GetRange(min, max);
+
+                float scale = float(slider->GetValue()) / (max - min);
+                smaa->setCornerRounding(scale * 100.0f);
+
+                wstringstream s;
+                s << L"Corner Rounding: " << scale * 100.0f;
+                hud.GetStatic(IDC_CORNER_ROUNDING_LABEL)->SetText(s.str().c_str());
             }
             break;
         default:
@@ -646,9 +687,9 @@ void initApp() {
 
     int iY = 10;
 
-    hud.AddButton(IDC_TOGGLEFULLSCREEN, L"Toggle full screen", 35, iY, HUD_WIDTH, 22);
-    hud.AddButton(IDC_CHANGEDEVICE, L"Change device", 35, iY += 24, HUD_WIDTH, 22, VK_F2);
-    hud.AddButton(IDC_LOADIMAGE, L"Load image", 35, iY += 24, HUD_WIDTH, 22);
+    hud.AddButton(IDC_TOGGLE_FULLSCREEN, L"Toggle full screen", 35, iY, HUD_WIDTH, 22);
+    hud.AddButton(IDC_CHANGE_DEVICE, L"Change device", 35, iY += 24, HUD_WIDTH, 22, VK_F2);
+    hud.AddButton(IDC_LOAD_IMAGE, L"Load image", 35, iY += 24, HUD_WIDTH, 22);
 
     iY += 24;
 
@@ -659,10 +700,10 @@ void initApp() {
         hud.GetComboBox(IDC_INPUT)->SetSelectedByData((LPVOID) -1);
     }
 
-    hud.AddComboBox(IDC_VIEWMODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
-    hud.GetComboBox(IDC_VIEWMODE)->AddItem(L"View image", (LPVOID) 0);
-    hud.GetComboBox(IDC_VIEWMODE)->AddItem(L"View edges", (LPVOID) 1);
-    hud.GetComboBox(IDC_VIEWMODE)->AddItem(L"View weights", (LPVOID) 2);
+    hud.AddComboBox(IDC_VIEW_MODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
+    hud.GetComboBox(IDC_VIEW_MODE)->AddItem(L"View image", (LPVOID) 0);
+    hud.GetComboBox(IDC_VIEW_MODE)->AddItem(L"View edges", (LPVOID) 1);
+    hud.GetComboBox(IDC_VIEW_MODE)->AddItem(L"View weights", (LPVOID) 2);
 
     iY += 24;
 
@@ -674,10 +715,10 @@ void initApp() {
     hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Custom", (LPVOID) 4);
     hud.GetComboBox(IDC_PRESET)->SetSelectedByData((LPVOID) 2);
 
-    hud.AddComboBox(IDC_DETECTIONMODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
-    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
-    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Color edge det.", (LPVOID) 1);
-    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
+    hud.AddComboBox(IDC_DETECTION_MODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
+    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
+    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Color edge det.", (LPVOID) 1);
+    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
 
     hud.AddCheckBox(IDC_ANTIALIASING, L"SMAA Anti-Aliasing", 35, iY += 24, HUD_WIDTH, 22, true);
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, HUD_WIDTH, 22, false);
@@ -692,35 +733,55 @@ void initApp() {
     hud.GetSlider(IDC_THRESHOLD)->SetVisible(false);
 
     s = wstringstream();
-    s << L"Max Search Steps: " << commandlineOptions.distance;
-    hud.AddStatic(IDC_MAXSEARCHSTEPS_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
-    hud.AddSlider(IDC_MAXSEARCHSTEPS, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.distance / 98.0f));
-    hud.GetStatic(IDC_MAXSEARCHSTEPS_LABEL)->SetVisible(false);
-    hud.GetSlider(IDC_MAXSEARCHSTEPS)->SetVisible(false);
+    s << L"Max Search Steps: " << commandlineOptions.searchSteps;
+    hud.AddStatic(IDC_MAX_SEARCH_STEPS_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
+    hud.AddSlider(IDC_MAX_SEARCH_STEPS, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.searchSteps / 98.0f));
+    hud.GetStatic(IDC_MAX_SEARCH_STEPS_LABEL)->SetVisible(false);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS)->SetVisible(false);
 
     s = wstringstream();
-    s << L"Max Diag. Search Steps: " << commandlineOptions.distance;
-    hud.AddStatic(IDC_MAXDIAGSEARCHSTEPS_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
-    hud.AddSlider(IDC_MAXDIAGSEARCHSTEPS, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.distance / 20.0f));
-    hud.GetStatic(IDC_MAXDIAGSEARCHSTEPS_LABEL)->SetVisible(false);
-    hud.GetSlider(IDC_MAXDIAGSEARCHSTEPS)->SetVisible(false);
+    s << L"Max Diag. Search Steps: " << commandlineOptions.diagSearchSteps;
+    hud.AddStatic(IDC_MAX_SEARCH_STEPS_DIAG_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
+    hud.AddSlider(IDC_MAX_SEARCH_STEPS_DIAG, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.diagSearchSteps / 20.0f));
+    hud.GetStatic(IDC_MAX_SEARCH_STEPS_DIAG_LABEL)->SetVisible(false);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG)->SetVisible(false);
+
+    s = wstringstream();
+    s << L"Corner Rounding: " << commandlineOptions.cornerRounding;
+    hud.AddStatic(IDC_CORNER_ROUNDING_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
+    hud.AddSlider(IDC_CORNER_ROUNDING, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.cornerRounding / 100.0f)); // FIXME
+    hud.GetStatic(IDC_CORNER_ROUNDING_LABEL)->SetVisible(false);
+    hud.GetSlider(IDC_CORNER_ROUNDING)->SetVisible(false);
 }
 
 
 void parseCommandLine() {
     // Cheap, hackish, but simple command-line parsing:
-    //   Demo.exe <distance:int> <threshold:float> <file.png in:str> <file.png out:str>
+    //   Demo.exe <threshold:float> <searchSteps:int> <diagSearchSteps:int> <cornerRounding:float> <file.png in:str> <file.png out:str>
     wstringstream s(GetCommandLineW());
+
     wstring executable;
     s >> executable;
-    s >> commandlineOptions.distance;
-    commandlineOptions.distance = max(min(commandlineOptions.distance, 16), 0);
-    if (!s) return;
+
     s >> commandlineOptions.threshold;
-    commandlineOptions.threshold = max(min(commandlineOptions.threshold, 0.5f), 0.0f);
     if (!s) return;
+    commandlineOptions.threshold = max(min(commandlineOptions.threshold, 0.5f), 0.0f);
+
+    s >> commandlineOptions.searchSteps;
+    if (!s) return;
+    commandlineOptions.searchSteps = max(min(commandlineOptions.searchSteps, 98), 0);
+
+    s >> commandlineOptions.diagSearchSteps;
+    if (!s) return;
+    commandlineOptions.diagSearchSteps = max(min(commandlineOptions.diagSearchSteps, 20), 0);
+
+    s >> commandlineOptions.cornerRounding;
+    if (!s) return;
+    commandlineOptions.cornerRounding = max(min(commandlineOptions.cornerRounding, 100.0f), 0.0f);
+
     s >> commandlineOptions.src;
     if (!s) return;
+
     s >> commandlineOptions.dst;
     if (!s) return;
 }

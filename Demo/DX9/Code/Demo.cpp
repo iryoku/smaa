@@ -64,11 +64,11 @@ CDXUTTextHelper *txtHelper = NULL;
 bool showHud = true;
 
 
-#define IDC_TOGGLEFULLSCREEN    1
-#define IDC_PRESET              2
-#define IDC_DETECTIONMODE       3
-#define IDC_ANTIALIASING        4
-#define IDC_PROFILE             5
+#define IDC_TOGGLE_FULLSCREEN 1
+#define IDC_PRESET            2
+#define IDC_DETECTION_MODE    3
+#define IDC_ANTIALIASING      4
+#define IDC_PROFILE           5
 
 
 bool CALLBACK isDeviceAcceptable(D3DCAPS9 *caps, D3DFORMAT adapterFormat, D3DFORMAT backBufferFormat, bool windowed, void *userContext) {
@@ -220,7 +220,7 @@ void CALLBACK onFrameRender(IDirect3DDevice9 *device, double time, float elapsed
 
         // Run SMAA
         if (hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked()) {
-            SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTIONMODE)->GetSelectedData()));
+            SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTION_MODE)->GetSelectedData()));
             int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? timer->getRepetitionsCount() : 1;
 
             timer->start();
@@ -270,6 +270,16 @@ void CALLBACK onKeyboard(UINT nchar, bool keyDown, bool altDown, void *userConte
         case VK_TAB: {
             if (keyDown)
                 showHud = !showHud;
+            break;
+        }
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5': {
+            hud.GetComboBox(IDC_PRESET)->SetSelectedByIndex(nchar - '1');
+            onLostDevice(NULL);
+            onResetDevice(DXUTGetD3D9Device(), DXUTGetD3D9BackBufferSurfaceDesc(), NULL);
             break;
         }
         case 'X':
@@ -326,7 +336,7 @@ bool CALLBACK modifyDeviceSettings(DXUTDeviceSettings *settings, void *userConte
 
 void CALLBACK onGUIEvent(UINT event, int controlId, CDXUTControl* control, void *userContext) {
     switch(controlId) {
-        case IDC_TOGGLEFULLSCREEN:
+        case IDC_TOGGLE_FULLSCREEN:
             DXUTToggleFullScreen();
             break;
         case IDC_PRESET:
@@ -355,7 +365,7 @@ void initApp() {
     hud.Init(&dialogResourceManager);
 
     hud.SetCallback(onGUIEvent); int iY = 10;
-    hud.AddButton(IDC_TOGGLEFULLSCREEN, L"Toggle full screen", 35, iY, 125, 22);
+    hud.AddButton(IDC_TOGGLE_FULLSCREEN, L"Toggle full screen", 35, iY, 125, 22);
 
     iY += 24;
 
@@ -367,10 +377,10 @@ void initApp() {
     hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Custom", (LPVOID) 4);
     hud.GetComboBox(IDC_PRESET)->SetSelectedByData((LPVOID) 2);
 
-    hud.AddComboBox(IDC_DETECTIONMODE, 35, iY += 24, 125, 22, 0, false);
-    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
-    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Color edge det.", (LPVOID) 1);
-    hud.GetComboBox(IDC_DETECTIONMODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
+    hud.AddComboBox(IDC_DETECTION_MODE, 35, iY += 24, 125, 22, 0, false);
+    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
+    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Color edge det.", (LPVOID) 1);
+    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
 
     hud.AddCheckBox(IDC_ANTIALIASING, L"SMAA Anti-Aliasing", 35, iY += 24, 125, 22, true);
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, 125, 22, false);

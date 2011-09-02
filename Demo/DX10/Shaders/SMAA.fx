@@ -51,12 +51,15 @@
 float threshold;
 float maxSearchSteps;
 float maxSearchStepsDiag;
+float cornerRounding;
 
 #ifdef SMAA_PRESET_CUSTOM
 #define SMAA_THRESHOLD threshold
 #define SMAA_MAX_SEARCH_STEPS maxSearchSteps
 #define SMAA_MAX_SEARCH_STEPS_DIAG maxSearchStepsDiag
-#define SMAA_FORCE_DIAGONALS 1
+#define SMAA_CORNER_ROUNDING cornerRounding
+#define SMAA_FORCE_DIAGONAL_DETECTION 1
+#define SMAA_FORCE_CORNER_DETECTION 1
 #endif
 
 // Set the HLSL version:

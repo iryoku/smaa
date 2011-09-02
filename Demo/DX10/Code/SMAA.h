@@ -89,23 +89,32 @@ class SMAA {
                 Input input);
 
         /**
-         * Threshold for the edge detection.
+         * Threshold for the edge detection. Only has effect if PRESET_CUSTOM
+         * is selected.
          */
         float getThreshold() const { return threshold; }
         void setThreshold(float threshold) { this->threshold = threshold; }
 
         /**
          * Maximum length to search for horizontal/vertical patterns. Each step
-         * is two pixels wide.
+         * is two pixels wide. Only has effect if PRESET_CUSTOM is selected.
          */
         int getMaxSearchSteps() const { return maxSearchSteps; }
         void setMaxSearchSteps(int maxSearchSteps) { this->maxSearchSteps = maxSearchSteps; }
 
         /**
-         * Maximum length to search for diagonal patterns.
+         * Maximum length to search for diagonal patterns. Only has effect if
+         * PRESET_CUSTOM is selected.
          */
         int getMaxSearchStepsDiag() const { return maxSearchStepsDiag; }
         void setMaxSearchStepsDiag(int maxSearchStepsDiag) { this->maxSearchStepsDiag = maxSearchStepsDiag; }
+
+        /**
+         * Desired corner rounding, from 0.0 (no rounding) to 100.0 (full
+         * rounding). Only has effect if PRESET_CUSTOM is selected.
+         */
+        float getCornerRounding() const { return cornerRounding; }
+        void setCornerRounding(float cornerRounding) { this->cornerRounding = cornerRounding; }
 
         /**
          * These two are just for debugging purposes.
@@ -151,8 +160,8 @@ class SMAA {
         ID3D10Texture2D *searchTex;
         ID3D10ShaderResourceView *searchTexSRV;
 
-        ID3D10EffectScalarVariable *thresholdVariable;
-        ID3D10EffectScalarVariable *maxSearchStepsVariable, *maxSearchStepsDiagVariable;
+        ID3D10EffectScalarVariable *thresholdVariable, *cornerRoundingVariable,
+                                   *maxSearchStepsVariable, *maxSearchStepsDiagVariable;
         ID3D10EffectShaderResourceVariable *areaTexVariable, *searchTexVariable,
                                            *colorTexVariable, *colorGammaTexVariable, *depthTexVariable,
                                            *edgesTexVariable, *blendTexVariable;
@@ -163,8 +172,8 @@ class SMAA {
                               *blendWeightCalculationTechnique,
                               *neighborhoodBlendingTechnique;
 
+        float threshold, cornerRounding;
         int maxSearchSteps, maxSearchStepsDiag;
-        float threshold;
 };
 
 #endif
