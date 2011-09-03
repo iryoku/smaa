@@ -122,10 +122,10 @@
  *         SMAA_HLSL_4
  *
  *     And four presets:
- *         SMAA_PRESET_LOW
- *         SMAA_PRESET_MEDIUM
- *         SMAA_PRESET_HIGH
- *         SMAA_PRESET_ULTRA
+ *         SMAA_PRESET_LOW          (%60 of the quality)
+ *         SMAA_PRESET_MEDIUM       (%80 of the quality)
+ *         SMAA_PRESET_HIGH         (%95 of the quality)
+ *         SMAA_PRESET_ULTRA        (%99 of the quality)
  *         
  *     For example:
  *         #define SMAA_PIXEL_SIZE float2(1.0 / 1280.0, 1.0 / 720.0)
