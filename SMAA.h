@@ -52,7 +52,7 @@
  *
  * Hi, welcome aboard!
  * 
- * Here you will find instructions to get the shader up and running as fast as
+ * Here you'll find instructions to get the shader up and running as fast as
  * possible.
  *
  * The shader has three passes, chained together as follows:
@@ -73,7 +73,7 @@
  *
  * Note that each [pass] has its own vertex and pixel shader.
  *
- * You have three edge detection methods to choose from: luma, color or depth.
+ * You've three edge detection methods to choose from: luma, color or depth.
  * They represent different quality/performance and anti-aliasing/sharpness
  * tradeoffs, so our recommendation is for you to choose the one that suits
  * better your particular scenario:
@@ -87,10 +87,10 @@
  * Ok then, let's go!
  *
  *  1. The first step is to create two RGBA temporal framebuffers for holding
- *    'edgesTex' and 'blendTex'. In DX10, you can use a RG framebuffer for the
- *     edges texture, but in out experience it yields worse performance.
+ *     |edgesTex| and |blendTex|. In DX10, you can use a RG framebuffer for the
+ *     edges texture, but in our experience it yields worse performance.
  *
- *  2. Both temporal framebuffers 'edgesTex' and 'blendTex' must be cleared
+ *  2. Both temporal framebuffers |edgesTex| and |blendTex| must be cleared
  *     each frame. Do not forget to clear the alpha channel!
  *
  *  3. The next step is loading the two supporting precalculated textures,
@@ -102,7 +102,7 @@
  *     inside of them.
  *
  *  4. In DX9, all samplers must be set to linear filtering and clamp, with the
- *     exception of 'searchTex', that must be set to point filtering.
+ *     exception of 'searchTex', which must be set to point filtering.
  *
  *  5. All texture reads and buffer writes must be non-sRGB, with the exception
  *     of the input read and the output write of input in 
@@ -133,18 +133,18 @@
  *         #define SMAA_PRESET_HIGH 1
  *         #include "SMAA.h"
  *
- *  7. Then, you will have to setup the passes as indicated in the scheme
- *     above. You can take a look into SMAA.fx, to see how we did it for our
- *     demo. Checkout the function wrappers, you may want to copy-paste them!
+ *  7. Then, you'll have to setup the passes as indicated in the scheme above.
+ *     You can take a look into SMAA.fx, to see how we did it for our demo.
+ *     Checkout the function wrappers, you may want to copy-paste them!
  *
  *  8. It's recommended to validate the produced |edgesTex| and |blendTex|.
  *     It's advised to not continue with the implementation until both buffers
  *     are verified to produce identical results to our reference demo.
  *
- *  9. After you have get the last pass to work, it's time to optimize. You
- *     will have to initialize a stencil buffer in the first pass (discard is
- *     already in the code), then just mask execution by using it the second 
- *     pass. The last one should be executed in all pixels.
+ *  9. After you got the last pass to work, it's time to optimize. You'll have
+ *     to initialize a stencil buffer in the first pass (discard is already in
+ *     the code), then mask execution by using it the second pass. The last
+ *     pass should be executed in all pixels.
  *
  * That is!
  */
@@ -349,32 +349,31 @@ void SMAANeighborhoodBlendingVS(float4 position,
 
 /**
  * Luma Edge Detection
+ *
+ * IMPORTANT NOTICE: luma edge detection requires gamma-corrected colors, and
+ * thus 'colorTex' should be a non-sRGB texture.
  */
 float4 SMAALumaEdgeDetectionPS(float2 texcoord,
                                float4 offset[2],
-                               SMAATexture2D colorGammaTex) {
+                               SMAATexture2D colorTex) {
+    // Calculate lumas:
     float3 weights = float3(0.2126, 0.7152, 0.0722);
+    float L = dot(SMAASample(colorTex, texcoord).rgb, weights);
+    float Lleft = dot(SMAASample(colorTex, offset[0].xy).rgb, weights);
+    float Ltop  = dot(SMAASample(colorTex, offset[0].zw).rgb, weights);
 
-    /**
-     * Luma calculation requires gamma-corrected colors, and thus 'colorGammaTex'
-     * should be a non-sRGB texture.
-     */
-    float L = dot(SMAASample(colorGammaTex, texcoord).rgb, weights);
-    float Lleft = dot(SMAASample(colorGammaTex, offset[0].xy).rgb, weights);
-    float Ltop  = dot(SMAASample(colorGammaTex, offset[0].zw).rgb, weights);
-
-    // We do the usual threshold
+    // We do the usual threshold:
     float4 delta;
     delta.xy = abs(L.xx - float2(Lleft, Ltop));
     float2 edges = step(SMAA_THRESHOLD.xx, delta.xy);
 
-    // Then discard if there is no edge
+    // Then discard if there is no edge:
     if (dot(edges, 1.0) == 0.0)
         discard;
 
     // Calculate right and bottom deltas:
-    float Lright = dot(SMAASample(colorGammaTex, offset[1].xy).rgb, weights);
-    float Lbottom  = dot(SMAASample(colorGammaTex, offset[1].zw).rgb, weights);
+    float Lright = dot(SMAASample(colorTex, offset[1].xy).rgb, weights);
+    float Lbottom  = dot(SMAASample(colorTex, offset[1].zw).rgb, weights);
     delta.zw = abs(L.xx - float2(Lright, Lbottom));
 
     /**
@@ -395,39 +394,38 @@ float4 SMAALumaEdgeDetectionPS(float2 texcoord,
 
 /**
  * Color Edge Detection
+ *
+ * IMPORTANT NOTICE: color edge detection requires gamma-corrected colors, and
+ * thus 'colorTex' should be a non-sRGB texture.
  */
 float4 SMAAColorEdgeDetectionPS(float2 texcoord,
                                 float4 offset[2],
-                                SMAATexture2D colorGammaTex) {
+                                SMAATexture2D colorTex) {
+    // Calculate color deltas:
     float4 delta;
+    float3 C = SMAASample(colorTex, texcoord).rgb;
 
-    /**
-     * Just like the lumas edge detection, we prefer non-sRGB textures over 
-     * here.
-     */
-    float3 C = SMAASample(colorGammaTex, texcoord).rgb;
-
-    float3 Cleft = SMAASample(colorGammaTex, offset[0].xy).rgb;
+    float3 Cleft = SMAASample(colorTex, offset[0].xy).rgb;
     float3 t = abs(C - Cleft);
     delta.x = max(max(t.r, t.g), t.b);
 
-    float3 Ctop  = SMAASample(colorGammaTex, offset[0].zw).rgb;
+    float3 Ctop  = SMAASample(colorTex, offset[0].zw).rgb;
     t = abs(C - Ctop);
     delta.y = max(max(t.r, t.g), t.b);
 
-    // We do the usual threshold
+    // We do the usual threshold:
     float2 edges = step(SMAA_THRESHOLD.xx, delta.xy);
 
-    // Then discard if there is no edge
+    // Then discard if there is no edge:
     if (dot(edges, 1.0) == 0.0)
         discard;
 
     // Calculate right and bottom deltas:
-    float3 Cright = SMAASample(colorGammaTex, offset[1].xy).rgb;
+    float3 Cright = SMAASample(colorTex, offset[1].xy).rgb;
     t = abs(C - Cright);
     delta.z = max(max(t.r, t.g), t.b);
 
-    float3 Cbottom  = SMAASample(colorGammaTex, offset[1].zw).rgb;
+    float3 Cbottom  = SMAASample(colorTex, offset[1].zw).rgb;
     t = abs(C - Cbottom);
     delta.w = max(max(t.r, t.g), t.b);
 
