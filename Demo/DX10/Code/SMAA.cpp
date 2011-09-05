@@ -145,15 +145,15 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, const Ext
     
     // If storage for the edges is not specified we will create it.
     if (storage.edgesRTV != NULL && storage.edgesSRV != NULL)
-        edgeRenderTarget = new RenderTarget(device, storage.edgesRTV, storage.edgesSRV);
+        edgesRT = new RenderTarget(device, storage.edgesRTV, storage.edgesSRV);
     else
-        edgeRenderTarget = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
+        edgesRT = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     // Same for blending weights.
     if (storage.weightsRTV != NULL && storage.weightsSRV != NULL)
-        blendRenderTarget = new RenderTarget(device, storage.weightsRTV, storage.weightsSRV);
+        blendRT = new RenderTarget(device, storage.weightsRTV, storage.weightsSRV);
     else
-        blendRenderTarget = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
+        blendRT = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     // Load the pre-computed textures.
     loadAreaTex();
@@ -182,8 +182,8 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, const Ext
 SMAA::~SMAA() {
     SAFE_RELEASE(effect);
     SAFE_DELETE(quad);
-    SAFE_DELETE(edgeRenderTarget);
-    SAFE_DELETE(blendRenderTarget);
+    SAFE_DELETE(edgesRT);
+    SAFE_DELETE(blendRT);
     SAFE_RELEASE(areaTex);
     SAFE_RELEASE(areaTexSRV);
     SAFE_RELEASE(searchTex);
@@ -207,13 +207,13 @@ void SMAA::go(ID3D10ShaderResourceView *edgesSRV,
     device->OMSetRenderTargets(0, NULL, NULL);
 
     // Setup the viewport and the vertex layout.
-    edgeRenderTarget->setViewport();
+    edgesRT->setViewport();
     quad->setInputLayout();
 
     // Clear render targets.
     float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    device->ClearRenderTargetView(*edgeRenderTarget, clearColor);
-    device->ClearRenderTargetView(*blendRenderTarget, clearColor);
+    device->ClearRenderTargetView(*edgesRT, clearColor);
+    device->ClearRenderTargetView(*blendRT, clearColor);
 
     // Setup variables.
     if (preset == PRESET_CUSTOM) {
@@ -223,8 +223,8 @@ void SMAA::go(ID3D10ShaderResourceView *edgesSRV,
         V(maxSearchStepsDiagVariable->SetFloat(float(maxSearchStepsDiag)));
     }
     V(colorTexVariable->SetResource(srcSRV));
-    V(edgesTexVariable->SetResource(*edgeRenderTarget));
-    V(blendTexVariable->SetResource(*blendRenderTarget));
+    V(edgesTexVariable->SetResource(*edgesRT));
+    V(blendTexVariable->SetResource(*blendRT));
     V(areaTexVariable->SetResource(areaTexSRV));
     V(searchTexVariable->SetResource(searchTexSRV));
     if (input == INPUT_DEPTH) {
@@ -335,7 +335,7 @@ void SMAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
     }
 
     // Do it!
-    device->OMSetRenderTargets(1, *edgeRenderTarget, dsv);
+    device->OMSetRenderTargets(1, *edgesRT, dsv);
     quad->draw();
     device->OMSetRenderTargets(0, NULL, NULL);
 }
@@ -348,7 +348,7 @@ void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv) {
     V(blendWeightCalculationTechnique->GetPassByIndex(0)->Apply(0));
 
     // And here we go!
-    device->OMSetRenderTargets(1, *blendRenderTarget, dsv);
+    device->OMSetRenderTargets(1, *blendRT, dsv);
     quad->draw();
     device->OMSetRenderTargets(0, NULL, NULL);
 }

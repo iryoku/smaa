@@ -120,10 +120,10 @@ HRESULT CALLBACK onResetDevice(IDirect3DDevice9 *device, const D3DSURFACE_DESC *
     V(finalbufferDepthTex->GetSurfaceLevel(0, &finalbufferDepthSurface));
 
     D3DXIMAGE_INFO info;
-    V(D3DXGetImageInfoFromResource(NULL, L"Unigine01.png", &info));
-    V(D3DXCreateTextureFromResourceEx(device, NULL, L"Unigine01.png", info.Width, info.Height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &colorTex));
-    V(D3DXGetImageInfoFromResource(NULL, L"Unigine01.dds", &info));
-    V(D3DXCreateTextureFromResourceEx(device, NULL, L"Unigine01.dds", info.Width, info.Height, 1, 0, D3DFMT_R32F, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &depthTex));
+    V(D3DXGetImageInfoFromResource(NULL, L"Unigine02.png", &info));
+    V(D3DXCreateTextureFromResourceEx(device, NULL, L"Unigine02.png", info.Width, info.Height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &colorTex));
+    V(D3DXGetImageInfoFromResource(NULL, L"Unigine02.dds", &info));
+    V(D3DXCreateTextureFromResourceEx(device, NULL, L"Unigine02.dds", info.Width, info.Height, 1, 0, D3DFMT_R32F, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &depthTex));
 
     V_RETURN(D3DXCreateSprite(device, &sprite));
     txtHelper = new CDXUTTextHelper(font, sprite, NULL, NULL, 15);

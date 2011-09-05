@@ -113,7 +113,7 @@
  *     IMPORTANT: for best results the input read for the color/luma edge 
  *     detection should *NOT* be sRGB.
  *
- *  6. Before including SMAA.h you have to setup the framebuffer pixel size,
+ *  6. Before including SMAA.h you'll have to setup the framebuffer pixel size,
  *     the target and any optional configuration defines. Optionally you can
  *     use a preset.
  *
@@ -141,7 +141,7 @@
  *     It's advised to not continue with the implementation until both buffers
  *     are verified to produce identical results to our reference demo.
  *
- *  9. After you got the last pass to work, it's time to optimize. You'll have
+ *  9. After you get the last pass to work, it's time to optimize. You'll have
  *     to initialize a stencil buffer in the first pass (discard is already in
  *     the code), then mask execution by using it the second pass. The last
  *     pass should be executed in all pixels.

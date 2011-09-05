@@ -3,19 +3,18 @@
 SMAA.fx RCDATA Shaders\SMAA.fx
 SMAA.h RCDATA "..\\..\\SMAA.h"
 
-Unigine01.png RCDATA Media\Images\Unigine01.png
-Unigine02.png RCDATA Media\Images\Unigine02.png
-Unigine03.png RCDATA Media\Images\Unigine03.png
-Unigine04.png RCDATA Media\Images\Unigine04.png
-Unigine05.png RCDATA Media\Images\Unigine05.png
-Unigine06.png RCDATA Media\Images\Unigine06.png
-Unigine07.png RCDATA Media\Images\Unigine07.png
+Unigine01.png RCDATA "..\\Media\\Unigine01.png"
+Unigine02.png RCDATA "..\\Media\\Unigine02.png"
+Unigine03.png RCDATA "..\\Media\\Unigine03.png"
+Unigine04.png RCDATA "..\\Media\\Unigine04.png"
+Unigine05.png RCDATA "..\\Media\\Unigine05.png"
+Unigine06.png RCDATA "..\\Media\\Unigine06.png"
+Unigine07.png RCDATA "..\\Media\\Unigine07.png"
 
-Unigine01.dds RCDATA Media\Images\Unigine01.dds
-Unigine02.dds RCDATA Media\Images\Unigine02.dds
-Unigine03.dds RCDATA Media\Images\Unigine03.dds
-Unigine04.dds RCDATA Media\Images\Unigine04.dds
-Unigine05.dds RCDATA Media\Images\Unigine05.dds
-Unigine06.dds RCDATA Media\Images\Unigine06.dds
-Unigine07.dds RCDATA Media\Images\Unigine07.dds
-
+Unigine01.dds RCDATA "..\\Media\\Unigine01.dds"
+Unigine02.dds RCDATA "..\\Media\\Unigine02.dds"
+Unigine03.dds RCDATA "..\\Media\\Unigine03.dds"
+Unigine04.dds RCDATA "..\\Media\\Unigine04.dds"
+Unigine05.dds RCDATA "..\\Media\\Unigine05.dds"
+Unigine06.dds RCDATA "..\\Media\\Unigine06.dds"
+Unigine07.dds RCDATA "..\\Media\\Unigine07.dds"

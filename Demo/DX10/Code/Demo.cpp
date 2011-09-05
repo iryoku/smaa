@@ -60,13 +60,13 @@ CDXUTTextHelper *txtHelper = NULL;
 
 SMAA *smaa = NULL;
 DepthStencil *depthStencil = NULL;
-RenderTarget *depthBufferRenderTarget = NULL;
-BackbufferRenderTarget *backbufferRenderTarget = NULL;
-RenderTarget *finalRenderTargetSRGB = NULL;
-RenderTarget *finalRenderTarget = NULL;
+RenderTarget *depthBufferRT = NULL;
+BackbufferRenderTarget *backbufferRT = NULL;
+RenderTarget *finalRT_SRGB = NULL;
+RenderTarget *finalRT = NULL;
 
-ID3D10ShaderResourceView *testColorSRV = NULL;
-ID3D10ShaderResourceView *testDepthSRV = NULL;
+ID3D10ShaderResourceView *inputColorSRV = NULL;
+ID3D10ShaderResourceView *inputDepthSRV = NULL;
 
 bool showHud = true;
 
@@ -122,11 +122,11 @@ void loadImage() {
 
     WCHAR *text = hud.GetComboBox(IDC_INPUT)->GetSelectedItem()->strText;
     if (int(hud.GetComboBox(IDC_INPUT)->GetSelectedData()) != -1) { // ... then, we have to search for it in the executable resources
-        SAFE_RELEASE(testColorSRV);
-        SAFE_RELEASE(testDepthSRV);
+        SAFE_RELEASE(inputColorSRV);
+        SAFE_RELEASE(inputDepthSRV);
 
         // Load color
-        V(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), text, &loadInfo, NULL, &testColorSRV, NULL));
+        V(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), text, &loadInfo, NULL, &inputColorSRV, NULL));
 
         // Try to load depth
         loadInfo.Format = DXGI_FORMAT_R32_FLOAT;
@@ -134,7 +134,7 @@ void loadImage() {
 
         wstring path = wstring(text).substr(0, wstring(text).find_last_of('.')) + L".dds";
         if (FindResource(GetModuleHandle(NULL), path.c_str(), RT_RCDATA) != NULL)
-            V(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), path.c_str(), &loadInfo, NULL, &testDepthSRV, NULL));
+            V(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), path.c_str(), &loadInfo, NULL, &inputDepthSRV, NULL));
     } else { // ... search for it in the file system
         ID3D10ShaderResourceView *colorSRV= NULL;
         if (FAILED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), text, &loadInfo, NULL, &colorSRV, NULL))) {
@@ -147,15 +147,15 @@ void loadImage() {
             }
             return;
         } else {
-            SAFE_RELEASE(testColorSRV);
-            SAFE_RELEASE(testDepthSRV);
+            SAFE_RELEASE(inputColorSRV);
+            SAFE_RELEASE(inputDepthSRV);
 
-            testColorSRV = colorSRV;
+            inputColorSRV = colorSRV;
 
             ID3D10ShaderResourceView *depthSRV;
             wstring path = wstring(text).substr(0, wstring(text).find_last_of('.')) + L".dds";
             if (SUCCEEDED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), path.c_str(), &loadInfo, NULL, &depthSRV, NULL)))
-                testDepthSRV = depthSRV;
+                inputDepthSRV = depthSRV;
         }
     }
 
@@ -163,7 +163,7 @@ void loadImage() {
     hud.GetComboBox(IDC_DETECTION_MODE)->RemoveAllItems();
     hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
     hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Color edge det.", (LPVOID) 1);
-    if (testDepthSRV != NULL)
+    if (inputDepthSRV != NULL)
         hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
     hud.GetComboBox(IDC_DETECTION_MODE)->SetSelectedByIndex(selectedIndex);
 }
@@ -171,7 +171,7 @@ void loadImage() {
 
 void resizeWindow() {
     ID3D10Texture2D *texture2D;
-    testColorSRV->GetResource(reinterpret_cast<ID3D10Resource **>(&texture2D));
+    inputColorSRV->GetResource(reinterpret_cast<ID3D10Resource **>(&texture2D));
     D3D10_TEXTURE2D_DESC desc;
     texture2D->GetDesc(&desc);
     texture2D->Release();
@@ -218,8 +218,8 @@ void CALLBACK onDestroyDevice(void *context) {
 
     Copy::release();
     
-    SAFE_RELEASE(testColorSRV);
-    SAFE_RELEASE(testDepthSRV);
+    SAFE_RELEASE(inputColorSRV);
+    SAFE_RELEASE(inputDepthSRV);
 }
 
 
@@ -260,10 +260,10 @@ HRESULT CALLBACK onResizedSwapChain(ID3D10Device *device, IDXGISwapChain *swapCh
     smaa = new SMAA(device, desc->Width, desc->Height, preset);
     initSMAA();
     depthStencil = new DepthStencil(device, desc->Width, desc->Height,  DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
-    depthBufferRenderTarget = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R32_FLOAT);
-    backbufferRenderTarget = new BackbufferRenderTarget(device, DXUTGetDXGISwapChain());
-    finalRenderTargetSRGB = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
-    finalRenderTarget = new RenderTarget(device, *finalRenderTargetSRGB, DXGI_FORMAT_R8G8B8A8_UNORM);
+    depthBufferRT = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R32_FLOAT);
+    backbufferRT = new BackbufferRenderTarget(device, DXUTGetDXGISwapChain());
+    finalRT_SRGB = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+    finalRT = new RenderTarget(device, *finalRT_SRGB, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     return S_OK;
 }
@@ -274,10 +274,10 @@ void CALLBACK onReleasingSwapChain(void *context) {
 
     SAFE_DELETE(smaa);
     SAFE_DELETE(depthStencil);
-    SAFE_DELETE(depthBufferRenderTarget);
-    SAFE_DELETE(backbufferRenderTarget);
-    SAFE_DELETE(finalRenderTargetSRGB);
-    SAFE_DELETE(finalRenderTarget);
+    SAFE_DELETE(depthBufferRT);
+    SAFE_DELETE(backbufferRT);
+    SAFE_DELETE(finalRT_SRGB);
+    SAFE_DELETE(finalRT);
 }
 
 
@@ -308,8 +308,8 @@ void drawHud(ID3D10Device *device, float elapsedTime) {
 
 void saveBackbuffer(ID3D10Device *device) {
     HRESULT hr;
-    RenderTarget *renderTarget = new RenderTarget(device, backbufferRenderTarget->getWidth(), backbufferRenderTarget->getHeight(), DXGI_FORMAT_R8G8B8A8_UNORM, NoMSAA(), false);
-    device->CopyResource(*renderTarget, *backbufferRenderTarget);
+    RenderTarget *renderTarget = new RenderTarget(device, backbufferRT->getWidth(), backbufferRT->getHeight(), DXGI_FORMAT_R8G8B8A8_UNORM, NoMSAA(), false);
+    device->CopyResource(*renderTarget, *backbufferRT);
     V(D3DX10SaveTextureToFile(*renderTarget, D3DX10_IFF_PNG, commandlineOptions.dst.c_str()));
     SAFE_DELETE(renderTarget);
 }
@@ -335,10 +335,10 @@ void doBenchmark() {
 void drawTextures(ID3D10Device *device) {
     switch (int(hud.GetComboBox(IDC_VIEW_MODE)->GetSelectedData())) {
         case 1:
-            Copy::go(*smaa->getEdgeRenderTarget(), *backbufferRenderTarget);
+            Copy::go(*smaa->getEdgesRenderTarget(), *backbufferRT);
             break;
         case 2:
-            Copy::go(*smaa->getBlendRenderTarget(), *backbufferRenderTarget);
+            Copy::go(*smaa->getBlendRenderTarget(), *backbufferRT);
             break;
         default:
             break;
@@ -353,13 +353,13 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
     }
 
     float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    device->ClearRenderTargetView(*backbufferRenderTarget, clearColor);
+    device->ClearRenderTargetView(*backbufferRT, clearColor);
     device->ClearDepthStencilView(*depthStencil, D3D10_CLEAR_STENCIL, 1.0, 0);
 
     // This is our simulated main render-to-backbuffer pass.
-    D3D10_VIEWPORT viewport = Utils::viewportFromView(testColorSRV);
-    Copy::go(testColorSRV, *finalRenderTargetSRGB, &viewport);
-    Copy::go(testDepthSRV, *depthBufferRenderTarget, &viewport);
+    D3D10_VIEWPORT viewport = Utils::viewportFromView(inputColorSRV);
+    Copy::go(inputColorSRV, *finalRT_SRGB, &viewport);
+    Copy::go(inputDepthSRV, *depthBufferRT, &viewport);
 
     // Run SMAA
     if (hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked()) {
@@ -371,16 +371,16 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
             switch (input) {
                 case SMAA::INPUT_LUMA:
                 case SMAA::INPUT_COLOR:
-                    smaa->go(*finalRenderTarget, *finalRenderTargetSRGB, *backbufferRenderTarget, *depthStencil, input);
+                    smaa->go(*finalRT, *finalRT_SRGB, *backbufferRT, *depthStencil, input);
                     break;
                 case SMAA::INPUT_DEPTH:
-                    smaa->go(*depthBufferRenderTarget, *finalRenderTargetSRGB, *backbufferRenderTarget, *depthStencil, input);
+                    smaa->go(*depthBufferRT, *finalRT_SRGB, *backbufferRT, *depthStencil, input);
                     break;
             }
         }
         timer->clock(L"SMAA");
     } else {
-        Copy::go(*finalRenderTargetSRGB, *backbufferRenderTarget);
+        Copy::go(*finalRT_SRGB, *backbufferRT);
     }
 
     if (commandlineOptions.dst != L"") {

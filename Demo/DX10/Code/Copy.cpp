@@ -42,16 +42,18 @@ Quad *Copy::quad;
 
 void Copy::init(ID3D10Device *device) {
     Copy::device = device;
+    
 
     string s = "Texture2D tex;"
                "SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; AddressV = Clamp; };"
-               "struct PassV2P { float4 pos : SV_POSITION; float2 coord : TEXCOORD0; };"
-               "PassV2P VS(float4 pos: POSITION, float2 coord: TEXCOORD0) { PassV2P o; o.pos = pos; o.coord = coord; return o; }"
-               "float4 PS(PassV2P i) : SV_TARGET { return tex.Sample(PointSampler, i.coord); }"
+               "float4 VS(float4 pos : POSITION,    inout float2 coord : TEXCOORD0) : SV_POSITION { return pos; }"
+               "float4 PS(float4 pos : SV_POSITION,       float2 coord : TEXCOORD0) : SV_TARGET   { return tex.Sample(PointSampler, coord); }"
                "DepthStencilState DisableDepthStencil { DepthEnable = FALSE; StencilEnable = FALSE; };"
+               "BlendState NoBlending { AlphaToCoverageEnable = FALSE; BlendEnable[0] = FALSE; };"
                "technique10 Copy { pass Copy {"
                "SetVertexShader(CompileShader(vs_4_0, VS())); SetGeometryShader(NULL); SetPixelShader(CompileShader(ps_4_0, PS()));"
                "SetDepthStencilState(DisableDepthStencil, 0);"
+               "SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);"
                "}}";
 
     HRESULT hr;

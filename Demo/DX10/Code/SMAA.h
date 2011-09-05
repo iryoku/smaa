@@ -119,8 +119,8 @@ class SMAA {
         /**
          * These two are just for debugging purposes.
          */
-        RenderTarget *getEdgeRenderTarget() { return edgeRenderTarget; }
-        RenderTarget *getBlendRenderTarget() { return blendRenderTarget; }
+        RenderTarget *getEdgesRenderTarget() { return edgesRT; }
+        RenderTarget *getBlendRenderTarget() { return blendRT; }
 
         /**
          * This class allows to pass spare storage buffers to the SMAA class.
@@ -152,8 +152,8 @@ class SMAA {
         ID3D10Effect *effect;
         Quad *quad;
 
-        RenderTarget *edgeRenderTarget;
-        RenderTarget *blendRenderTarget;
+        RenderTarget *edgesRT;
+        RenderTarget *blendRT;
 
         ID3D10Texture2D *areaTex;
         ID3D10ShaderResourceView *areaTexSRV;
