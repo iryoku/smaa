@@ -48,13 +48,14 @@
  * This can be ignored; its purpose is to support interactive custom parameter
  * tweaking.
  */
-float threshold;
+float threshld;
 float maxSearchSteps;
 float maxSearchStepsDiag;
 float cornerRounding;
 
+#define SMAA_PRESET_CUSTOM
 #ifdef SMAA_PRESET_CUSTOM
-#define SMAA_THRESHOLD threshold
+#define SMAA_THRESHOLD threshld
 #define SMAA_MAX_SEARCH_STEPS maxSearchSteps
 #define SMAA_MAX_SEARCH_STEPS_DIAG maxSearchStepsDiag
 #define SMAA_CORNER_ROUNDING cornerRounding
@@ -137,14 +138,22 @@ float4 DX10_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
                                     float4 offset[2] : TEXCOORD1,
                                     uniform SMAATexture2D colorGammaTex) : SV_TARGET {
+    #if SMAA_PREDICATION == 1
+    return SMAALumaEdgeDetectionPS(texcoord, offset, colorGammaTex, depthTex);
+    #else
     return SMAALumaEdgeDetectionPS(texcoord, offset, colorGammaTex);
+    #endif
 }
 
 float4 DX10_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
                                      float2 texcoord : TEXCOORD0,
                                      float4 offset[2] : TEXCOORD1,
                                      uniform SMAATexture2D colorGammaTex) : SV_TARGET {
+    #if SMAA_PREDICATION == 1
+    return SMAAColorEdgeDetectionPS(texcoord, offset, colorGammaTex, depthTex);
+    #else
     return SMAAColorEdgeDetectionPS(texcoord, offset, colorGammaTex);
+    #endif
 }
 
 float4 DX10_SMAADepthEdgeDetectionPS(float4 position : SV_POSITION,
@@ -174,7 +183,7 @@ float4 DX10_SMAANeighborhoodBlendingPS(float4 position : SV_POSITION,
 
 
 /**
- * Time for some techniques!
+ * Edge detection techniques
  */
 technique10 LumaEdgeDetection {
     pass LumaEdgeDetection {
@@ -209,6 +218,9 @@ technique10 DepthEdgeDetection {
     }
 }
 
+/**
+ * Blending weight calculation technique
+ */
 technique10 BlendingWeightCalculation {
     pass BlendingWeightCalculation {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAABlendWeightCalculationVS()));
@@ -220,6 +232,9 @@ technique10 BlendingWeightCalculation {
     }
 }
 
+/**
+ * Neighborhood blending technique
+ */
 technique10 NeighborhoodBlending {
     pass NeighborhoodBlending {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAANeighborhoodBlendingVS()));

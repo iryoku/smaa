@@ -44,6 +44,12 @@
 #include <d3d10.h>
 #include "RenderTarget.h"
 
+/**
+ * IMPORTANT NOTICE: please note that the documentation given in this file is
+ * rather limited. For more information checkout SMAA.h in the root directory
+ * of the source release (the shader header).
+ */
+
 
 class SMAA {
     public:
@@ -63,15 +69,24 @@ class SMAA {
          * By default, two render targets will be created for storing
          * intermediate calculations.
          */
-        SMAA(ID3D10Device *device, int width, int height, Preset preset, 
+        SMAA(ID3D10Device *device, int width, int height, Preset preset, bool predication=false,
              const ExternalStorage &storage=ExternalStorage());
         ~SMAA();
 
         /**
-         * 'edgesSRV' should be the input for using for edge detection:
-         *    either a depth buffer or a non-sRGB color buffer.
+         * Mandatory input textures varies depending on 'input':
+         *    INPUT_LUMA:
+         *    INPUT_COLOR:
+         *        go(srcGammaSRV, srcSRV, NULL,     depthSRV, dsv)
+         *    INPUT_DEPTH:
+         *        go(NULL,        srcSRV, depthSRV, depthSRV, dsv)
          *
-         * 'srcSRV' should be a sRGB view of the input image'.
+         * You can safely pass everything (do not use NULLs) if you want, the
+         * extra paramters will be ignored accordingly. See descriptions below.
+         *
+         * Input texture 'depthSRV' will be used for predication if enabled. We
+         * recommend using a light accumulation buffer or object ids, if
+         * available.
          *
          * IMPORTANT: The stencil component of 'dsv' is used to mask zones to
          * be processed. It is assumed to be already cleared to zero when this
@@ -82,11 +97,12 @@ class SMAA {
          * and restored accordingly. However, we modify but not restore the
          * depth-stencil and blend states.
          */
-        void go(ID3D10ShaderResourceView *edgesSRV,
-                ID3D10ShaderResourceView *srcSRV,
-                ID3D10RenderTargetView *dstRTV,
-                ID3D10DepthStencilView *dsv, 
-                Input input);
+        void go(ID3D10ShaderResourceView *srcGammaSRV, // Non-SRGB version of the input color texture.
+                ID3D10ShaderResourceView *srcSRV, // SRGB version of the input color texture.
+                ID3D10ShaderResourceView *depthSRV, // Input depth texture.
+                ID3D10RenderTargetView *dstRTV, // Output render target.
+                ID3D10DepthStencilView *dsv, // Depth-stencil buffer.
+                Input input); // Selects the input for edge detection.
 
         /**
          * Threshold for the edge detection. Only has effect if PRESET_CUSTOM
@@ -166,9 +182,7 @@ class SMAA {
                                            *colorTexVariable, *colorGammaTexVariable, *depthTexVariable,
                                            *edgesTexVariable, *blendTexVariable;
 
-        ID3D10EffectTechnique *lumaEdgeDetectionTechnique,
-                              *colorEdgeDetectionTechnique,
-                              *depthEdgeDetectionTechnique,
+        ID3D10EffectTechnique *edgeDetectionTechniques[3],
                               *blendWeightCalculationTechnique,
                               *neighborhoodBlendingTechnique;
 

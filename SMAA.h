@@ -79,10 +79,14 @@
  * better your particular scenario:
  *
  * - Depth edge detection is usually the faster but it may miss some edges.
+ *
  * - Luma edge detection is usually more expensive than depth edge detection,
  *   but catches visible edges that depth edge detection can miss.
+ *
  * - Color edge detection is usually the most expensive one but catches
  *   chroma-only edges.
+ *
+ * For quickstarters: just use luma edge detection.
  *
  * Ok then, let's go!
  *
@@ -191,6 +195,15 @@
 #endif
 
 /**
+ * SMAA_DEPTH_THRESHOLD specifies the threshold for depth edge detection.
+ * 
+ * Range: depends on the depth range of the scene.
+ */
+#ifndef SMAA_DEPTH_THRESHOLD
+#define SMAA_DEPTH_THRESHOLD (0.1 * SMAA_THRESHOLD)
+#endif
+
+/**
  * SMAA_MAX_SEARCH_STEPS specifies the maximum steps performed in the
  * horizontal/vertical pattern searches, at each side of the pixel.
  *
@@ -225,6 +238,52 @@
  */
 #ifndef SMAA_CORNER_ROUNDING
 #define SMAA_CORNER_ROUNDING 25
+#endif
+
+/**
+ * Predicated thresholding allows to better preserve texture details and to
+ * improve performance, by decreasing the number of detected edges using an
+ * additional buffer like the light accumulation buffer, object ids or even the
+ * depth buffer.
+ *
+ * It locally decreases the luma or color threshold if an edge is found in an
+ * additional buffer (so the global threshold can be higher).
+ *
+ * This method was developed by Playstation EDGE MLAA team, and used in 
+ * Killzone 3, by using the light accumulation buffer. More information here:
+ *     http://iryoku.com/aacourse/downloads/06-MLAA-on-PS3.pptx 
+ */
+#ifndef SMAA_PREDICATION
+#define SMAA_PREDICATION 0
+#endif
+
+/**
+ * Threshold to be used in the additional predication buffer. 
+ *
+ * Range: depends on the input, so you'll have to find the magic number that
+ * works for you.
+ */
+#ifndef SMAA_PREDICATION_THRESHOLD
+#define SMAA_PREDICATION_THRESHOLD 0.01
+#endif
+
+/**
+ * How much to scale the global threshold used for luma or color edge
+ * detection when using predication.
+ *
+ * Range: [1 .. 5]
+ */
+#ifndef SMAA_PREDICATION_SCALE
+#define SMAA_PREDICATION_SCALE 2.0
+#endif
+
+/**
+ * How much to locally decrease the threshold.
+ *
+ * Range: [0 .. 1]
+ */
+#ifndef SMAA_PREDICATION_STRENGTH
+#define SMAA_PREDICATION_STRENGTH 0.4
 #endif
 
 /**
@@ -293,6 +352,31 @@ float4 SMAAMad(float4 m, float4 a, float4 b) {
     return m * a + b;
 }
 
+/**
+ * Gathers current pixel, and the top-left neighbours.
+ */
+float3 SMAAGatherNeighbours(float2 texcoord,
+                            float4 offset[2],
+                            SMAATexture2D tex) {
+    float P = SMAASample(tex, texcoord).r;
+    float Pleft = SMAASample(tex, offset[0].xy).r;
+    float Ptop  = SMAASample(tex, offset[0].zw).r;
+    return float3(P, Pleft, Ptop);
+}
+
+/**
+ * Adjusts the threshold by means of predication.
+ */
+float2 SMAACalculatePredicatedThreshold(float2 texcoord,
+                                        float4 offset[2],
+                                        SMAATexture2D colorTex,
+                                        SMAATexture2D predicationTex) {
+    float3 neighbours = SMAAGatherNeighbours(texcoord, offset, predicationTex);
+    float2 delta = abs(neighbours.xx - float2(neighbours.y, neighbours.z));
+    float2 edges = step(SMAA_PREDICATION_THRESHOLD, delta);
+    return SMAA_PREDICATION_SCALE * SMAA_THRESHOLD.xx * (1.0 - SMAA_PREDICATION_STRENGTH * edges);
+}
+
 //-----------------------------------------------------------------------------
 // Vertex Shaders
 
@@ -355,7 +439,18 @@ void SMAANeighborhoodBlendingVS(float4 position,
  */
 float4 SMAALumaEdgeDetectionPS(float2 texcoord,
                                float4 offset[2],
-                               SMAATexture2D colorTex) {
+                               SMAATexture2D colorTex
+                               #if SMAA_PREDICATION == 1
+                               , SMAATexture2D predicationTex
+                               #endif
+                               ) {
+    // Calculate the threshold:
+    #if SMAA_PREDICATION == 1
+    float2 threshold = SMAACalculatePredicatedThreshold(texcoord, offset, colorTex, predicationTex);
+    #else
+    float2 threshold = SMAA_THRESHOLD;
+    #endif
+
     // Calculate lumas:
     float3 weights = float3(0.2126, 0.7152, 0.0722);
     float L = dot(SMAASample(colorTex, texcoord).rgb, weights);
@@ -365,7 +460,7 @@ float4 SMAALumaEdgeDetectionPS(float2 texcoord,
     // We do the usual threshold:
     float4 delta;
     delta.xy = abs(L.xx - float2(Lleft, Ltop));
-    float2 edges = step(SMAA_THRESHOLD.xx, delta.xy);
+    float2 edges = step(threshold, delta.xy);
 
     // Then discard if there is no edge:
     if (dot(edges, 1.0) == 0.0)
@@ -400,7 +495,18 @@ float4 SMAALumaEdgeDetectionPS(float2 texcoord,
  */
 float4 SMAAColorEdgeDetectionPS(float2 texcoord,
                                 float4 offset[2],
-                                SMAATexture2D colorTex) {
+                                SMAATexture2D colorTex
+                                #if SMAA_PREDICATION == 1
+                                , SMAATexture2D predicationTex
+                                #endif
+                                ) {
+    // Calculate the threshold:
+    #if SMAA_PREDICATION == 1
+    float2 threshold = SMAACalculatePredicatedThreshold(texcoord, offset, colorTex, predicationTex);
+    #else
+    float2 threshold = SMAA_THRESHOLD;
+    #endif
+
     // Calculate color deltas:
     float4 delta;
     float3 C = SMAASample(colorTex, texcoord).rgb;
@@ -414,7 +520,7 @@ float4 SMAAColorEdgeDetectionPS(float2 texcoord,
     delta.y = max(max(t.r, t.g), t.b);
 
     // We do the usual threshold:
-    float2 edges = step(SMAA_THRESHOLD.xx, delta.xy);
+    float2 edges = step(threshold, delta.xy);
 
     // Then discard if there is no edge:
     if (dot(edges, 1.0) == 0.0)
@@ -451,14 +557,9 @@ float4 SMAAColorEdgeDetectionPS(float2 texcoord,
 float4 SMAADepthEdgeDetectionPS(float2 texcoord,
                                 float4 offset[2],
                                 SMAATexture2D depthTex) {
-    float D = SMAASample(depthTex, texcoord).r;
-    float Dleft = SMAASample(depthTex, offset[0].xy).r;
-    float Dtop  = SMAASample(depthTex, offset[0].zw).r;
-
-    // Dividing by 10 give us results similar to the color-based detection, in
-    // our examples:
-    float2 delta = abs(D.xx - float2(Dleft, Dtop));
-    float2 edges = step(SMAA_THRESHOLD.xx / 10.0, delta);
+    float3 neighbours = SMAAGatherNeighbours(texcoord, offset, depthTex);
+    float2 delta = abs(neighbours.xx - float2(neighbours.y, neighbours.z));
+    float2 edges = step(SMAA_DEPTH_THRESHOLD, delta);
 
     if (dot(edges, 1.0) == 0.0)
         discard;

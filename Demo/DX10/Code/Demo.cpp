@@ -91,15 +91,16 @@ struct {
 #define IDC_PRESET                       6
 #define IDC_DETECTION_MODE               7
 #define IDC_ANTIALIASING                 8
-#define IDC_PROFILE                      9
-#define IDC_THRESHOLD_LABEL             10
-#define IDC_THRESHOLD                   11
-#define IDC_MAX_SEARCH_STEPS_LABEL      12
-#define IDC_MAX_SEARCH_STEPS            13
-#define IDC_MAX_SEARCH_STEPS_DIAG_LABEL 14
-#define IDC_MAX_SEARCH_STEPS_DIAG       15
-#define IDC_CORNER_ROUNDING_LABEL       16
-#define IDC_CORNER_ROUNDING             17
+#define IDC_PREDICATION                  9
+#define IDC_PROFILE                     10
+#define IDC_THRESHOLD_LABEL             11
+#define IDC_THRESHOLD                   12
+#define IDC_MAX_SEARCH_STEPS_LABEL      13
+#define IDC_MAX_SEARCH_STEPS            14
+#define IDC_MAX_SEARCH_STEPS_DIAG_LABEL 15
+#define IDC_MAX_SEARCH_STEPS_DIAG       16
+#define IDC_CORNER_ROUNDING_LABEL       17
+#define IDC_CORNER_ROUNDING             18
 
 
 float round(float n) {
@@ -257,7 +258,8 @@ HRESULT CALLBACK onResizedSwapChain(ID3D10Device *device, IDXGISwapChain *swapCh
     hud.SetLocation(desc->Width - (45 + HUD_WIDTH), 0);
 
     SMAA::Preset preset = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
-    smaa = new SMAA(device, desc->Width, desc->Height, preset);
+    bool predication = hud.GetCheckBox(IDC_PREDICATION)->GetChecked();
+    smaa = new SMAA(device, desc->Width, desc->Height, preset, predication);
     initSMAA();
     depthStencil = new DepthStencil(device, desc->Width, desc->Height,  DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
     depthBufferRT = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R32_FLOAT);
@@ -367,17 +369,8 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
         int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? timer->getRepetitionsCount() : 1;
 
         timer->start();
-        for (int i = 0; i < n; i++) { // This loop is just for profiling.
-            switch (input) {
-                case SMAA::INPUT_LUMA:
-                case SMAA::INPUT_COLOR:
-                    smaa->go(*finalRT, *finalRT_SRGB, *backbufferRT, *depthStencil, input);
-                    break;
-                case SMAA::INPUT_DEPTH:
-                    smaa->go(*depthBufferRT, *finalRT_SRGB, *backbufferRT, *depthStencil, input);
-                    break;
-            }
-        }
+        for (int i = 0; i < n; i++) // This loop is just for profiling.
+            smaa->go(*finalRT, *finalRT_SRGB, *depthBufferRT, *backbufferRT, *depthStencil, input);
         timer->clock(L"SMAA");
     } else {
         Copy::go(*finalRT_SRGB, *backbufferRT);
@@ -612,6 +605,12 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 hud.GetComboBox(IDC_VIEW_MODE)->SetSelectedByIndex(0);
             }
             break;
+        case IDC_PREDICATION:
+            if (event == EVENT_CHECKBOX_CHANGED) {
+                onReleasingSwapChain(NULL);
+                onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
+            }
+            break;
         case IDC_PROFILE:
             if (event == EVENT_CHECKBOX_CHANGED) {
                 timer->reset();
@@ -716,11 +715,9 @@ void initApp() {
     hud.GetComboBox(IDC_PRESET)->SetSelectedByData((LPVOID) 2);
 
     hud.AddComboBox(IDC_DETECTION_MODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
-    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
-    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Color edge det.", (LPVOID) 1);
-    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
 
     hud.AddCheckBox(IDC_ANTIALIASING, L"SMAA Anti-Aliasing", 35, iY += 24, HUD_WIDTH, 22, true);
+    hud.AddCheckBox(IDC_PREDICATION, L"Predicated Tresholding", 35, iY += 24, HUD_WIDTH, 22, false);
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, HUD_WIDTH, 22, false);
 
     iY += 24;

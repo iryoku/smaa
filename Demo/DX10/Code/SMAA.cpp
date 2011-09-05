@@ -98,7 +98,7 @@ class ID3D10IncludeResource : public ID3D10Include {
 #pragma endregion
 
 
-SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, const ExternalStorage &storage)
+SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool predication, const ExternalStorage &storage)
         : device(device),
           preset(preset),
           threshold(0.1f),
@@ -126,6 +126,11 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, const Ext
         { "SMAA_PRESET_CUSTOM", "1" }
     };
     defines.push_back(presetMacros[int(preset)]);
+
+    if (predication) {
+        D3D10_SHADER_MACRO predicationMacro = { "SMAA_PREDICATION", "1" };
+        defines.push_back(predicationMacro);
+    }
 
     D3D10_SHADER_MACRO null = { NULL, NULL };
     defines.push_back(null);
@@ -160,7 +165,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, const Ext
     loadSearchTex();
 
     // Create some handles for techniques and variables.
-    thresholdVariable = effect->GetVariableByName("threshold")->AsScalar();
+    thresholdVariable = effect->GetVariableByName("threshld")->AsScalar();
     cornerRoundingVariable = effect->GetVariableByName("cornerRounding")->AsScalar();
     maxSearchStepsVariable = effect->GetVariableByName("maxSearchSteps")->AsScalar();
     maxSearchStepsDiagVariable = effect->GetVariableByName("maxSearchStepsDiag")->AsScalar();
@@ -171,9 +176,9 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, const Ext
     depthTexVariable = effect->GetVariableByName("depthTex")->AsShaderResource();
     edgesTexVariable = effect->GetVariableByName("edgesTex")->AsShaderResource();
     blendTexVariable = effect->GetVariableByName("blendTex")->AsShaderResource();
-    lumaEdgeDetectionTechnique = effect->GetTechniqueByName("LumaEdgeDetection");
-    colorEdgeDetectionTechnique = effect->GetTechniqueByName("ColorEdgeDetection");
-    depthEdgeDetectionTechnique = effect->GetTechniqueByName("DepthEdgeDetection");
+    edgeDetectionTechniques[0] = effect->GetTechniqueByName("LumaEdgeDetection");
+    edgeDetectionTechniques[1] = effect->GetTechniqueByName("ColorEdgeDetection");
+    edgeDetectionTechniques[2] = effect->GetTechniqueByName("DepthEdgeDetection");
     blendWeightCalculationTechnique = effect->GetTechniqueByName("BlendingWeightCalculation");
     neighborhoodBlendingTechnique = effect->GetTechniqueByName("NeighborhoodBlending");
 }
@@ -191,10 +196,11 @@ SMAA::~SMAA() {
 }
 
 
-void SMAA::go(ID3D10ShaderResourceView *edgesSRV,
+void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
               ID3D10ShaderResourceView *srcSRV,
+              ID3D10ShaderResourceView *depthSRV,
               ID3D10RenderTargetView *dstRTV,
-              ID3D10DepthStencilView *dsv, 
+              ID3D10DepthStencilView *dsv,
               Input input) {
     HRESULT hr;
 
@@ -227,11 +233,8 @@ void SMAA::go(ID3D10ShaderResourceView *edgesSRV,
     V(blendTexVariable->SetResource(*blendRT));
     V(areaTexVariable->SetResource(areaTexSRV));
     V(searchTexVariable->SetResource(searchTexSRV));
-    if (input == INPUT_DEPTH) {
-        V(depthTexVariable->SetResource(edgesSRV));
-    } else {
-        V(colorGammaTexVariable->SetResource(edgesSRV));
-    }
+    V(colorGammaTexVariable->SetResource(srcGammaSRV));
+    V(depthTexVariable->SetResource(depthSRV));
 
     // And here we go!
     edgesDetectionPass(dsv, input);
@@ -322,17 +325,7 @@ void SMAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
     HRESULT hr;
 
     // Select the technique accordingly.
-    switch (input) {
-        case INPUT_LUMA:
-            V(lumaEdgeDetectionTechnique->GetPassByIndex(0)->Apply(0));
-            break;
-        case INPUT_COLOR:
-            V(colorEdgeDetectionTechnique->GetPassByIndex(0)->Apply(0));
-            break;
-        case INPUT_DEPTH:
-            V(depthEdgeDetectionTechnique->GetPassByIndex(0)->Apply(0));
-            break;
-    }
+    V(edgeDetectionTechniques[int(input)]->GetPassByIndex(0)->Apply(0));
 
     // Do it!
     device->OMSetRenderTargets(1, *edgesRT, dsv);
