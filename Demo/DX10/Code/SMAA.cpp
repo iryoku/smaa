@@ -38,6 +38,7 @@
 
 
 #include <sstream>
+#include <d3d10_1.h>
 #include "SMAA.h"
 #include "SearchTex.h"
 #include "AreaTex.h"
@@ -107,17 +108,25 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
           maxSearchStepsDiag(8) {
     HRESULT hr;
 
-    // Setup the defines for compiling the effect.
+    // Check for DirectX 10.1 support:
+    ID3D10Device1 *device1;
+    bool dx10_1 = false;
+    if (D3DX10GetFeatureLevel1(device, &device1) != E_FAIL) {
+        dx10_1 = device1->GetFeatureLevel() == D3D10_FEATURE_LEVEL_10_1;
+        SAFE_RELEASE(device1);
+    }
+
+    // Setup the defines for compiling the effect:
     vector<D3D10_SHADER_MACRO> defines;
     stringstream s;
 
-    // Setup pixel size macro
+    // Setup pixel size macro:
     s << "float2(1.0 / " << width << ", 1.0 / " << height << ")";
     string pixelSizeText = s.str();
     D3D10_SHADER_MACRO pixelSizeMacro = { "SMAA_PIXEL_SIZE", pixelSizeText.c_str() };
     defines.push_back(pixelSizeMacro);
 
-    // Setup preset macro
+    // Setup preset macro:
     D3D10_SHADER_MACRO presetMacros[] = {
         { "SMAA_PRESET_LOW", "1" },
         { "SMAA_PRESET_MEDIUM", "1" },
@@ -127,9 +136,16 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     };
     defines.push_back(presetMacros[int(preset)]);
 
+    // Setup predicated thresholding macro:
     if (predication) {
         D3D10_SHADER_MACRO predicationMacro = { "SMAA_PREDICATION", "1" };
         defines.push_back(predicationMacro);
+    }
+
+    // Setup target macro:
+    if (dx10_1) {
+        D3D10_SHADER_MACRO dx101Macro = { "SMAA_HLSL_4_1", "1" };
+        defines.push_back(dx101Macro);
     }
 
     D3D10_SHADER_MACRO null = { NULL, NULL };
@@ -141,30 +157,31 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
      * In case you want it to be loaded from other place change this line accordingly.
      */
     ID3D10IncludeResource includeResource;
-    V(D3DX10CreateEffectFromResource(GetModuleHandle(NULL), L"SMAA.fx", NULL, &defines.front(), &includeResource, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, NULL, NULL, &effect, NULL, NULL));
+    string profile = dx10_1? "fx_4_1" : "fx_4_0";
+    V(D3DX10CreateEffectFromResource(GetModuleHandle(NULL), L"SMAA.fx", NULL, &defines.front(), &includeResource, profile.c_str(), D3D10_SHADER_ENABLE_STRICTNESS, 0, device, NULL, NULL, &effect, NULL, NULL));
 
-    // This is for rendering the typical fullscreen quad later on.
+    // This is for rendering the typical fullscreen quad later on:
     D3D10_PASS_DESC desc;
     V(effect->GetTechniqueByName("NeighborhoodBlending")->GetPassByIndex(0)->GetDesc(&desc));
     quad = new Quad(device, desc);
     
-    // If storage for the edges is not specified we will create it.
+    // If storage for the edges is not specified we will create it:
     if (storage.edgesRTV != NULL && storage.edgesSRV != NULL)
         edgesRT = new RenderTarget(device, storage.edgesRTV, storage.edgesSRV);
     else
         edgesRT = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
 
-    // Same for blending weights.
+    // Same for blending weights:
     if (storage.weightsRTV != NULL && storage.weightsSRV != NULL)
         blendRT = new RenderTarget(device, storage.weightsRTV, storage.weightsSRV);
     else
         blendRT = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
 
-    // Load the pre-computed textures.
+    // Load the pre-computed textures:
     loadAreaTex();
     loadSearchTex();
 
-    // Create some handles for techniques and variables.
+    // Create some handles for techniques and variables:
     thresholdVariable = effect->GetVariableByName("threshld")->AsScalar();
     cornerRoundingVariable = effect->GetVariableByName("cornerRounding")->AsScalar();
     maxSearchStepsVariable = effect->GetVariableByName("maxSearchSteps")->AsScalar();
@@ -204,24 +221,24 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
               Input input) {
     HRESULT hr;
 
-    // Save the state.
+    // Save the state:
     SaveViewportsScope saveViewport(device);
     SaveRenderTargetsScope saveRenderTargets(device);
     SaveInputLayoutScope saveInputLayout(device);
 
-    // Reset the render target.
+    // Reset the render target:
     device->OMSetRenderTargets(0, NULL, NULL);
 
-    // Setup the viewport and the vertex layout.
+    // Setup the viewport and the vertex layout:
     edgesRT->setViewport();
     quad->setInputLayout();
 
-    // Clear render targets.
+    // Clear render targets:
     float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     device->ClearRenderTargetView(*edgesRT, clearColor);
     device->ClearRenderTargetView(*blendRT, clearColor);
 
-    // Setup variables.
+    // Setup variables:
     if (preset == PRESET_CUSTOM) {
         V(thresholdVariable->SetFloat(threshold));
         V(cornerRoundingVariable->SetFloat(cornerRounding));
@@ -324,7 +341,7 @@ void SMAA::loadSearchTex() {
 void SMAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
     HRESULT hr;
 
-    // Select the technique accordingly.
+    // Select the technique accordingly:
     V(edgeDetectionTechniques[int(input)]->GetPassByIndex(0)->Apply(0));
 
     // Do it!
@@ -337,7 +354,7 @@ void SMAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
 void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv) {
     HRESULT hr;
 
-    // Setup the technique (again).
+    // Setup the technique (again):
     V(blendWeightCalculationTechnique->GetPassByIndex(0)->Apply(0));
 
     // And here we go!
@@ -350,7 +367,7 @@ void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv) {
 void SMAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthStencilView *dsv) {
     HRESULT hr;
 
-    // Setup the technique (once again).
+    // Setup the technique (once again):
     V(neighborhoodBlendingTechnique->GetPassByIndex(0)->Apply(0));
     
     // Do the final pass!

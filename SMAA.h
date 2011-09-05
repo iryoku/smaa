@@ -121,9 +121,10 @@
  *     the target and any optional configuration defines. Optionally you can
  *     use a preset.
  *
- *     You have two targets available: 
+ *     You have three targets available: 
  *         SMAA_HLSL_3
  *         SMAA_HLSL_4
+ *         SMAA_HLSL_4_1
  *
  *     And four presets:
  *         SMAA_PRESET_LOW          (%60 of the quality)
@@ -323,7 +324,8 @@
 #define SMAASample(tex, coord) tex2D(tex, coord)
 #define SMAASampleLevelZeroOffset(tex, coord, off) tex2Dlod(tex, float4(coord + off * SMAA_PIXEL_SIZE, 0.0, 0.0))
 #define SMAASampleOffset(tex, coord, off) tex2D(tex, coord + off * SMAA_PIXEL_SIZE)
-#elif SMAA_HLSL_4 == 1
+#endif
+#if SMAA_HLSL_4 == 1 || SMAA_HLSL_4_1 == 1
 SamplerState LinearSampler {
     Filter = MIN_MAG_LINEAR_MIP_POINT;
     AddressU = Clamp;
@@ -341,16 +343,12 @@ SamplerState PointSampler {
 #define SMAASampleLevelZeroOffset(tex, coord, off) tex.SampleLevel(LinearSampler, coord, 0, off)
 #define SMAASampleOffset(tex, coord, off) SMAASampleLevelZeroOffset(tex, coord, off)
 #endif
+#if SMAA_HLSL_4_1 == 1
+#define SMAAGather(tex, coord) tex.Gather(LinearSampler, coord, 0)
+#endif
 
 //-----------------------------------------------------------------------------
 // Misc functions
-
-/**
- * Typical Multiply-Add operation to ease translation to assembly code.
- */
-float4 SMAAMad(float4 m, float4 a, float4 b) {
-    return m * a + b;
-}
 
 /**
  * Gathers current pixel, and the top-left neighbours.
@@ -358,10 +356,14 @@ float4 SMAAMad(float4 m, float4 a, float4 b) {
 float3 SMAAGatherNeighbours(float2 texcoord,
                             float4 offset[2],
                             SMAATexture2D tex) {
+    #if SMAA_HLSL_4_1 == 1
+    return SMAAGather(tex, texcoord + SMAA_PIXEL_SIZE * float2(-0.5, -0.5)).grb;
+    #else
     float P = SMAASample(tex, texcoord).r;
     float Pleft = SMAASample(tex, offset[0].xy).r;
     float Ptop  = SMAASample(tex, offset[0].zw).r;
     return float3(P, Pleft, Ptop);
+    #endif
 }
 
 /**
@@ -374,7 +376,7 @@ float2 SMAACalculatePredicatedThreshold(float2 texcoord,
     float3 neighbours = SMAAGatherNeighbours(texcoord, offset, predicationTex);
     float2 delta = abs(neighbours.xx - float2(neighbours.y, neighbours.z));
     float2 edges = step(SMAA_PREDICATION_THRESHOLD, delta);
-    return SMAA_PREDICATION_SCALE * SMAA_THRESHOLD.xx * (1.0 - SMAA_PREDICATION_STRENGTH * edges);
+    return SMAA_PREDICATION_SCALE * SMAA_THRESHOLD * (1.0 - SMAA_PREDICATION_STRENGTH * edges);
 }
 
 //-----------------------------------------------------------------------------
