@@ -33,6 +33,7 @@
 #include "DXUTgui.h"
 #include "DXUTsettingsDlg.h"
 #include "SDKmisc.h"
+#include "SDKmesh.h"
 
 #include <sstream>
 #include <fstream>
@@ -41,6 +42,7 @@
 
 #include "Timer.h"
 #include "RenderTarget.h"
+#include "Camera.h"
 #include "Copy.h"
 #include "SMAA.h"
 
@@ -62,16 +64,24 @@ SMAA *smaa = NULL;
 DepthStencil *depthStencil = NULL;
 RenderTarget *depthBufferRT = NULL;
 BackbufferRenderTarget *backbufferRT = NULL;
-RenderTarget *finalRT_SRGB = NULL;
-RenderTarget *finalRT = NULL;
+RenderTarget *tmpRT_SRGB = NULL;
+RenderTarget *tmpRT = NULL;
+RenderTarget *finalRT[2] = { NULL, NULL };
 
 ID3D10ShaderResourceView *inputColorSRV = NULL;
 ID3D10ShaderResourceView *inputDepthSRV = NULL;
+
+Camera camera;
+CDXUTSDKMesh mesh;
+ID3D10InputLayout *vertexLayout = NULL;
+ID3D10Effect *simpleEffect = NULL;
 
 bool showHud = true;
 
 bool benchmark = false;
 fstream benchmarkFile;
+
+int frame = 0;
 
 struct {
     float threshold;
@@ -88,19 +98,20 @@ struct {
 #define IDC_LOAD_IMAGE                   3
 #define IDC_INPUT                        4
 #define IDC_VIEW_MODE                    5
-#define IDC_PRESET                       6
-#define IDC_DETECTION_MODE               7
-#define IDC_ANTIALIASING                 8
-#define IDC_PREDICATION                  9
-#define IDC_PROFILE                     10
-#define IDC_THRESHOLD_LABEL             11
-#define IDC_THRESHOLD                   12
-#define IDC_MAX_SEARCH_STEPS_LABEL      13
-#define IDC_MAX_SEARCH_STEPS            14
-#define IDC_MAX_SEARCH_STEPS_DIAG_LABEL 15
-#define IDC_MAX_SEARCH_STEPS_DIAG       16
-#define IDC_CORNER_ROUNDING_LABEL       17
-#define IDC_CORNER_ROUNDING             18
+#define IDC_SMAA_MODE                    6
+#define IDC_PRESET                       7
+#define IDC_DETECTION_MODE               8
+#define IDC_ANTIALIASING                 9
+#define IDC_PREDICATION                 10
+#define IDC_PROFILE                     11
+#define IDC_THRESHOLD_LABEL             12
+#define IDC_THRESHOLD                   13
+#define IDC_MAX_SEARCH_STEPS_LABEL      14
+#define IDC_MAX_SEARCH_STEPS            15
+#define IDC_MAX_SEARCH_STEPS_DIAG_LABEL 16
+#define IDC_MAX_SEARCH_STEPS_DIAG       17
+#define IDC_CORNER_ROUNDING_LABEL       18
+#define IDC_CORNER_ROUNDING             19
 
 
 float round(float n) {
@@ -113,7 +124,7 @@ bool CALLBACK isDeviceAcceptable(UINT adapter, UINT output, D3D10_DRIVER_TYPE de
 }
 
 
-void loadImage() {
+HRESULT loadImage() {
     HRESULT hr;
 
     D3DX10_IMAGE_LOAD_INFO loadInfo = D3DX10_IMAGE_LOAD_INFO();
@@ -127,7 +138,7 @@ void loadImage() {
         SAFE_RELEASE(inputDepthSRV);
 
         // Load color
-        V(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), text, &loadInfo, NULL, &inputColorSRV, NULL));
+        V_RETURN(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), text, &loadInfo, NULL, &inputColorSRV, NULL));
 
         // Try to load depth
         loadInfo.Format = DXGI_FORMAT_R32_FLOAT;
@@ -135,7 +146,7 @@ void loadImage() {
 
         wstring path = wstring(text).substr(0, wstring(text).find_last_of('.')) + L".dds";
         if (FindResource(GetModuleHandle(NULL), path.c_str(), RT_RCDATA) != NULL)
-            V(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), path.c_str(), &loadInfo, NULL, &inputDepthSRV, NULL));
+            V_RETURN(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), path.c_str(), &loadInfo, NULL, &inputDepthSRV, NULL));
     } else { // ... search for it in the file system
         ID3D10ShaderResourceView *colorSRV= NULL;
         if (FAILED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), text, &loadInfo, NULL, &colorSRV, NULL))) {
@@ -144,9 +155,8 @@ void loadImage() {
             if (commandlineOptions.src != L"") {
                 exit(1);
             } else {
-                loadImage(); // Fallback to previous image
+                V_RETURN(loadImage()); // Fallback to previous image
             }
-            return;
         } else {
             SAFE_RELEASE(inputColorSRV);
             SAFE_RELEASE(inputDepthSRV);
@@ -159,32 +169,119 @@ void loadImage() {
                 inputDepthSRV = depthSRV;
         }
     }
+    return S_OK;
+}
+
+
+void CALLBACK createTextureFromFile(ID3D10Device* device, char *filename, ID3D10ShaderResourceView **shaderResourceView, void *context, bool srgb) {
+    HRESULT hr;
+
+    *shaderResourceView = (ID3D10ShaderResourceView *) ERROR_RESOURCE_VALUE;
+    if (string(filename) != "default.dds" && string(filename) != "default-normalmap.dds") {
+        wstringstream s;
+        s << ((wchar_t *) context) << "\\" << filename;
+        D3DX10_IMAGE_INFO info;
+        V(D3DX10GetImageInfoFromResource(GetModuleHandle(NULL), s.str().c_str(), NULL, &info, NULL));
+
+        D3DX10_IMAGE_LOAD_INFO loadInfo = D3DX10_IMAGE_LOAD_INFO();
+        loadInfo.pSrcInfo = &info;
+        if (srgb) {
+            loadInfo.Filter = D3DX10_FILTER_POINT | D3DX10_FILTER_SRGB_IN;
+            loadInfo.Format = MAKE_SRGB(info.Format);
+        }
+        V(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(NULL), s.str().c_str(), &loadInfo, NULL, shaderResourceView, NULL));
+    }
+}
+
+
+HRESULT loadMesh(CDXUTSDKMesh &mesh, const wstring &name, const wstring &path) {
+    HRESULT hr;
+
+    HRSRC src = FindResource(GetModuleHandle(NULL), name.c_str(), RT_RCDATA);
+    HGLOBAL res = LoadResource(GetModuleHandle(NULL), src);
+    UINT size = SizeofResource(GetModuleHandle(NULL), src);
+    LPBYTE data = (LPBYTE) LockResource(res);
+
+    SDKMESH_CALLBACKS10 callbacks;
+    ZeroMemory(&callbacks, sizeof(SDKMESH_CALLBACKS10));  
+    callbacks.pCreateTextureFromFile = &createTextureFromFile;
+    callbacks.pContext = (void *) path.c_str();
+
+    V_RETURN(mesh.Create(DXUTGetD3D10Device(), data, size, true, true, &callbacks));
+
+    return S_OK;
+}
+
+
+HRESULT loadInput() {
+    HRESULT hr;
+
+    if (hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() > 0) {
+        V_RETURN(loadImage());
+        hud.GetComboBox(IDC_SMAA_MODE)->SetSelectedByData((LPVOID) SMAA::MODE_SMAA_1X);
+        hud.GetComboBox(IDC_SMAA_MODE)->SetEnabled(false);
+    } else {
+        SAFE_RELEASE(inputColorSRV);
+        SAFE_RELEASE(inputDepthSRV);
+        mesh.Destroy();
+
+        V_RETURN(loadMesh(mesh, L"Fence.sdkmesh", L""));
+        hud.GetComboBox(IDC_SMAA_MODE)->SetSelectedByData((LPVOID) SMAA::MODE_SMAA_T2X);
+        hud.GetComboBox(IDC_SMAA_MODE)->SetEnabled(true);
+    }
 
     int selectedIndex = hud.GetComboBox(IDC_DETECTION_MODE)->GetSelectedIndex();
     hud.GetComboBox(IDC_DETECTION_MODE)->RemoveAllItems();
-    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
-    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Color edge det.", (LPVOID) 1);
+    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Luma edge det.", (LPVOID) SMAA::INPUT_LUMA);
+    hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Color edge det.", (LPVOID) SMAA::INPUT_COLOR);
     if (inputDepthSRV != NULL)
-        hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
+        hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Depth edge det.", (LPVOID) SMAA::INPUT_DEPTH);
+    hud.GetCheckBox(IDC_PREDICATION)->SetEnabled(inputDepthSRV != NULL);
     hud.GetComboBox(IDC_DETECTION_MODE)->SetSelectedByIndex(selectedIndex);
+
+    return S_OK;
 }
 
 
 void resizeWindow() {
-    ID3D10Texture2D *texture2D;
-    inputColorSRV->GetResource(reinterpret_cast<ID3D10Resource **>(&texture2D));
-    D3D10_TEXTURE2D_DESC desc;
-    texture2D->GetDesc(&desc);
-    texture2D->Release();
+    if (hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() > 0) {
+        ID3D10Texture2D *texture2D;
+        inputColorSRV->GetResource(reinterpret_cast<ID3D10Resource **>(&texture2D));
+        D3D10_TEXTURE2D_DESC desc;
+        texture2D->GetDesc(&desc);
+        texture2D->Release();
 
-    RECT rect = {0, 0, desc.Width, desc.Height};
-    AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
-    SetWindowPos(DXUTGetHWNDDeviceWindowed(), 0, 0, 0,  (rect.right - rect.left), (rect.bottom - rect.top), SWP_NOZORDER | SWP_NOMOVE);
+        RECT rect = {0, 0, desc.Width, desc.Height};
+        AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
+        SetWindowPos(DXUTGetHWNDDeviceWindowed(), 0, 0, 0,  (rect.right - rect.left), (rect.bottom - rect.top), SWP_NOZORDER | SWP_NOMOVE);
+    }
+}
+
+
+HRESULT initSimpleEffect(ID3D10Device *device) {
+    HRESULT hr;
+
+    V(D3DX10CreateEffectFromResource(GetModuleHandle(NULL), L"Simple.fx", NULL, NULL, NULL, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, NULL, NULL, &simpleEffect, NULL, NULL));
+
+    const D3D10_INPUT_ELEMENT_DESC inputDesc[] = {
+        { "POSITION",  0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+        { "NORMAL",    0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD",  0, DXGI_FORMAT_R32G32_FLOAT,    0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+        { "TANGENT",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 }
+    };
+    UINT numElements = sizeof(inputDesc) / sizeof(D3D10_INPUT_ELEMENT_DESC);
+
+    D3D10_PASS_DESC passDesc;
+    V_RETURN(simpleEffect->GetTechniqueByName("Simple")->GetPassByIndex(0)->GetDesc(&passDesc));
+    V_RETURN(device->CreateInputLayout(inputDesc, numElements, passDesc.pIAInputSignature, passDesc.IAInputSignatureSize, &vertexLayout));
+
+    return S_OK;
 }
 
 
 HRESULT CALLBACK onCreateDevice(ID3D10Device *device, const DXGI_SURFACE_DESC *desc, void *context) {
     HRESULT hr;
+
     V_RETURN(dialogResourceManager.OnD3D10CreateDevice(device));
     V_RETURN(settingsDialog.OnD3D10CreateDevice(device));
 
@@ -199,8 +296,12 @@ HRESULT CALLBACK onCreateDevice(ID3D10Device *device, const DXGI_SURFACE_DESC *d
     timer->setRepetitionsCount(100);
 
     Copy::init(device);
+    V_RETURN(initSimpleEffect(device));
 
-    loadImage();
+    camera.setAngle(D3DXVECTOR2(0.0f, 3.14f / 2.0f));
+    camera.setDistance(30.0f);
+
+    V_RETURN(loadInput());
 
     return S_OK;
 }
@@ -218,9 +319,12 @@ void CALLBACK onDestroyDevice(void *context) {
     SAFE_DELETE(timer);
 
     Copy::release();
-    
+    SAFE_RELEASE(simpleEffect);
+    SAFE_RELEASE(vertexLayout);
+
     SAFE_RELEASE(inputColorSRV);
     SAFE_RELEASE(inputDepthSRV);
+    mesh.Destroy();
 }
 
 
@@ -264,8 +368,14 @@ HRESULT CALLBACK onResizedSwapChain(ID3D10Device *device, IDXGISwapChain *swapCh
     depthStencil = new DepthStencil(device, desc->Width, desc->Height,  DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
     depthBufferRT = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R32_FLOAT);
     backbufferRT = new BackbufferRenderTarget(device, DXUTGetDXGISwapChain());
-    finalRT_SRGB = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
-    finalRT = new RenderTarget(device, *finalRT_SRGB, DXGI_FORMAT_R8G8B8A8_UNORM);
+    tmpRT_SRGB = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+    tmpRT = new RenderTarget(device, *tmpRT_SRGB, DXGI_FORMAT_R8G8B8A8_UNORM);
+    for (int i = 0; i < 2; i++)
+        finalRT[i] = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+
+    float aspect = (float) desc->Width / desc->Height;
+    camera.setProjection(18.0f * D3DX_PI / 180.f, aspect, 0.1f, 1000.0f);
+    camera.setViewportSize(D3DXVECTOR2(float(desc->Width), float(desc->Height)));
 
     return S_OK;
 }
@@ -278,33 +388,40 @@ void CALLBACK onReleasingSwapChain(void *context) {
     SAFE_DELETE(depthStencil);
     SAFE_DELETE(depthBufferRT);
     SAFE_DELETE(backbufferRT);
-    SAFE_DELETE(finalRT_SRGB);
-    SAFE_DELETE(finalRT);
+    SAFE_DELETE(tmpRT);
+    SAFE_DELETE(tmpRT_SRGB);
+    for (int i = 0; i < 2; i++)
+        SAFE_DELETE(finalRT[i]);
 }
 
 
-void drawHud(ID3D10Device *device, float elapsedTime) {
-    if (showHud) {
-        hud.OnRender(elapsedTime);
+void renderMesh(ID3D10Device *device) {
+    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"Render Scene");
+    HRESULT hr;
 
-        txtHelper->Begin();
+    // Save the state.
+    SaveViewportsScope saveViewport(device);
+    SaveRenderTargetsScope saveRenderTargets(device);
+    SaveInputLayoutScope saveInputLayout(device);
 
-        txtHelper->SetInsertionPos(2, 0);
-        txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 1.0f, 1.0f, 1.0f));
-        txtHelper->DrawTextLine(DXUTGetFrameStats(DXUTIsVsyncEnabled()));
-        txtHelper->DrawTextLine(DXUTGetDeviceStats());
-        txtHelper->DrawTextLine(L"Press 'tab' to toogle the HUD, 'a' and 'd' to quickly cycle through the images");
+    device->OMSetRenderTargets(1, *tmpRT_SRGB, *depthStencil);
 
-        txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 0.5f, 0.0f, 1.0f));
-        if (timer->isEnabled()) {
-            wstringstream s;
-            s << setprecision(2) << std::fixed;
-            s << *timer;
-            txtHelper->DrawTextLine(s.str().c_str());
+    device->IASetInputLayout(vertexLayout);
+    for (float x = -5.0; x <= 5.0; x += 1.0) {
+        for (float y = -4.0; y <= 4.0; y += 1.0) {
+            D3DXMATRIX world;
+            D3DXMatrixTranslation(&world, 0.5f + x, 0.0f, 0.5f + y);
+
+            D3DXMATRIX transform = world * camera.getViewMatrix() * camera.getProjectionMatrix();
+
+            V(simpleEffect->GetVariableByName("transform")->AsMatrix()->SetMatrix((float *) transform));
+            V(simpleEffect->GetTechniqueByName("Simple")->GetPassByIndex(0)->Apply(0));
+
+            mesh.Render(device, simpleEffect->GetTechniqueByName("Simple"));
         }
-
-        txtHelper->End();
     }
+
+    D3DPERF_EndEvent();
 }
 
 
@@ -348,46 +465,112 @@ void drawTextures(ID3D10Device *device) {
 }
 
 
+void drawHud(float elapsedTime) {
+    HRESULT hr;
+
+    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"HUD");
+    if (showHud) {
+        V(hud.OnRender(elapsedTime));
+
+        txtHelper->Begin();
+
+        txtHelper->SetInsertionPos(2, 0);
+        txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 1.0f, 1.0f, 1.0f));
+        txtHelper->DrawTextLine(DXUTGetFrameStats(DXUTIsVsyncEnabled()));
+        txtHelper->DrawTextLine(DXUTGetDeviceStats());
+        txtHelper->DrawTextLine(L"Press 'tab' to toogle the HUD, 'a' and 'd' to quickly cycle through the images");
+
+        txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 0.5f, 0.0f, 1.0f));
+        if (timer->isEnabled()) {
+            wstringstream s;
+            s << setprecision(2) << std::fixed;
+            s << *timer;
+            txtHelper->DrawTextLine(s.str().c_str());
+        }
+
+        txtHelper->End();
+    }
+    D3DPERF_EndEvent();
+}
+
+
 void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime, void *context) {
+    // Calculate next frame index:
+    int previousFrame = frame;
+    int currentFrame = (frame + 1) % 2;
+
+    // Render the settings dialog:
     if (settingsDialog.IsActive()) {
         settingsDialog.OnRender(elapsedTime);
         return;
     }
 
+    // Clear render targets:
     float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    device->ClearRenderTargetView(*backbufferRT, clearColor);
-    device->ClearDepthStencilView(*depthStencil, D3D10_CLEAR_STENCIL, 1.0, 0);
+    device->ClearRenderTargetView(*tmpRT_SRGB, clearColor);
+    device->ClearDepthStencilView(*depthStencil, D3D10_CLEAR_DEPTH | D3D10_CLEAR_STENCIL, 1.0, 0);
 
-    // This is our simulated main render-to-backbuffer pass.
-    D3D10_VIEWPORT viewport = Utils::viewportFromView(inputColorSRV);
-    Copy::go(inputColorSRV, *finalRT_SRGB, &viewport);
-    Copy::go(inputDepthSRV, *depthBufferRT, &viewport);
+    // Render the scene:
+    if (hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() > 0) {
+        D3D10_VIEWPORT viewport = Utils::viewportFromView(inputColorSRV);
+        Copy::go(inputColorSRV, *tmpRT_SRGB, &viewport);
+        Copy::go(inputDepthSRV, *depthBufferRT, &viewport);
+    } else {
+        if (hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked() && 
+            SMAA::Mode(int(hud.GetComboBox(IDC_SMAA_MODE)->GetSelectedData())) == SMAA::MODE_SMAA_T2X) {
+            D3DXVECTOR2 jitter[] = {
+                D3DXVECTOR2(-0.25f, -0.25f),
+                D3DXVECTOR2( 0.25f,  0.25f)
+            };
+            const DXGI_SURFACE_DESC *desc = DXUTGetDXGIBackBufferSurfaceDesc();
+            float aspect = (float) desc->Width / desc->Height;
+            camera.setJitteredProjection(18.0f * D3DX_PI / 180.f, aspect, 0.1f, 1000.0f, jitter[frame]);
+        }
+
+        renderMesh(device);
+    }
 
     // Run SMAA
     if (hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked()) {
         SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTION_MODE)->GetSelectedData()));
         int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? timer->getRepetitionsCount() : 1;
 
+        SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_SMAA_MODE)->GetSelectedData()));
+        ID3D10RenderTargetView *dstRTV = mode == SMAA::MODE_SMAA_1X?
+                                         (ID3D10RenderTargetView *) *backbufferRT : *finalRT[currentFrame];
+
         timer->start();
-        for (int i = 0; i < n; i++) // This loop is just for profiling.
-            smaa->go(*finalRT, *finalRT_SRGB, *depthBufferRT, *backbufferRT, *depthStencil, input);
+        for (int i = 0; i < n; i++) { // This loop is for profiling.
+            smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, dstRTV, *depthStencil, input);
+            if (mode == SMAA::MODE_SMAA_T2X)
+                smaa->resolve(*finalRT[currentFrame], *finalRT[previousFrame], *backbufferRT);
+        }
         timer->clock(L"SMAA");
     } else {
-        Copy::go(*finalRT_SRGB, *backbufferRT);
+        Copy::go(*tmpRT_SRGB, *backbufferRT);
     }
 
+    // Save the image to a file, if required:
     if (commandlineOptions.dst != L"") {
         saveBackbuffer(device);
         exit(0);
     }
 
+    // Run the benchmark, if required:
     if (benchmark)
         doBenchmark();
 
-    DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats"); // These events are to help PIX identify what the code is doing
+    // Draw the HUD:
     drawTextures(device);
-    drawHud(device, elapsedTime);
-    DXUT_EndPerfEvent();
+    drawHud(elapsedTime);
+
+    // Update frame index:
+    frame = currentFrame;
+}
+
+
+void CALLBACK onFrameMove(double time, float elapsedTime, void *context) {
+    camera.frameMove(elapsedTime);
 }
 
 
@@ -403,6 +586,9 @@ LRESULT CALLBACK msgProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, bool
 
     *finished = hud.MsgProc(hwnd, msg, wparam, lparam);
     if (*finished)
+        return 0;
+
+   if (camera.handleMessages(hwnd, msg, wparam, lparam))
         return 0;
 
     return 0;
@@ -422,6 +608,8 @@ void setVisibleCustomControls(bool visible) {
 
 
 void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context) {
+    HRESULT hr;
+
     if (keyDown)
     switch (nchar) {
         case VK_TAB: {
@@ -443,14 +631,14 @@ void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context
         case 'A': {
             int previous = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() - 1;
             hud.GetComboBox(IDC_INPUT)->SetSelectedByIndex(previous > 0? previous : 0);
-            loadImage();
+            V(loadInput());
             break;
         }          
         case 'D': {
             int next = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() + 1;
             int n = hud.GetComboBox(IDC_INPUT)->GetNumItems();
             hud.GetComboBox(IDC_INPUT)->SetSelectedByIndex(next < n? next : n);
-            loadImage();
+            V(loadInput());
             break;
         }
         case 'X':
@@ -465,6 +653,8 @@ void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context
             timer->setEnabled(true);
             benchmark = true;
             benchmarkFile.open("Benchmark.txt",  ios_base::out);
+            hud.GetComboBox(IDC_INPUT)->SetSelectedByIndex(1);
+            V(loadInput());
             break;
     }
 }
@@ -515,6 +705,8 @@ bool CALLBACK modifyDeviceSettings(DXUTDeviceSettings *settings, void *context) 
 void buildInputComboBox() {
     hud.GetComboBox(IDC_INPUT)->RemoveAllItems();
 
+    hud.GetComboBox(IDC_INPUT)->AddItem(L"Fence", NULL);
+
     for (int i = 0; i < 7; i++) {
         wstringstream s;
         s.fill('0');
@@ -534,6 +726,8 @@ void buildInputComboBox() {
 
 
 void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *context) {
+    HRESULT hr;
+
     switch (id) {
         case IDC_TOGGLE_FULLSCREEN:
             DXUTToggleFullScreen();
@@ -569,7 +763,7 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 hud.GetComboBox(IDC_INPUT)->AddItem(file, (LPVOID) -1);
                 hud.GetComboBox(IDC_INPUT)->SetSelectedByData((LPVOID) -1);
 
-                loadImage();
+                V(loadInput());
                 resizeWindow();
                 onReleasingSwapChain(NULL);
                 onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
@@ -578,7 +772,7 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
         case IDC_INPUT:
             if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
                 timer->reset();            
-                loadImage();
+                V(loadInput());
                 resizeWindow();
                 onReleasingSwapChain(NULL);
                 onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
@@ -706,17 +900,22 @@ void initApp() {
 
     iY += 24;
 
+    hud.AddComboBox(IDC_SMAA_MODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
+    hud.GetComboBox(IDC_SMAA_MODE)->AddItem(L"SMAA 1x", (LPVOID) SMAA::MODE_SMAA_1X);
+    hud.GetComboBox(IDC_SMAA_MODE)->AddItem(L"SMAA T2x", (LPVOID) SMAA::MODE_SMAA_T2X);
+    hud.GetComboBox(IDC_SMAA_MODE)->SetSelectedByData((LPVOID) SMAA::MODE_SMAA_T2X);
+
     hud.AddComboBox(IDC_PRESET, 35, iY += 24, HUD_WIDTH, 22, 0, false);
-    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Low", (LPVOID) 0);
-    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Medium", (LPVOID) 1);
-    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA High", (LPVOID) 2);
-    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Ultra", (LPVOID) 3);
-    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Custom", (LPVOID) 4);
-    hud.GetComboBox(IDC_PRESET)->SetSelectedByData((LPVOID) 2);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Low", (LPVOID) SMAA::PRESET_LOW);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Medium", (LPVOID) SMAA::PRESET_MEDIUM);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA High", (LPVOID) SMAA::PRESET_HIGH);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Ultra", (LPVOID) SMAA::PRESET_ULTRA);
+    hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Custom", (LPVOID) SMAA::PRESET_CUSTOM);
+    hud.GetComboBox(IDC_PRESET)->SetSelectedByData((LPVOID) SMAA::PRESET_HIGH);
 
     hud.AddComboBox(IDC_DETECTION_MODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
 
-    hud.AddCheckBox(IDC_ANTIALIASING, L"SMAA Anti-Aliasing", 35, iY += 24, HUD_WIDTH, 22, true);
+    hud.AddCheckBox(IDC_ANTIALIASING, L"Enable SMAA", 35, iY += 24, HUD_WIDTH, 22, true);
     hud.AddCheckBox(IDC_PREDICATION, L"Predicated Tresholding", 35, iY += 24, HUD_WIDTH, 22, false);
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, HUD_WIDTH, 22, false);
 
@@ -798,6 +997,7 @@ INT WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
     DXUTSetCallbackD3D10SwapChainResized(onResizedSwapChain);
     DXUTSetCallbackD3D10SwapChainReleasing(onReleasingSwapChain);
     DXUTSetCallbackD3D10FrameRender(onFrameRender);
+    DXUTSetCallbackFrameMove(onFrameMove);
 
     DXUTSetCallbackMsgProc(msgProc);
     DXUTSetCallbackKeyboard(keyboardProc);

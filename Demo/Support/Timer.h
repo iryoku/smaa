@@ -37,11 +37,8 @@
 #include <map>
 #include <vector>
 
-// Use DX9 or DX10 for flushing the pipeline?
-//#define TIMER_USE_DIRECTX_9
 
-
-#ifdef TIMER_USE_DIRECTX_9
+#ifdef TIMER_DIRECTX_9
 #include <d3d9.h>
 #else
 #include <d3d10.h>
@@ -51,7 +48,7 @@
 
 class Timer {
     public:
-        #ifdef TIMER_USE_DIRECTX_9
+        #ifdef TIMER_DIRECTX_9
         Timer(IDirect3DDevice9 *device);
         #else
         Timer(ID3D10Device *device);
@@ -83,7 +80,7 @@ class Timer {
         float mean(const std::wstring &msg, float t);
         void flush();
 
-        #ifdef TIMER_USE_DIRECTX_9
+        #ifdef TIMER_DIRECTX_9
         IDirect3DQuery9 *event;
         #else
         ID3D10Query *event;

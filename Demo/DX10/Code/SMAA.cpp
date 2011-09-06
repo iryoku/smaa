@@ -39,6 +39,7 @@
 
 #include <sstream>
 #include <d3d10_1.h>
+#include <d3d9.h>
 #include "SMAA.h"
 #include "SearchTex.h"
 #include "AreaTex.h"
@@ -189,7 +190,8 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     areaTexVariable = effect->GetVariableByName("areaTex")->AsShaderResource();
     searchTexVariable = effect->GetVariableByName("searchTex")->AsShaderResource();
     colorTexVariable = effect->GetVariableByName("colorTex")->AsShaderResource();
-    colorGammaTexVariable = effect->GetVariableByName("colorGammaTex")->AsShaderResource();
+    colorTexGammaVariable = effect->GetVariableByName("colorTexGamma")->AsShaderResource();
+    colorTexPrevVariable = effect->GetVariableByName("colorTexPrev")->AsShaderResource();
     depthTexVariable = effect->GetVariableByName("depthTex")->AsShaderResource();
     edgesTexVariable = effect->GetVariableByName("edgesTex")->AsShaderResource();
     blendTexVariable = effect->GetVariableByName("blendTex")->AsShaderResource();
@@ -198,6 +200,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     edgeDetectionTechniques[2] = effect->GetTechniqueByName("DepthEdgeDetection");
     blendWeightCalculationTechnique = effect->GetTechniqueByName("BlendingWeightCalculation");
     neighborhoodBlendingTechnique = effect->GetTechniqueByName("NeighborhoodBlending");
+    resolveTechnique = effect->GetTechniqueByName("Resolve");
 }
 
 
@@ -250,13 +253,44 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
     V(blendTexVariable->SetResource(*blendRT));
     V(areaTexVariable->SetResource(areaTexSRV));
     V(searchTexVariable->SetResource(searchTexSRV));
-    V(colorGammaTexVariable->SetResource(srcGammaSRV));
+    V(colorTexGammaVariable->SetResource(srcGammaSRV));
     V(depthTexVariable->SetResource(depthSRV));
 
     // And here we go!
     edgesDetectionPass(dsv, input);
     blendingWeightsCalculationPass(dsv);
     neighborhoodBlendingPass(dstRTV, dsv);
+}
+
+
+void SMAA::resolve(ID3D10ShaderResourceView *currentSRV,
+                   ID3D10ShaderResourceView *previousSRV,
+                   ID3D10RenderTargetView *dstRTV) {
+    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: temporal resolve");
+    HRESULT hr;
+
+    // Save the state:
+    SaveViewportsScope saveViewport(device);
+    SaveRenderTargetsScope saveRenderTargets(device);
+    SaveInputLayoutScope saveInputLayout(device);
+
+    // Setup the viewport and the vertex layout:
+    edgesRT->setViewport();
+    quad->setInputLayout();
+    
+    // Setup variables:
+    V(colorTexVariable->SetResource(currentSRV));
+    V(colorTexPrevVariable->SetResource(previousSRV));
+
+    // Select the technique accordingly:
+    V(resolveTechnique->GetPassByIndex(0)->Apply(0));
+
+    // Do it!
+    device->OMSetRenderTargets(1, &dstRTV, NULL);
+    quad->draw();
+    device->OMSetRenderTargets(0, NULL, NULL);
+
+    D3DPERF_EndEvent();
 }
 
 
@@ -339,6 +373,7 @@ void SMAA::loadSearchTex() {
 
 
 void SMAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
+    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: 1st pass");
     HRESULT hr;
 
     // Select the technique accordingly:
@@ -348,10 +383,13 @@ void SMAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
     device->OMSetRenderTargets(1, *edgesRT, dsv);
     quad->draw();
     device->OMSetRenderTargets(0, NULL, NULL);
+
+    D3DPERF_EndEvent();
 }
 
 
 void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv) {
+    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: 2nd pass");
     HRESULT hr;
 
     // Setup the technique (again):
@@ -361,10 +399,13 @@ void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv) {
     device->OMSetRenderTargets(1, *blendRT, dsv);
     quad->draw();
     device->OMSetRenderTargets(0, NULL, NULL);
+
+    D3DPERF_EndEvent();
 }
 
 
 void SMAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthStencilView *dsv) {
+    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: 3rd pass");
     HRESULT hr;
 
     // Setup the technique (once again):
@@ -374,4 +415,6 @@ void SMAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthS
     device->OMSetRenderTargets(1, &dstRTV, dsv);
     quad->draw();
     device->OMSetRenderTargets(0, NULL, NULL);
+
+    D3DPERF_EndEvent();
 }

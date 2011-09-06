@@ -13,6 +13,9 @@
     <Filter Include="Code\Support">
       <UniqueIdentifier>{b4342701-eefd-4d50-a33e-06e18f78c15c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Code\Textures">
+      <UniqueIdentifier>{b16ee868-8dc4-424d-8f10-2b3e7b19b125}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DXUT\Core\DXUT.cpp">
@@ -48,13 +51,16 @@
     <ClCompile Include="Code\SMAA.cpp">
       <Filter>Code</Filter>
     </ClCompile>
-    <ClCompile Include="Code\RenderTarget.cpp">
+    <ClCompile Include="..\Support\Camera.cpp">
       <Filter>Code\Support</Filter>
     </ClCompile>
-    <ClCompile Include="Code\Timer.cpp">
+    <ClCompile Include="..\Support\Copy.cpp">
       <Filter>Code\Support</Filter>
     </ClCompile>
-    <ClCompile Include="Code\Copy.cpp">
+    <ClCompile Include="..\Support\RenderTarget.cpp">
+      <Filter>Code\Support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Support\Timer.cpp">
       <Filter>Code\Support</Filter>
     </ClCompile>
   </ItemGroup>
@@ -89,23 +95,26 @@
     <ClInclude Include="..\..\SMAA.h">
       <Filter>Shaders</Filter>
     </ClInclude>
-    <ClInclude Include="Code\Timer.h">
-      <Filter>Code\Support</Filter>
-    </ClInclude>
-    <ClInclude Include="Code\RenderTarget.h">
-      <Filter>Code\Support</Filter>
-    </ClInclude>
-    <ClInclude Include="Code\Copy.h">
-      <Filter>Code\Support</Filter>
-    </ClInclude>
     <ClInclude Include="Code\SMAA.h">
       <Filter>Code</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Textures\AreaTex.h">
-      <Filter>Code</Filter>
+    <ClInclude Include="..\Support\Camera.h">
+      <Filter>Code\Support</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Support\Copy.h">
+      <Filter>Code\Support</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Support\RenderTarget.h">
+      <Filter>Code\Support</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Support\Timer.h">
+      <Filter>Code\Support</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Textures\SearchTex.h">
-      <Filter>Code</Filter>
+      <Filter>Code\Textures</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Textures\AreaTex.h">
+      <Filter>Code\Textures</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

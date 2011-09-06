@@ -266,6 +266,7 @@ void SMAA::loadSearchTex() {
 
 
 void SMAA::edgesDetectionPass(IDirect3DTexture9 *edges, Input input) {
+    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: 1st pass");
     HRESULT hr;
 
     // Set the render target and clear both the color and the stencil buffers.
@@ -301,10 +302,13 @@ void SMAA::edgesDetectionPass(IDirect3DTexture9 *edges, Input input) {
     quad(width, height);
     V(effect->EndPass());
     V(effect->End());
+
+    D3DPERF_EndEvent();
 }
 
 
 void SMAA::blendingWeightsCalculationPass() {
+    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: 2nd pass");
     HRESULT hr;
 
     // Set the render target and clear it.
@@ -324,10 +328,13 @@ void SMAA::blendingWeightsCalculationPass() {
     quad(width, height);
     V(effect->EndPass());
     V(effect->End());
+
+    D3DPERF_EndEvent();
 }
 
 
-void SMAA::neighborhoodBlendingPass(IDirect3DTexture9 *src, IDirect3DSurface9 *dst) { 
+void SMAA::neighborhoodBlendingPass(IDirect3DTexture9 *src, IDirect3DSurface9 *dst) {
+    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: 3rd pass");
     HRESULT hr;
 
     // Blah blah blah
@@ -343,6 +350,8 @@ void SMAA::neighborhoodBlendingPass(IDirect3DTexture9 *src, IDirect3DSurface9 *d
     quad(width, height);
     V(effect->EndPass());
     V(effect->End());
+
+    D3DPERF_EndEvent();
 }
 
 

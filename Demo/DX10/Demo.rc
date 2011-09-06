@@ -2,6 +2,7 @@
 
 SMAA.fx RCDATA Shaders\SMAA.fx
 SMAA.h RCDATA "..\\..\\SMAA.h"
+Simple.fx RCDATA Shaders\Simple.fx
 
 Unigine01.png RCDATA "..\\Media\\Unigine01.png"
 Unigine02.png RCDATA "..\\Media\\Unigine02.png"
@@ -18,3 +19,5 @@ Unigine04.dds RCDATA "..\\Media\\Unigine04.dds"
 Unigine05.dds RCDATA "..\\Media\\Unigine05.dds"
 Unigine06.dds RCDATA "..\\Media\\Unigine06.dds"
 Unigine07.dds RCDATA "..\\Media\\Unigine07.dds"
+
+Fence.sdkmesh RCDATA "..\\Media\\Fence.sdkmesh"

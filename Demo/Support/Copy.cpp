@@ -31,6 +31,7 @@
 
 #include <DXUT.h>
 #include <string>
+#include <d3d9.h>
 #include "Copy.h"
 using namespace std;
 
@@ -72,6 +73,8 @@ void Copy::release() {
 
 
 void Copy::go(ID3D10ShaderResourceView *srcSRV, ID3D10RenderTargetView *dstRTV, D3D10_VIEWPORT *viewport) {
+    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"Copy");
+
     SaveViewportsScope saveViewport(device);
     SaveRenderTargetsScope saveRenderTargets(device);
     SaveInputLayoutScope saveInputLayout(device);
@@ -87,4 +90,6 @@ void Copy::go(ID3D10ShaderResourceView *srcSRV, ID3D10RenderTargetView *dstRTV, 
     device->OMSetRenderTargets(1, &dstRTV, NULL);
     quad->draw();
     device->OMSetRenderTargets(0, NULL, NULL);
+
+    D3DPERF_EndEvent();
 }

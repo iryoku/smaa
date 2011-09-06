@@ -326,16 +326,8 @@
 #define SMAASampleOffset(tex, coord, off) tex2D(tex, coord + off * SMAA_PIXEL_SIZE)
 #endif
 #if SMAA_HLSL_4 == 1 || SMAA_HLSL_4_1 == 1
-SamplerState LinearSampler {
-    Filter = MIN_MAG_LINEAR_MIP_POINT;
-    AddressU = Clamp;
-    AddressV = Clamp;
-};
-SamplerState PointSampler {
-    Filter = MIN_MAG_MIP_POINT;
-    AddressU = Clamp;
-    AddressV = Clamp;
-};
+SamplerState LinearSampler { Filter = MIN_MAG_LINEAR_MIP_POINT; AddressU = Clamp; AddressV = Clamp; };
+SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; AddressV = Clamp; };
 #define SMAATexture2D Texture2D
 #define SMAASampleLevelZero(tex, coord) tex.SampleLevel(LinearSampler, coord, 0)
 #define SMAASampleLevelZeroPoint(tex, coord) tex.SampleLevel(PointSampler, coord, 0)
@@ -428,6 +420,15 @@ void SMAANeighborhoodBlendingVS(float4 position,
 
     offset[0] = texcoord.xyxy + SMAA_PIXEL_SIZE.xyxy * float4(-1.0, 0.0, 0.0, -1.0);
     offset[1] = texcoord.xyxy + SMAA_PIXEL_SIZE.xyxy * float4( 1.0, 0.0, 0.0,  1.0);
+}
+
+/**
+ * Resolve Vertex Shader
+ */
+void SMAAResolveVS(float4 position,
+                   out float4 svPosition,
+                   inout float2 texcoord) {
+    svPosition = position;
 }
 
 //-----------------------------------------------------------------------------
@@ -537,16 +538,7 @@ float4 SMAAColorEdgeDetectionPS(float2 texcoord,
     t = abs(C - Cbottom);
     delta.w = max(max(t.r, t.g), t.b);
 
-    /**
-     * Each edge with a delta in luma of less than 50% of the maximum luma
-     * surrounding this pixel is discarded. This allows to eliminate spurious
-     * crossing edges, and is based on the fact that, if there is too much
-     * contrast in a direction, that will hide contrast in the other
-     * neighbors.
-     * This is done after the discard intentionally as this situation doesn't
-     * happen too frequently (but it's important to do as it prevents some 
-     * edges from going undetected).
-     */
+    // Local contrast adaptation in action:
     float maxDelta = max(max(max(delta.x, delta.y), delta.z), delta.w);
     edges.xy *= step(0.5 * maxDelta, delta.xy);
 
@@ -878,6 +870,7 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
         // the actual area:
         weights.rg = SMAAArea(areaTex, sqrt_d, e1, e2);
 
+        // Fix corners:
         SMAADetectHorizontalCornerPattern(edgesTex, weights.rg, texcoord, d);
 
         #if SMAA_MAX_SEARCH_STEPS_DIAG > 0 || SMAA_FORCE_DIAGONAL_DETECTION == 1
@@ -889,7 +882,7 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
     [branch]
     if (e.r) { // Edge at west
         float2 d;
-        
+
         // Find the distance to the top:
         float2 coords;
         coords.y = SMAASearchYUp(edgesTex, searchTex, offset[1].xy, offset[2].z);
@@ -916,6 +909,7 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
         // Get the area for this direction:
         weights.ba = SMAAArea(areaTex, sqrt_d, e1, e2);
 
+        // Fix corners:
         SMAADetectVerticalCornerPattern(edgesTex, weights.ba, texcoord, d);
     }
 
@@ -969,6 +963,17 @@ float4 SMAANeighborhoodBlendingPS(float2 texcoord,
         return lerp(C, Cop, s);
         #endif
     }
+}
+
+//-----------------------------------------------------------------------------
+// Temporal Resolve Pixel Shader (Optional Fourth Pass)
+
+float4 SMAAResolvePS(float2 texcoord,
+                     SMAATexture2D colorTexCurr,
+                     SMAATexture2D colorTexPrev) {
+    float4 current = SMAASample(colorTexCurr, texcoord);
+    float4 previous = SMAASample(colorTexPrev, texcoord);
+    return lerp(current, previous, 0.5);
 }
 
 //-----------------------------------------------------------------------------

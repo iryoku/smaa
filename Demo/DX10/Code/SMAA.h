@@ -55,6 +55,7 @@ class SMAA {
     public:
         class ExternalStorage;
 
+        enum Mode { MODE_SMAA_1X, MODE_SMAA_T2X };
         enum Preset { PRESET_LOW, PRESET_MEDIUM, PRESET_HIGH, PRESET_ULTRA, PRESET_CUSTOM };
         enum Input { INPUT_LUMA, INPUT_COLOR, INPUT_DEPTH };
 
@@ -103,6 +104,14 @@ class SMAA {
                 ID3D10RenderTargetView *dstRTV, // Output render target.
                 ID3D10DepthStencilView *dsv, // Depth-stencil buffer.
                 Input input); // Selects the input for edge detection.
+
+        /**
+         * This function perform a temporal resolve of two buffers. They must
+         * contain temporary jittered color subsamples.
+         */
+        void resolve(ID3D10ShaderResourceView *currentSRV,
+                     ID3D10ShaderResourceView *previousSRV,
+                     ID3D10RenderTargetView *dstRTV); 
 
         /**
          * Threshold for the edge detection. Only has effect if PRESET_CUSTOM
@@ -179,12 +188,13 @@ class SMAA {
         ID3D10EffectScalarVariable *thresholdVariable, *cornerRoundingVariable,
                                    *maxSearchStepsVariable, *maxSearchStepsDiagVariable;
         ID3D10EffectShaderResourceVariable *areaTexVariable, *searchTexVariable,
-                                           *colorTexVariable, *colorGammaTexVariable, *depthTexVariable,
+                                           *colorTexVariable, *colorTexGammaVariable, *colorTexPrevVariable, *depthTexVariable,
                                            *edgesTexVariable, *blendTexVariable;
 
         ID3D10EffectTechnique *edgeDetectionTechniques[3],
                               *blendWeightCalculationTechnique,
-                              *neighborhoodBlendingTechnique;
+                              *neighborhoodBlendingTechnique,
+                              *resolveTechnique;
 
         float threshold, cornerRounding;
         int maxSearchSteps, maxSearchStepsDiag;

@@ -80,7 +80,7 @@ float cornerRounding;
 
 
 /**
- * DepthStencilState's and company.
+ * DepthStencilState's and company
  */
 DepthStencilState DisableDepthStencil {
     DepthEnable = FALSE;
@@ -106,13 +106,22 @@ BlendState NoBlending {
 
 
 /**
- * Input textures.
+ * Input textures
  */
+Texture2D colorTexPrev;
 Texture2D colorTex;
-Texture2D colorGammaTex;
+Texture2D colorTexGamma;
 Texture2D depthTex;
+
+/**
+ * Temporal textures
+ */
 Texture2D edgesTex;
 Texture2D blendTex;
+
+/**
+ * Pre-computed area and search textures
+ */
 Texture2D areaTex;
 Texture2D searchTex;
 
@@ -142,26 +151,31 @@ void DX10_SMAANeighborhoodBlendingVS(float4 position : POSITION,
     SMAANeighborhoodBlendingVS(position, svPosition, texcoord, offset);
 }
 
+void DX10_SMAAResolveVS(float4 position : POSITION,
+                        out float4 svPosition : SV_POSITION,
+                        inout float2 texcoord : TEXCOORD0) {
+    SMAAResolveVS(position, svPosition, texcoord);
+}
 
 float4 DX10_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
                                     float4 offset[2] : TEXCOORD1,
-                                    uniform SMAATexture2D colorGammaTex) : SV_TARGET {
+                                    uniform SMAATexture2D colorTexGamma) : SV_TARGET {
     #if SMAA_PREDICATION == 1
-    return SMAALumaEdgeDetectionPS(texcoord, offset, colorGammaTex, depthTex);
+    return SMAALumaEdgeDetectionPS(texcoord, offset, colorTexGamma, depthTex);
     #else
-    return SMAALumaEdgeDetectionPS(texcoord, offset, colorGammaTex);
+    return SMAALumaEdgeDetectionPS(texcoord, offset, colorTexGamma);
     #endif
 }
 
 float4 DX10_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
                                      float2 texcoord : TEXCOORD0,
                                      float4 offset[2] : TEXCOORD1,
-                                     uniform SMAATexture2D colorGammaTex) : SV_TARGET {
+                                     uniform SMAATexture2D colorTexGamma) : SV_TARGET {
     #if SMAA_PREDICATION == 1
-    return SMAAColorEdgeDetectionPS(texcoord, offset, colorGammaTex, depthTex);
+    return SMAAColorEdgeDetectionPS(texcoord, offset, colorTexGamma, depthTex);
     #else
-    return SMAAColorEdgeDetectionPS(texcoord, offset, colorGammaTex);
+    return SMAAColorEdgeDetectionPS(texcoord, offset, colorTexGamma);
     #endif
 }
 
@@ -190,6 +204,12 @@ float4 DX10_SMAANeighborhoodBlendingPS(float4 position : SV_POSITION,
     return SMAANeighborhoodBlendingPS(texcoord, offset, colorTex, blendTex);
 }
 
+float4 DX10_SMAAResolvePS(float4 position : SV_POSITION,
+                          float2 texcoord : TEXCOORD0,
+                          uniform SMAATexture2D colorTex,
+                          uniform SMAATexture2D colorTexPrev) : SV_TARGET {
+    return SMAAResolvePS(texcoord, colorTex, colorTexPrev);
+}
 
 /**
  * Edge detection techniques
@@ -198,7 +218,7 @@ technique10 LumaEdgeDetection {
     pass LumaEdgeDetection {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAAEdgeDetectionVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAALumaEdgeDetectionPS(colorGammaTex)));
+        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAALumaEdgeDetectionPS(colorTexGamma)));
 
         SetDepthStencilState(DisableDepthReplaceStencil, 1);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
@@ -209,7 +229,7 @@ technique10 ColorEdgeDetection {
     pass ColorEdgeDetection {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAAEdgeDetectionVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAAColorEdgeDetectionPS(colorGammaTex)));
+        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAAColorEdgeDetectionPS(colorTexGamma)));
 
         SetDepthStencilState(DisableDepthReplaceStencil, 1);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
@@ -249,6 +269,20 @@ technique10 NeighborhoodBlending {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAANeighborhoodBlendingVS()));
         SetGeometryShader(NULL);
         SetPixelShader(CompileShader(PS_VERSION, DX10_SMAANeighborhoodBlendingPS(colorTex, blendTex)));
+
+        SetDepthStencilState(DisableDepthStencil, 0);
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+    }
+}
+
+/**
+ * Temporal resolve technique
+ */
+technique10 Resolve {
+    pass Resolve {
+        SetVertexShader(CompileShader(vs_4_0, DX10_SMAAResolveVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAAResolvePS(colorTex, colorTexPrev)));
 
         SetDepthStencilState(DisableDepthStencil, 0);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);

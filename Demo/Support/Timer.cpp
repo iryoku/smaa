@@ -62,7 +62,7 @@ using namespace std;
 #pragma endregion
 
 
-#ifdef TIMER_USE_DIRECTX_9
+#ifdef TIMER_DIRECTX_9
 Timer::Timer(IDirect3DDevice9 *device) : enabled(true), flushEnabled(true), windowSize(10), repetitionCount(1) {
     HRESULT hr;
 
@@ -151,7 +151,7 @@ float Timer::mean(const std::wstring &msg, float t) {
 
 
 void Timer::flush() {
-    #ifdef TIMER_USE_DIRECTX_9
+    #ifdef TIMER_DIRECTX_9
     event->Issue(D3DISSUE_END);
     while (event->GetData(NULL, 0, D3DGETDATA_FLUSH) == S_FALSE);
     #else

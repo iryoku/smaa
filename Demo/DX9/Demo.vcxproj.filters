@@ -11,6 +11,12 @@
     <Filter Include="Code">
       <UniqueIdentifier>{2c535ec7-5ff8-434e-bebb-e0d953205908}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Code\Support">
+      <UniqueIdentifier>{e950a27b-24cd-4518-9d43-35c4ca341746}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Code\Textures">
+      <UniqueIdentifier>{e23cc524-7af6-4a2f-a0b1-74bb3d0104a0}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DXUT\Core\DXUT.h">
@@ -67,20 +73,20 @@
     <ClCompile Include="DXUT\Optional\SDKmisc.cpp">
       <Filter>DXUT</Filter>
     </ClCompile>
-    <ClInclude Include="Code\Timer.h">
-      <Filter>Code</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Textures\AreaTex.h">
-      <Filter>Code</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Textures\SearchTex.h">
-      <Filter>Code</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\SMAA.h">
       <Filter>Shaders</Filter>
     </ClInclude>
     <ClInclude Include="Code\SMAA.h">
       <Filter>Code</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Textures\SearchTex.h">
+      <Filter>Code\Textures</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Textures\AreaTex.h">
+      <Filter>Code\Textures</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Support\Timer.h">
+      <Filter>Code\Support</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -90,11 +96,11 @@
     <ClCompile Include="Code\Demo.cpp">
       <Filter>Code</Filter>
     </ClCompile>
-    <ClCompile Include="Code\Timer.cpp">
-      <Filter>Code</Filter>
-    </ClCompile>
     <ClCompile Include="Code\SMAA.cpp">
       <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Support\Timer.cpp">
+      <Filter>Code\Support</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

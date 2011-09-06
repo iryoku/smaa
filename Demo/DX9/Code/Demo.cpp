@@ -152,23 +152,31 @@ void CALLBACK onLostDevice(void *userContext) {
 }
 
 
-void drawHud() {
-    txtHelper->Begin();
+void drawHud(float elapsedTime) {
+    HRESULT hr;
 
-    txtHelper->SetInsertionPos(2, 0);
-    txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 1.0f, 1.0f, 1.0f));
-    txtHelper->DrawTextLine(DXUTGetFrameStats(DXUTIsVsyncEnabled()));
-    txtHelper->DrawTextLine(DXUTGetDeviceStats());
+    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"HUD");
+    if (showHud) {
+        V(hud.OnRender(elapsedTime));
+
+        txtHelper->Begin();
+
+        txtHelper->SetInsertionPos(2, 0);
+        txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 1.0f, 1.0f, 1.0f));
+        txtHelper->DrawTextLine(DXUTGetFrameStats(DXUTIsVsyncEnabled()));
+        txtHelper->DrawTextLine(DXUTGetDeviceStats());
     
-    txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 0.5f, 0.0f, 1.0f));
-    if (timer->isEnabled()) {
-        wstringstream s;
-        s << setprecision(5) << std::fixed;
-        s << *timer;
-        txtHelper->DrawTextLine(s.str().c_str());
-    }
+        txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 0.5f, 0.0f, 1.0f));
+        if (timer->isEnabled()) {
+            wstringstream s;
+            s << setprecision(2) << std::fixed;
+            s << *timer;
+            txtHelper->DrawTextLine(s.str().c_str());
+        }
 
-    txtHelper->End();
+        txtHelper->End();
+    }
+    D3DPERF_EndEvent();
 }
 
 
@@ -241,12 +249,7 @@ void CALLBACK onFrameRender(IDirect3DDevice9 *device, double time, float elapsed
         }
 
         // Draw the HUD
-        DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR, L"HUD / Stats"); // These events are to help PIX identify what the code is doing
-        if (showHud) {
-            drawHud();
-            V(hud.OnRender(elapsedTime));
-        }
-        DXUT_EndPerfEvent();
+        drawHud(elapsedTime);
     V(device->EndScene());
 }
 
