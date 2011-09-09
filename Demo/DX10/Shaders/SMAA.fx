@@ -45,6 +45,11 @@
 #endif
 
 /**
+ * This is only required for temporal modes (SMAA T2x).
+ */
+int4 subsampleIndices;
+
+/**
  * This can be ignored; its purpose is to support interactive custom parameter
  * tweaking.
  */
@@ -132,7 +137,7 @@ Texture2D searchTex;
 void DX10_SMAAEdgeDetectionVS(float4 position : POSITION,
                               out float4 svPosition : SV_POSITION,
                               inout float2 texcoord : TEXCOORD0,
-                              out float4 offset[2] : TEXCOORD1) {
+                              out float4 offset[3] : TEXCOORD1) {
     SMAAEdgeDetectionVS(position, svPosition, texcoord, offset);
 }
 
@@ -159,7 +164,7 @@ void DX10_SMAAResolveVS(float4 position : POSITION,
 
 float4 DX10_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
-                                    float4 offset[2] : TEXCOORD1,
+                                    float4 offset[3] : TEXCOORD1,
                                     uniform SMAATexture2D colorTexGamma) : SV_TARGET {
     #if SMAA_PREDICATION == 1
     return SMAALumaEdgeDetectionPS(texcoord, offset, colorTexGamma, depthTex);
@@ -170,7 +175,7 @@ float4 DX10_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
 
 float4 DX10_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
                                      float2 texcoord : TEXCOORD0,
-                                     float4 offset[2] : TEXCOORD1,
+                                     float4 offset[3] : TEXCOORD1,
                                      uniform SMAATexture2D colorTexGamma) : SV_TARGET {
     #if SMAA_PREDICATION == 1
     return SMAAColorEdgeDetectionPS(texcoord, offset, colorTexGamma, depthTex);
@@ -181,7 +186,7 @@ float4 DX10_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
 
 float4 DX10_SMAADepthEdgeDetectionPS(float4 position : SV_POSITION,
                                      float2 texcoord : TEXCOORD0,
-                                     float4 offset[2] : TEXCOORD1,
+                                     float4 offset[3] : TEXCOORD1,
                                      uniform SMAATexture2D depthTex) : SV_TARGET {
     return SMAADepthEdgeDetectionPS(texcoord, offset, depthTex);
 }
@@ -193,7 +198,7 @@ float4 DX10_SMAABlendingWeightCalculationPS(float4 position : SV_POSITION,
                                             uniform SMAATexture2D edgesTex, 
                                             uniform SMAATexture2D areaTex, 
                                             uniform SMAATexture2D searchTex) : SV_TARGET {
-    return SMAABlendingWeightCalculationPS(texcoord, pixcoord, offset, edgesTex, areaTex, searchTex);
+    return SMAABlendingWeightCalculationPS(texcoord, pixcoord, offset, edgesTex, areaTex, searchTex, subsampleIndices);
 }
 
 float4 DX10_SMAANeighborhoodBlendingPS(float4 position : SV_POSITION,

@@ -136,7 +136,7 @@ sampler2D searchTex {
  */
 void DX9_SMAAEdgeDetectionVS(inout float4 position : POSITION,
                              inout float2 texcoord : TEXCOORD0,
-                             out float4 offset[2] : TEXCOORD1) {
+                             out float4 offset[3] : TEXCOORD1) {
     SMAAEdgeDetectionVS(position, position, texcoord, offset);
 }
 
@@ -156,21 +156,21 @@ void DX9_SMAANeighborhoodBlendingVS(inout float4 position : POSITION,
 
 float4 DX9_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
                                    float2 texcoord : TEXCOORD0,
-                                   float4 offset[2] : TEXCOORD1,
+                                   float4 offset[3] : TEXCOORD1,
                                    uniform SMAATexture2D colorGammaTex) : COLOR {
     return SMAALumaEdgeDetectionPS(texcoord, offset, colorGammaTex);
 }
 
 float4 DX9_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
-                                    float4 offset[2] : TEXCOORD1,
+                                    float4 offset[3] : TEXCOORD1,
                                     uniform SMAATexture2D colorGammaTex) : COLOR {
     return SMAAColorEdgeDetectionPS(texcoord, offset, colorGammaTex);
 }
 
 float4 DX9_SMAADepthEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
-                                    float4 offset[2] : TEXCOORD1,
+                                    float4 offset[3] : TEXCOORD1,
                                     uniform SMAATexture2D depthTex) : COLOR {
     return SMAADepthEdgeDetectionPS(texcoord, offset, depthTex);
 }

@@ -186,6 +186,31 @@ class SaveInputLayoutScope {
 };
 
 
+class SaveBlendStateScope {
+    public:
+        SaveBlendStateScope(ID3D10Device *device);
+        ~SaveBlendStateScope();
+
+    private:
+        ID3D10Device *device;
+        ID3D10BlendState *blendState;
+        FLOAT blendFactor[4];
+        UINT sampleMask;
+};
+
+
+class SaveDepthStencilScope {
+    public:
+        SaveDepthStencilScope(ID3D10Device *device);
+        ~SaveDepthStencilScope();
+
+    private:
+        ID3D10Device *device;
+        ID3D10DepthStencilState *depthStencilState;
+        UINT stencilRef;
+};
+
+
 class Utils {
     public:
         static D3D10_VIEWPORT viewportFromView(ID3D10View *view);

@@ -187,6 +187,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     cornerRoundingVariable = effect->GetVariableByName("cornerRounding")->AsScalar();
     maxSearchStepsVariable = effect->GetVariableByName("maxSearchSteps")->AsScalar();
     maxSearchStepsDiagVariable = effect->GetVariableByName("maxSearchStepsDiag")->AsScalar();
+    subsampleIndicesVariable = effect->GetVariableByName("subsampleIndices")->AsVector();
     areaTexVariable = effect->GetVariableByName("areaTex")->AsShaderResource();
     searchTexVariable = effect->GetVariableByName("searchTex")->AsShaderResource();
     colorTexVariable = effect->GetVariableByName("colorTex")->AsShaderResource();
@@ -221,13 +222,17 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
               ID3D10ShaderResourceView *depthSRV,
               ID3D10RenderTargetView *dstRTV,
               ID3D10DepthStencilView *dsv,
-              Input input) {
+              Input input,
+              Mode mode,
+              int subsampleIndex) {
     HRESULT hr;
 
     // Save the state:
     SaveViewportsScope saveViewport(device);
     SaveRenderTargetsScope saveRenderTargets(device);
     SaveInputLayoutScope saveInputLayout(device);
+    SaveBlendStateScope saveBlendState(device);
+    SaveDepthStencilScope saveDepthStencil(device);
 
     // Reset the render target:
     device->OMSetRenderTargets(0, NULL, NULL);
@@ -258,7 +263,7 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
 
     // And here we go!
     edgesDetectionPass(dsv, input);
-    blendingWeightsCalculationPass(dsv);
+    blendingWeightsCalculationPass(dsv, mode, subsampleIndex);
     neighborhoodBlendingPass(dstRTV, dsv);
 }
 
@@ -273,6 +278,8 @@ void SMAA::resolve(ID3D10ShaderResourceView *currentSRV,
     SaveViewportsScope saveViewport(device);
     SaveRenderTargetsScope saveRenderTargets(device);
     SaveInputLayoutScope saveInputLayout(device);
+    SaveBlendStateScope saveBlendState(device);
+    SaveDepthStencilScope saveDepthStencil(device);
 
     // Setup the viewport and the vertex layout:
     edgesRT->setViewport();
@@ -388,9 +395,26 @@ void SMAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
 }
 
 
-void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv) {
+void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv, Mode mode, int subsampleIndex) {
     D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: 2nd pass");
     HRESULT hr;
+
+
+    switch (mode) {
+        case MODE_SMAA_1X: {
+            int indices[4] = { 0, 0, 0, 0 };
+            V(subsampleIndicesVariable->SetIntVector(indices));
+            break;
+        }
+        case MODE_SMAA_T2X: {
+            int indices[][4] = {
+                { 1, 1, 1, 0 },
+                { 2, 2, 2, 0 }
+            };
+            V(subsampleIndicesVariable->SetIntVector(indices[subsampleIndex]));
+            break;
+        }
+    }
 
     // Setup the technique (again):
     V(blendWeightCalculationTechnique->GetPassByIndex(0)->Apply(0));

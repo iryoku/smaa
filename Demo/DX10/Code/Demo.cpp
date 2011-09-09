@@ -81,7 +81,7 @@ bool showHud = true;
 bool benchmark = false;
 fstream benchmarkFile;
 
-int frame = 0;
+int subpixelIndex = 0;
 
 struct {
     float threshold;
@@ -495,9 +495,9 @@ void drawHud(float elapsedTime) {
 
 
 void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime, void *context) {
-    // Calculate next frame index:
-    int previousFrame = frame;
-    int currentFrame = (frame + 1) % 2;
+    // Calculate next subpixel index:
+    int previousIndex = subpixelIndex;
+    int currentIndex = (subpixelIndex + 1) % 2;
 
     // Render the settings dialog:
     if (settingsDialog.IsActive()) {
@@ -519,12 +519,12 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
         if (hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked() && 
             SMAA::Mode(int(hud.GetComboBox(IDC_SMAA_MODE)->GetSelectedData())) == SMAA::MODE_SMAA_T2X) {
             D3DXVECTOR2 jitter[] = {
-                D3DXVECTOR2(-0.25f, -0.25f),
-                D3DXVECTOR2( 0.25f,  0.25f)
+                D3DXVECTOR2(-0.25f,  0.25f),
+                D3DXVECTOR2( 0.25f, -0.25f)
             };
             const DXGI_SURFACE_DESC *desc = DXUTGetDXGIBackBufferSurfaceDesc();
             float aspect = (float) desc->Width / desc->Height;
-            camera.setJitteredProjection(18.0f * D3DX_PI / 180.f, aspect, 0.1f, 1000.0f, jitter[frame]);
+            camera.setJitteredProjection(18.0f * D3DX_PI / 180.f, aspect, 0.1f, 1000.0f, jitter[subpixelIndex]);
         }
 
         renderMesh(device);
@@ -537,13 +537,13 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
 
         SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_SMAA_MODE)->GetSelectedData()));
         ID3D10RenderTargetView *dstRTV = mode == SMAA::MODE_SMAA_1X?
-                                         (ID3D10RenderTargetView *) *backbufferRT : *finalRT[currentFrame];
+                                         (ID3D10RenderTargetView *) *backbufferRT : *finalRT[currentIndex];
 
         timer->start();
         for (int i = 0; i < n; i++) { // This loop is for profiling.
-            smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, dstRTV, *depthStencil, input);
+            smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, dstRTV, *depthStencil, input, mode, subpixelIndex);
             if (mode == SMAA::MODE_SMAA_T2X)
-                smaa->resolve(*finalRT[currentFrame], *finalRT[previousFrame], *backbufferRT);
+                smaa->resolve(*finalRT[currentIndex], *finalRT[previousIndex], *backbufferRT);
         }
         timer->clock(L"SMAA");
     } else {
@@ -564,8 +564,8 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
     drawTextures(device);
     drawHud(elapsedTime);
 
-    // Update frame index:
-    frame = currentFrame;
+    // Update subpixel index:
+    subpixelIndex = currentIndex;
 }
 
 

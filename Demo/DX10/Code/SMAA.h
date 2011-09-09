@@ -46,8 +46,9 @@
 
 /**
  * IMPORTANT NOTICE: please note that the documentation given in this file is
- * rather limited. For more information checkout SMAA.h in the root directory
- * of the source release (the shader header).
+ * rather limited. We recommend first checking out SMAA.h in the root directory
+ * of the source release (the shader header), then coming back here. This is
+ * just a C++ interface to the shader.
  */
 
 
@@ -60,17 +61,12 @@ class SMAA {
         enum Input { INPUT_LUMA, INPUT_COLOR, INPUT_DEPTH };
 
         /**
-         * If you have one or two spare render targets of the same size as the
-         * backbuffer, you may want to pass them in the 'storage' parameter.
-         * You may pass one or the two, depending on what you have available.
-         *
-         * A non-sRGB RG buffer (at least) is expected for storing edges.
-         * A non-sRGB RGBA buffer is expected for the blending weights.
-         *
          * By default, two render targets will be created for storing
-         * intermediate calculations.
+         * intermediate calculations. If you have spare render targets,
+         * search for @EXTERNAL_STORAGE.
          */
-        SMAA(ID3D10Device *device, int width, int height, Preset preset, bool predication=false,
+        SMAA(ID3D10Device *device, int width, int height, 
+             Preset preset=PRESET_HIGH, bool predication=false,
              const ExternalStorage &storage=ExternalStorage());
         ~SMAA();
 
@@ -87,23 +83,25 @@ class SMAA {
          *
          * Input texture 'depthSRV' will be used for predication if enabled. We
          * recommend using a light accumulation buffer or object ids, if
-         * available.
+         * available; it'll probably yield better results.
+         *
+         * To ease implementation, everything is saved (blend state, viewport,
+         * etc.), you may want to check Save*Scope in the implementation if you
+         * don't need this.
          *
          * IMPORTANT: The stencil component of 'dsv' is used to mask zones to
          * be processed. It is assumed to be already cleared to zero when this
          * function is called. It is not done here because it is usually
          * cleared together with the depth.
-         *
-         * The viewport, the binded render target and the input layout is saved
-         * and restored accordingly. However, we modify but not restore the
-         * depth-stencil and blend states.
          */
         void go(ID3D10ShaderResourceView *srcGammaSRV, // Non-SRGB version of the input color texture.
                 ID3D10ShaderResourceView *srcSRV, // SRGB version of the input color texture.
                 ID3D10ShaderResourceView *depthSRV, // Input depth texture.
                 ID3D10RenderTargetView *dstRTV, // Output render target.
-                ID3D10DepthStencilView *dsv, // Depth-stencil buffer.
-                Input input); // Selects the input for edge detection.
+                ID3D10DepthStencilView *dsv, // Depth-stencil buffer for optimizations.
+                Input input, // Selects the input for edge detection.
+                Mode mode=MODE_SMAA_1X,
+                int subsampleIndex=0);
 
         /**
          * This function perform a temporal resolve of two buffers. They must
@@ -148,7 +146,15 @@ class SMAA {
         RenderTarget *getBlendRenderTarget() { return blendRT; }
 
         /**
-         * This class allows to pass spare storage buffers to the SMAA class.
+         * @EXTERNAL_STORAGE
+         *
+         * If you have one or two spare render targets of the same size as the
+         * backbuffer, you may want to pass them to SMAA::SMAA() using a
+         * ExternalStorage object. You may pass one or the two, depending on
+         * what you have available.
+         *
+         * A non-sRGB RG buffer (at least) is expected for storing edges.
+         * A non-sRGB RGBA buffer is expected for the blending weights.
          */
         class ExternalStorage {
             public:
@@ -169,7 +175,7 @@ class SMAA {
         void loadAreaTex();
         void loadSearchTex();
         void edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input);
-        void blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv);
+        void blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv, Mode mode, int subsampleIndex);
         void neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthStencilView *dsv);
 
         ID3D10Device *device;
@@ -187,6 +193,7 @@ class SMAA {
 
         ID3D10EffectScalarVariable *thresholdVariable, *cornerRoundingVariable,
                                    *maxSearchStepsVariable, *maxSearchStepsDiagVariable;
+        ID3D10EffectVectorVariable *subsampleIndicesVariable;
         ID3D10EffectShaderResourceVariable *areaTexVariable, *searchTexVariable,
                                            *colorTexVariable, *colorTexGammaVariable, *colorTexPrevVariable, *depthTexVariable,
                                            *edgesTexVariable, *blendTexVariable;

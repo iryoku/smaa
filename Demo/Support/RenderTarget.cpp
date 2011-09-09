@@ -381,6 +381,28 @@ SaveInputLayoutScope::~SaveInputLayoutScope() {
 }
 
 
+SaveBlendStateScope::SaveBlendStateScope(ID3D10Device *device) : device(device) {
+    device->OMGetBlendState(&blendState, blendFactor, &sampleMask);
+}
+
+
+SaveBlendStateScope::~SaveBlendStateScope() {
+    device->OMSetBlendState(blendState, blendFactor, sampleMask);
+    SAFE_RELEASE(blendState);
+}
+
+
+SaveDepthStencilScope::SaveDepthStencilScope(ID3D10Device *device) : device(device) {
+    device->OMGetDepthStencilState(&depthStencilState, &stencilRef);
+}
+
+
+SaveDepthStencilScope::~SaveDepthStencilScope() {
+    device->OMSetDepthStencilState(depthStencilState, stencilRef);
+    SAFE_RELEASE(depthStencilState);
+}
+
+
 D3D10_VIEWPORT Utils::viewportFromView(ID3D10View *view) {
     ID3D10Texture2D *texture2D;
     view->GetResource(reinterpret_cast<ID3D10Resource **>(&texture2D));
