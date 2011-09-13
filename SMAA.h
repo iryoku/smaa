@@ -91,8 +91,13 @@
  * Ok then, let's go!
  *
  *  1. The first step is to create two RGBA temporal framebuffers for holding
- *     |edgesTex| and |blendTex|. In DX10, you can use a RG framebuffer for the
- *     edges texture, but in our experience it yields worse performance.
+ *     |edgesTex| and |blendTex|.
+ *
+ *     In DX10, you can use a RG framebuffer for the edges texture, but in our
+ *     experience it yields worse performance.
+ *
+ *     In the Xbox 360, you can use the same framebuffer for resolving both
+ *     |edgesTex| and |blendTex|, as they aren't needed simultaneously.
  *
  *  2. Both temporal framebuffers |edgesTex| and |blendTex| must be cleared
  *     each frame. Do not forget to clear the alpha channel!
@@ -509,7 +514,7 @@ float4 SMAALumaEdgeDetectionPS(float2 texcoord,
     delta.zw = abs(L.xx - float2(Lright, Lbottom));
 
     // Calculate the maximum delta in the direct neighborhood:
-    float maxDelta = max(max(max(delta.x, delta.y), delta.z), delta.w);
+    float2 maxDelta = max(max(max(delta.x, delta.y), delta.z), delta.w);
 
     // Calculate left-left and top-top deltas:
     float Lleftleft = dot(SMAASample(colorTex, offset[2].xy).rgb, weights);
@@ -517,7 +522,7 @@ float4 SMAALumaEdgeDetectionPS(float2 texcoord,
     delta.zw = abs(float2(Lleft, Ltop) - float2(Lleftleft, Ltoptop));
 
     // Calculate the final maximum delta:
-    maxDelta = max(max(maxDelta, delta.z), delta.w);
+    maxDelta = float2(max(maxDelta.x, delta.z), max(maxDelta.y, delta.w));
 
     /**
      * Each edge with a delta in luma of less than 50% of the maximum luma
