@@ -15,7 +15,7 @@ import operator
 
 # Subsample offsets for orthogonal and diagonal areas:
 SUBSAMPLE_OFFSETS_ORTHO = [0.0, -0.25, 0.25]
-SUBSAMPLE_OFFSETS_DIAG  = [0.0, -0.50, 0.50]
+SUBSAMPLE_OFFSETS_DIAG  = [(0.0, 0.0), (0.25, -0.25), (-0.25, 0.25)]
 
 # Texture sizes:
 # (it's quite possible that this is not easily configurable)
@@ -301,8 +301,8 @@ def areadiag(pattern, left, right, offset):
     # (includes the pixel and its opposite)
     def area(p1, p2, left, offset):
         e1, e2 = edgesdiag[pattern]
-        p1 = p1 + vec2(0.0, offset) if e1 > 0 else p1
-        p2 = p2 + vec2(0.0, offset) if e2 > 0 else p2
+        p1 = p1 + vec2(*offset) if e1 > 0 else p1
+        p2 = p2 + vec2(*offset) if e2 > 0 else p2
         a1 = area1(p1, p2, vec2(1.0, 0.0) + vec2(left, left))
         a2 = area1(p1, p2, vec2(1.0, 1.0) + vec2(left, left))
         return vec2(1.0 - a1, a2)
