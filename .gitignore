@@ -13,3 +13,6 @@ Demo/DX10/Demo DX10.opensdf
 Demo/DX10/Demo DX10.sdf
 Demo/DX10/Demo DX10.suo
 Demo/DX10/Demo.vcxproj.user
+
+Scripts/*.pyc
+Scripts/*.tga
