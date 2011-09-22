@@ -87,6 +87,21 @@ fstream benchmarkFile;
 D3DXMATRIX prevViewProj, currViewProj;
 int subpixelIndex = 0;
 
+struct MSAAMode {
+    wstring name;
+    DXGI_SAMPLE_DESC desc;
+};
+MSAAMode msaaModes[] = {
+    {L"MSAA 1x",   {1,  0}},
+    {L"MSAA 2x",   {2,  0}},
+    {L"MSAA 4x",   {4,  0}},
+    {L"CSAA 8x",   {4,  8}},
+    {L"CSAA 8xQ",  {8,  8}},
+    {L"CSAA 16x",  {4, 16}},
+    {L"CSAA 16xQ", {8, 16}}
+};
+vector<MSAAMode> supportedMsaaModes;
+
 struct {
     float threshold;
     int searchSteps;
@@ -97,7 +112,7 @@ struct {
 } commandlineOptions = {0.1f, 16, 8, 25.0f, L"", L""};
 
 
-enum FramerateLock { FPS_UNLOCK, FPS_LOCK_TO_30, FPS_LOCK_TO_60 };
+enum FramerateLock { FPS_UNLOCK, FPS_LOCK_TO_15, FPS_LOCK_TO_30, FPS_LOCK_TO_60 };
 
 
 #define IDC_TOGGLE_FULLSCREEN            1
@@ -105,7 +120,7 @@ enum FramerateLock { FPS_UNLOCK, FPS_LOCK_TO_30, FPS_LOCK_TO_60 };
 #define IDC_LOAD_IMAGE                   3
 #define IDC_INPUT                        4
 #define IDC_VIEW_MODE                    5
-#define IDC_SMAA_MODE                    6
+#define IDC_AA_MODE                      6
 #define IDC_PRESET                       7
 #define IDC_DETECTION_MODE               8
 #define IDC_ANTIALIASING                 9
@@ -226,21 +241,43 @@ HRESULT loadMesh(CDXUTSDKMesh &mesh, const wstring &name, const wstring &path) {
 }
 
 
+void setModeControls() {
+    SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_AA_MODE)->GetSelectedData()));
+    bool isMsaa = mode >= 10;
+    bool isTemporalMode = !isMsaa && mode != SMAA::MODE_SMAA_1X;
+
+    hud.GetComboBox(IDC_VIEW_MODE)->SetEnabled(!isMsaa);
+    hud.GetComboBox(IDC_PRESET)->SetEnabled(!isMsaa);
+    hud.GetComboBox(IDC_DETECTION_MODE)->SetEnabled(!isMsaa);
+    hud.GetCheckBox(IDC_ANTIALIASING)->SetEnabled(!isMsaa);
+    hud.GetCheckBox(IDC_PREDICATION)->SetEnabled(!isMsaa && inputDepthSRV != NULL);
+    hud.GetCheckBox(IDC_REPROJECTION)->SetEnabled(!isMsaa && isTemporalMode);
+    hud.GetComboBox(IDC_LOCK_FRAMERATE)->SetEnabled(!isMsaa);
+    hud.GetCheckBox(IDC_PROFILE)->SetEnabled(!isMsaa);
+    hud.GetSlider(IDC_THRESHOLD)->SetEnabled(!isMsaa);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS)->SetEnabled(!isMsaa);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG)->SetEnabled(!isMsaa);
+    hud.GetSlider(IDC_CORNER_ROUNDING)->SetEnabled(!isMsaa);
+
+    hud.GetCheckBox(IDC_PROFILE)->SetChecked(hud.GetCheckBox(IDC_PROFILE)->GetChecked() && !isMsaa);
+}
+
+
 HRESULT loadInput() {
     HRESULT hr;
 
     if (hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() > 0) {
         V_RETURN(loadImage());
-        hud.GetComboBox(IDC_SMAA_MODE)->SetSelectedByData((LPVOID) SMAA::MODE_SMAA_1X);
-        hud.GetComboBox(IDC_SMAA_MODE)->SetEnabled(false);
+        hud.GetComboBox(IDC_AA_MODE)->SetSelectedByData((LPVOID) SMAA::MODE_SMAA_1X);
+        hud.GetComboBox(IDC_AA_MODE)->SetEnabled(false);
     } else {
         SAFE_RELEASE(inputColorSRV);
         SAFE_RELEASE(inputDepthSRV);
         mesh.Destroy();
 
         V_RETURN(loadMesh(mesh, L"Fence.sdkmesh", L""));
-        hud.GetComboBox(IDC_SMAA_MODE)->SetSelectedByData((LPVOID) SMAA::MODE_SMAA_T2X);
-        hud.GetComboBox(IDC_SMAA_MODE)->SetEnabled(true);
+        hud.GetComboBox(IDC_AA_MODE)->SetSelectedByData((LPVOID) SMAA::MODE_SMAA_T2X);
+        hud.GetComboBox(IDC_AA_MODE)->SetEnabled(true);
     }
 
     int selectedIndex = hud.GetComboBox(IDC_DETECTION_MODE)->GetSelectedIndex();
@@ -249,11 +286,9 @@ HRESULT loadInput() {
     hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Color edge det.", (LPVOID) SMAA::INPUT_COLOR);
     if (inputDepthSRV != NULL)
         hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Depth edge det.", (LPVOID) SMAA::INPUT_DEPTH);
-    hud.GetCheckBox(IDC_PREDICATION)->SetEnabled(inputDepthSRV != NULL);
     hud.GetComboBox(IDC_DETECTION_MODE)->SetSelectedByIndex(selectedIndex);
 
-    SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_SMAA_MODE)->GetSelectedData()));
-    hud.GetCheckBox(IDC_REPROJECTION)->SetEnabled(mode != SMAA::MODE_SMAA_1X);
+    setModeControls();
 
     return S_OK;
 }
@@ -295,6 +330,28 @@ HRESULT initSimpleEffect(ID3D10Device *device) {
 }
 
 
+void buildModesComboBox() {
+    hud.GetComboBox(IDC_AA_MODE)->RemoveAllItems();
+
+    hud.GetComboBox(IDC_AA_MODE)->AddItem(L"SMAA 1x", (LPVOID) SMAA::MODE_SMAA_1X);
+    hud.GetComboBox(IDC_AA_MODE)->AddItem(L"SMAA T2x", (LPVOID) SMAA::MODE_SMAA_T2X);
+
+    supportedMsaaModes.clear();
+    for(int i = 0; i < sizeof(msaaModes) / sizeof(MSAAMode); i++){
+        ID3D10Device *device = DXUTGetD3D10Device();
+        UINT quality;
+        device->CheckMultisampleQualityLevels(DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, msaaModes[i].desc.Count, &quality);
+        if (quality > msaaModes[i].desc.Quality) {
+            hud.GetComboBox(IDC_AA_MODE)->AddItem(msaaModes[i].name.c_str(), (void *) (10 + i));
+            supportedMsaaModes.push_back(msaaModes[i]);
+        }
+    }
+
+    hud.GetComboBox(IDC_AA_MODE)->SetSelectedByData((LPVOID) SMAA::MODE_SMAA_T2X);
+    setModeControls();
+}
+
+
 HRESULT CALLBACK onCreateDevice(ID3D10Device *device, const DXGI_SURFACE_DESC *desc, void *context) {
     HRESULT hr;
 
@@ -324,6 +381,8 @@ HRESULT CALLBACK onCreateDevice(ID3D10Device *device, const DXGI_SURFACE_DESC *d
     D3DX10_IMAGE_LOAD_INFO loadInfo = D3DX10_IMAGE_LOAD_INFO();
     loadInfo.Filter = D3DX10_FILTER_POINT | D3DX10_FILTER_SRGB_IN;
     V(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(NULL), L"EnvMap.dds", &loadInfo, NULL, &envTexSRV, NULL));
+
+    buildModesComboBox();
 
     return S_OK;
 }
@@ -393,12 +452,19 @@ HRESULT CALLBACK onResizedSwapChain(ID3D10Device *device, IDXGISwapChain *swapCh
 
     initSMAA(device, desc);
 
-    depthStencil = new DepthStencil(device, desc->Width, desc->Height,  DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
+    DXGI_SAMPLE_DESC sampleDesc;
+    int mode = int(hud.GetComboBox(IDC_AA_MODE)->GetSelectedData());
+    if (mode > 10) // Then, it's a MSAA mode:
+        sampleDesc = supportedMsaaModes[mode - 10].desc;
+    else // Then, we are going to use SMAA:
+        sampleDesc = NoMSAA();
+
+    depthStencil = new DepthStencil(device, desc->Width, desc->Height,  DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS, sampleDesc);
     depthBufferRT = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R32_FLOAT);
     backbufferRT = new BackbufferRenderTarget(device, DXUTGetDXGISwapChain());
-    tmpRT_SRGB = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+    tmpRT_SRGB = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, sampleDesc);
     tmpRT = new RenderTarget(device, *tmpRT_SRGB, DXGI_FORMAT_R8G8B8A8_UNORM);
-    velocityRT = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R16G16_FLOAT);
+    velocityRT = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R16G16_FLOAT, sampleDesc);
     for (int i = 0; i < 2; i++)
         finalRT[i] = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
 
@@ -479,6 +545,57 @@ void renderMesh(ID3D10Device *device, const D3DXVECTOR2 &jitter) {
 }
 
 
+void runSMAA(ID3D10Device *device, SMAA::Mode mode) {
+    // Calculate next subpixel index:
+    int previousIndex = subpixelIndex;
+    int currentIndex = (subpixelIndex + 1) % 2;
+
+    // Fetch configuration parameters:
+    bool smaaEnabled = hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked() &&
+                       hud.GetCheckBox(IDC_ANTIALIASING)->GetEnabled();
+    SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTION_MODE)->GetSelectedData()));
+    bool fromImage = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() > 0;
+    int repetitionsCount = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? profileTimer->getRepetitionsCount() : 1;
+
+    // Copy the image or render the mesh:
+    if (fromImage) {
+        D3D10_VIEWPORT viewport = Utils::viewportFromView(inputColorSRV);
+        Copy::go(inputColorSRV, *tmpRT_SRGB, &viewport);
+        Copy::go(inputDepthSRV, *depthBufferRT, &viewport);
+    } else {
+        if (smaaEnabled && mode == SMAA::MODE_SMAA_T2X) {
+            D3DXVECTOR2 jitter[] = {
+                D3DXVECTOR2(-0.25f,  0.25f),
+                D3DXVECTOR2( 0.25f, -0.25f)
+            };
+            renderMesh(device, jitter[subpixelIndex]);
+        } else {
+            renderMesh(device, D3DXVECTOR2(0.0f, 0.0f));
+        }
+    }
+
+    // Run SMAA:
+    if (smaaEnabled) {
+        ID3D10RenderTargetView *dstRTV = mode == SMAA::MODE_SMAA_1X?
+                                         (ID3D10RenderTargetView *) *backbufferRT :
+                                         *finalRT[currentIndex];
+
+        profileTimer->start();
+        for (int i = 0; i < repetitionsCount; i++) { // This loop is for profiling.
+            smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, dstRTV, *depthStencil, input, mode, subpixelIndex);
+            if (mode == SMAA::MODE_SMAA_T2X)
+                smaa->resolve(*finalRT[currentIndex], *finalRT[previousIndex], *velocityRT, *backbufferRT);
+        }
+        profileTimer->clock(L"SMAA");
+    } else {
+        Copy::go(*tmpRT_SRGB, *backbufferRT);
+    }
+
+    // Update subpixel index:
+    subpixelIndex = currentIndex;
+}
+
+
 void saveBackbuffer(ID3D10Device *device) {
     HRESULT hr;
     RenderTarget *renderTarget = new RenderTarget(device, backbufferRT->getWidth(), backbufferRT->getHeight(), DXGI_FORMAT_R8G8B8A8_UNORM, NoMSAA(), false);
@@ -551,10 +668,6 @@ void drawHud(float elapsedTime) {
 void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime, void *context) {
     framerateLockTimer->start();
 
-    // Calculate next subpixel index:
-    int previousIndex = subpixelIndex;
-    int currentIndex = (subpixelIndex + 1) % 2;
-
     // Render the settings dialog:
     if (settingsDialog.IsActive()) {
         settingsDialog.OnRender(elapsedTime);
@@ -567,45 +680,17 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
     device->ClearRenderTargetView(*velocityRT, clearColor);
     device->ClearDepthStencilView(*depthStencil, D3D10_CLEAR_DEPTH | D3D10_CLEAR_STENCIL, 1.0, 0);
 
-    // Fetch configuration parameters:
-    bool antialiasing = hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked();
-    SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_SMAA_MODE)->GetSelectedData()));
-    SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTION_MODE)->GetSelectedData()));
-
-    // Render the scene:
-    if (hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() > 0) {
-        D3D10_VIEWPORT viewport = Utils::viewportFromView(inputColorSRV);
-        Copy::go(inputColorSRV, *tmpRT_SRGB, &viewport);
-        Copy::go(inputDepthSRV, *depthBufferRT, &viewport);
-    } else {
-        if (antialiasing && mode == SMAA::MODE_SMAA_T2X) {
-            D3DXVECTOR2 jitter[] = {
-                D3DXVECTOR2(-0.25f,  0.25f),
-                D3DXVECTOR2( 0.25f, -0.25f)
-            };
-            renderMesh(device, jitter[subpixelIndex]);
-        } else {
+    // Run SMAA or MSAA:
+    SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_AA_MODE)->GetSelectedData()));
+    switch (mode) {
+        case SMAA::MODE_SMAA_1X:
+        case SMAA::MODE_SMAA_T2X:
+            runSMAA(device, mode);
+            break;
+        default: // MSAA mode
             renderMesh(device, D3DXVECTOR2(0.0f, 0.0f));
-        }
-    }
-
-    // Run SMAA
-    if (antialiasing) {
-        int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? profileTimer->getRepetitionsCount() : 1;
-
-        ID3D10RenderTargetView *dstRTV = mode == SMAA::MODE_SMAA_1X?
-                                         (ID3D10RenderTargetView *) *backbufferRT :
-                                         *finalRT[currentIndex];
-
-        profileTimer->start();
-        for (int i = 0; i < n; i++) { // This loop is for profiling.
-            smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, dstRTV, *depthStencil, input, mode, subpixelIndex);
-            if (mode == SMAA::MODE_SMAA_T2X)
-                smaa->resolve(*finalRT[currentIndex], *finalRT[previousIndex], *velocityRT, *backbufferRT);
-        }
-        profileTimer->clock(L"SMAA");
-    } else {
-        Copy::go(*tmpRT_SRGB, *backbufferRT);
+            device->ResolveSubresource(*backbufferRT, 0, *tmpRT_SRGB, 0, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
+            break;
     }
 
     // Save the image to a file, if required:
@@ -622,15 +707,19 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
     drawTextures(device);
     drawHud(elapsedTime);
 
-    // Update subpixel index:
-    subpixelIndex = currentIndex;
-
     // Lock the frame rate:
     FramerateLock framerateLock = FramerateLock(int(hud.GetComboBox(IDC_LOCK_FRAMERATE)->GetSelectedData()));
-    if (framerateLock == FPS_LOCK_TO_30)
-        Sleep(max(33 - int(1000.0f * framerateLockTimer->clock()), 0));
-    else if (framerateLock == FPS_LOCK_TO_60)
-        Sleep(max(16 - int(1000.0f * framerateLockTimer->clock()), 0));
+    switch (framerateLock) {
+        case FPS_LOCK_TO_15:
+            Sleep(max(66 - int(1000.0f * framerateLockTimer->clock()), 0));
+            break;
+        case FPS_LOCK_TO_30:
+            Sleep(max(33 - int(1000.0f * framerateLockTimer->clock()), 0));
+            break;
+        case FPS_LOCK_TO_60:
+            Sleep(max(16 - int(1000.0f * framerateLockTimer->clock()), 0));
+            break;
+    }
 }
 
 
@@ -706,13 +795,6 @@ void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context
             V(loadInput());
             break;
         }
-        case 'X':
-            hud.GetCheckBox(IDC_PROFILE)->SetChecked(!hud.GetCheckBox(IDC_PROFILE)->GetChecked());
-            profileTimer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
-            break;
-        case 'Z':
-            hud.GetCheckBox(IDC_ANTIALIASING)->SetChecked(!hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked());
-            break;
         case 'P':
             hud.GetCheckBox(IDC_PROFILE)->SetChecked(true);
             profileTimer->setEnabled(true);
@@ -850,12 +932,16 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 }
             }
             break;
-        case IDC_SMAA_MODE: {
-            SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_SMAA_MODE)->GetSelectedData()));
-            hud.GetCheckBox(IDC_REPROJECTION)->SetEnabled(mode != SMAA::MODE_SMAA_1X);
+        case IDC_AA_MODE: {
+            if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
+                setModeControls();
 
-            // Refill the temporal buffer:
-            onFrameRender(DXUTGetD3D10Device(), DXUTGetTime(), DXUTGetElapsedTime(), NULL);
+                onReleasingSwapChain(NULL);
+                onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
+
+                // Refill the temporal buffer:
+                onFrameRender(DXUTGetD3D10Device(), DXUTGetTime(), DXUTGetElapsedTime(), NULL);
+            }
             break;
         }
         case IDC_PRESET:
@@ -978,10 +1064,8 @@ void initApp() {
 
     iY += 24;
 
-    hud.AddComboBox(IDC_SMAA_MODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
-    hud.GetComboBox(IDC_SMAA_MODE)->AddItem(L"SMAA 1x", (LPVOID) SMAA::MODE_SMAA_1X);
-    hud.GetComboBox(IDC_SMAA_MODE)->AddItem(L"SMAA T2x", (LPVOID) SMAA::MODE_SMAA_T2X);
-    hud.GetComboBox(IDC_SMAA_MODE)->SetSelectedByData((LPVOID) SMAA::MODE_SMAA_T2X);
+    hud.AddComboBox(IDC_AA_MODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
+    hud.GetComboBox(IDC_AA_MODE)->SetDropHeight(120);
 
     hud.AddComboBox(IDC_PRESET, 35, iY += 24, HUD_WIDTH, 22, 0, false);
     hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Low", (LPVOID) SMAA::PRESET_LOW);
@@ -993,7 +1077,7 @@ void initApp() {
 
     hud.AddComboBox(IDC_DETECTION_MODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
 
-    hud.AddCheckBox(IDC_ANTIALIASING, L"Enable SMAA", 35, iY += 24, HUD_WIDTH, 22, true);
+    hud.AddCheckBox(IDC_ANTIALIASING, L"Enable SMAA", 35, iY += 24, HUD_WIDTH, 22, true, 'Z');
     hud.AddCheckBox(IDC_PREDICATION, L"Predicated Tresholding", 35, iY += 24, HUD_WIDTH, 22, false);
     hud.AddCheckBox(IDC_REPROJECTION, L"Temporal Reprojection", 35, iY += 24, HUD_WIDTH, 22, true);
 
@@ -1001,10 +1085,11 @@ void initApp() {
 
     hud.AddComboBox(IDC_LOCK_FRAMERATE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
     hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Unlock Framerate", (LPVOID) FPS_UNLOCK);
+    hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Lock to 15fps", (LPVOID) FPS_LOCK_TO_15);
     hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Lock to 30fps", (LPVOID) FPS_LOCK_TO_30);
     hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Lock to 60fps", (LPVOID) FPS_LOCK_TO_60);
     hud.GetComboBox(IDC_LOCK_FRAMERATE)->SetSelectedByData((LPVOID) FPS_LOCK_TO_30);
-    hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, HUD_WIDTH, 22, false);
+    hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, HUD_WIDTH, 22, false, 'X');
 
     iY += 24;
 

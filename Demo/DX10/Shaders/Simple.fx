@@ -138,7 +138,7 @@ float3 Shade(SimpleV2P input) {
     // Calculate environment reflections:
     // (we'll try to do our best with a single specular map)
     float3 reflectionW = normalize(reflect(-eyeW, normalW));
-    float intensity = albedo.a * albedo.a;
+    float intensity = 1.3 * albedo.a * albedo.a;
     float enviroment = intensity * dot(envTex.Sample(LinearSampler, reflectionW).rgb, 1.0 / 3.0);
 
     // Set the ambient color:
