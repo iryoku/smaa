@@ -100,7 +100,7 @@ class ID3D10IncludeResource : public ID3D10Include {
 #pragma endregion
 
 
-SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool predication, const ExternalStorage &storage)
+SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool predication, bool reprojection, const ExternalStorage &storage)
         : device(device),
           preset(preset),
           threshold(0.1f),
@@ -143,6 +143,12 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
         defines.push_back(predicationMacro);
     }
 
+    // Setup reprojection macro:
+    if (reprojection) {
+        D3D10_SHADER_MACRO reprojectionMacro = { "SMAA_REPROJECTION", "1" };
+        defines.push_back(reprojectionMacro);
+    }
+
     // Setup target macro:
     if (dx10_1) {
         D3D10_SHADER_MACRO dx101Macro = { "SMAA_HLSL_4_1", "1" };
@@ -182,7 +188,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     loadAreaTex();
     loadSearchTex();
 
-    // Create some handles for techniques and variables:
+    // Create some handles for variables:
     thresholdVariable = effect->GetVariableByName("threshld")->AsScalar();
     cornerRoundingVariable = effect->GetVariableByName("cornerRounding")->AsScalar();
     maxSearchStepsVariable = effect->GetVariableByName("maxSearchSteps")->AsScalar();
@@ -194,8 +200,11 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     colorTexGammaVariable = effect->GetVariableByName("colorTexGamma")->AsShaderResource();
     colorTexPrevVariable = effect->GetVariableByName("colorTexPrev")->AsShaderResource();
     depthTexVariable = effect->GetVariableByName("depthTex")->AsShaderResource();
+    velocityTexVariable = effect->GetVariableByName("velocityTex")->AsShaderResource();
     edgesTexVariable = effect->GetVariableByName("edgesTex")->AsShaderResource();
     blendTexVariable = effect->GetVariableByName("blendTex")->AsShaderResource();
+
+    // Create handles for techniques:
     edgeDetectionTechniques[0] = effect->GetTechniqueByName("LumaEdgeDetection");
     edgeDetectionTechniques[1] = effect->GetTechniqueByName("ColorEdgeDetection");
     edgeDetectionTechniques[2] = effect->GetTechniqueByName("DepthEdgeDetection");
@@ -270,6 +279,7 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
 
 void SMAA::resolve(ID3D10ShaderResourceView *currentSRV,
                    ID3D10ShaderResourceView *previousSRV,
+                   ID3D10ShaderResourceView *velocitySRV,
                    ID3D10RenderTargetView *dstRTV) {
     D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: temporal resolve");
     HRESULT hr;
@@ -288,6 +298,7 @@ void SMAA::resolve(ID3D10ShaderResourceView *currentSRV,
     // Setup variables:
     V(colorTexVariable->SetResource(currentSRV));
     V(colorTexPrevVariable->SetResource(previousSRV));
+    V(velocityTexVariable->SetResource(velocitySRV));
 
     // Select the technique accordingly:
     V(resolveTechnique->GetPassByIndex(0)->Apply(0));

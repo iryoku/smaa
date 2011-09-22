@@ -117,6 +117,7 @@ Texture2D colorTexPrev;
 Texture2D colorTex;
 Texture2D colorTexGamma;
 Texture2D depthTex;
+Texture2D velocityTex;
 
 /**
  * Temporal textures
@@ -212,8 +213,13 @@ float4 DX10_SMAANeighborhoodBlendingPS(float4 position : SV_POSITION,
 float4 DX10_SMAAResolvePS(float4 position : SV_POSITION,
                           float2 texcoord : TEXCOORD0,
                           uniform SMAATexture2D colorTex,
-                          uniform SMAATexture2D colorTexPrev) : SV_TARGET {
+                          uniform SMAATexture2D colorTexPrev,
+                          uniform SMAATexture2D velocityTex) : SV_TARGET {
+    #if SMAA_REPROJECTION == 1
+    return SMAAResolvePS(texcoord, colorTex, colorTexPrev, velocityTex);
+    #else
     return SMAAResolvePS(texcoord, colorTex, colorTexPrev);
+    #endif
 }
 
 /**
@@ -287,7 +293,7 @@ technique10 Resolve {
     pass Resolve {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAAResolveVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAAResolvePS(colorTex, colorTexPrev)));
+        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAAResolvePS(colorTex, colorTexPrev, velocityTex)));
 
         SetDepthStencilState(DisableDepthStencil, 0);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);

@@ -66,7 +66,7 @@ class SMAA {
          * search for @EXTERNAL_STORAGE.
          */
         SMAA(ID3D10Device *device, int width, int height, 
-             Preset preset=PRESET_HIGH, bool predication=false,
+             Preset preset=PRESET_HIGH, bool predication=false, bool reprojection=false,
              const ExternalStorage &storage=ExternalStorage());
         ~SMAA();
 
@@ -109,6 +109,7 @@ class SMAA {
          */
         void resolve(ID3D10ShaderResourceView *currentSRV,
                      ID3D10ShaderResourceView *previousSRV,
+                     ID3D10ShaderResourceView *velocitySRV,
                      ID3D10RenderTargetView *dstRTV); 
 
         /**
@@ -195,7 +196,8 @@ class SMAA {
                                    *maxSearchStepsVariable, *maxSearchStepsDiagVariable;
         ID3D10EffectVectorVariable *subsampleIndicesVariable;
         ID3D10EffectShaderResourceVariable *areaTexVariable, *searchTexVariable,
-                                           *colorTexVariable, *colorTexGammaVariable, *colorTexPrevVariable, *depthTexVariable,
+                                           *colorTexVariable, *colorTexGammaVariable, *colorTexPrevVariable,
+                                           *depthTexVariable, *velocityTexVariable,
                                            *edgesTexVariable, *blendTexVariable;
 
         ID3D10EffectTechnique *edgeDetectionTechniques[3],

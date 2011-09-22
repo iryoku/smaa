@@ -55,7 +55,8 @@ CDXUTDialogResourceManager dialogResourceManager;
 CD3DSettingsDlg settingsDialog;
 CDXUTDialog hud;
 
-Timer *timer = NULL;
+Timer *profileTimer = NULL;
+Timer *framerateLockTimer = NULL;
 ID3DX10Font *font = NULL;
 ID3DX10Sprite *sprite = NULL;
 CDXUTTextHelper *txtHelper = NULL;
@@ -66,6 +67,7 @@ RenderTarget *depthBufferRT = NULL;
 BackbufferRenderTarget *backbufferRT = NULL;
 RenderTarget *tmpRT_SRGB = NULL;
 RenderTarget *tmpRT = NULL;
+RenderTarget *velocityRT = NULL;
 RenderTarget *finalRT[2] = { NULL, NULL };
 
 ID3D10ShaderResourceView *inputColorSRV = NULL;
@@ -75,12 +77,14 @@ Camera camera;
 CDXUTSDKMesh mesh;
 ID3D10InputLayout *vertexLayout = NULL;
 ID3D10Effect *simpleEffect = NULL;
+ID3D10ShaderResourceView *envTexSRV = NULL;
 
 bool showHud = true;
 
 bool benchmark = false;
 fstream benchmarkFile;
 
+D3DXMATRIX prevViewProj, currViewProj;
 int subpixelIndex = 0;
 
 struct {
@@ -93,6 +97,9 @@ struct {
 } commandlineOptions = {0.1f, 16, 8, 25.0f, L"", L""};
 
 
+enum FramerateLock { FPS_UNLOCK, FPS_LOCK_TO_30, FPS_LOCK_TO_60 };
+
+
 #define IDC_TOGGLE_FULLSCREEN            1
 #define IDC_CHANGE_DEVICE                2
 #define IDC_LOAD_IMAGE                   3
@@ -103,15 +110,17 @@ struct {
 #define IDC_DETECTION_MODE               8
 #define IDC_ANTIALIASING                 9
 #define IDC_PREDICATION                 10
-#define IDC_PROFILE                     11
-#define IDC_THRESHOLD_LABEL             12
-#define IDC_THRESHOLD                   13
-#define IDC_MAX_SEARCH_STEPS_LABEL      14
-#define IDC_MAX_SEARCH_STEPS            15
-#define IDC_MAX_SEARCH_STEPS_DIAG_LABEL 16
-#define IDC_MAX_SEARCH_STEPS_DIAG       17
-#define IDC_CORNER_ROUNDING_LABEL       18
-#define IDC_CORNER_ROUNDING             19
+#define IDC_REPROJECTION                11
+#define IDC_LOCK_FRAMERATE              12
+#define IDC_PROFILE                     13
+#define IDC_THRESHOLD_LABEL             14
+#define IDC_THRESHOLD                   15
+#define IDC_MAX_SEARCH_STEPS_LABEL      16
+#define IDC_MAX_SEARCH_STEPS            17
+#define IDC_MAX_SEARCH_STEPS_DIAG_LABEL 18
+#define IDC_MAX_SEARCH_STEPS_DIAG       19
+#define IDC_CORNER_ROUNDING_LABEL       20
+#define IDC_CORNER_ROUNDING             21
 
 
 float round(float n) {
@@ -178,8 +187,12 @@ void CALLBACK createTextureFromFile(ID3D10Device* device, char *filename, ID3D10
 
     *shaderResourceView = (ID3D10ShaderResourceView *) ERROR_RESOURCE_VALUE;
     if (string(filename) != "default.dds" && string(filename) != "default-normalmap.dds") {
+        wstring path = wstring((wchar_t *) context);
         wstringstream s;
-        s << ((wchar_t *) context) << "\\" << filename;
+        s << path;
+            if (path != L"") s << "\\";
+        s << filename;
+
         D3DX10_IMAGE_INFO info;
         V(D3DX10GetImageInfoFromResource(GetModuleHandle(NULL), s.str().c_str(), NULL, &info, NULL));
 
@@ -239,6 +252,9 @@ HRESULT loadInput() {
     hud.GetCheckBox(IDC_PREDICATION)->SetEnabled(inputDepthSRV != NULL);
     hud.GetComboBox(IDC_DETECTION_MODE)->SetSelectedByIndex(selectedIndex);
 
+    SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_SMAA_MODE)->GetSelectedData()));
+    hud.GetCheckBox(IDC_REPROJECTION)->SetEnabled(mode != SMAA::MODE_SMAA_1X);
+
     return S_OK;
 }
 
@@ -291,17 +307,23 @@ HRESULT CALLBACK onCreateDevice(ID3D10Device *device, const DXGI_SURFACE_DESC *d
     V_RETURN(D3DX10CreateSprite(device, 512, &sprite));
     txtHelper = new CDXUTTextHelper(NULL, NULL, font, sprite, 15);
 
-    timer = new Timer(device);
-    timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
-    timer->setRepetitionsCount(100);
+    profileTimer = new Timer(device);
+    profileTimer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
+    profileTimer->setRepetitionsCount(100);
+
+    framerateLockTimer = new Timer(device);
 
     Copy::init(device);
     V_RETURN(initSimpleEffect(device));
 
-    camera.setAngle(D3DXVECTOR2(0.0f, 3.14f / 2.0f));
+    camera.setAngle(D3DXVECTOR2(0.0f, 0.0f));
     camera.setDistance(30.0f);
 
     V_RETURN(loadInput());
+
+    D3DX10_IMAGE_LOAD_INFO loadInfo = D3DX10_IMAGE_LOAD_INFO();
+    loadInfo.Filter = D3DX10_FILTER_POINT | D3DX10_FILTER_SRGB_IN;
+    V(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(NULL), L"EnvMap.dds", &loadInfo, NULL, &envTexSRV, NULL));
 
     return S_OK;
 }
@@ -316,7 +338,8 @@ void CALLBACK onDestroyDevice(void *context) {
     SAFE_RELEASE(sprite);
     SAFE_DELETE(txtHelper);
 
-    SAFE_DELETE(timer);
+    SAFE_DELETE(profileTimer);
+    SAFE_DELETE(framerateLockTimer);
 
     Copy::release();
     SAFE_RELEASE(simpleEffect);
@@ -325,10 +348,17 @@ void CALLBACK onDestroyDevice(void *context) {
     SAFE_RELEASE(inputColorSRV);
     SAFE_RELEASE(inputDepthSRV);
     mesh.Destroy();
+
+    SAFE_RELEASE(envTexSRV);
 }
 
 
-void initSMAA() {
+void initSMAA(ID3D10Device *device, const DXGI_SURFACE_DESC *desc) {
+    SMAA::Preset preset = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
+    bool predication = hud.GetCheckBox(IDC_PREDICATION)->GetEnabled() && hud.GetCheckBox(IDC_PREDICATION)->GetChecked();
+    bool reprojection = hud.GetCheckBox(IDC_REPROJECTION)->GetEnabled() && hud.GetCheckBox(IDC_REPROJECTION)->GetChecked();
+    smaa = new SMAA(device, desc->Width, desc->Height, preset, predication, reprojection);
+
     int min, max;
     float scale;
 
@@ -361,20 +391,19 @@ HRESULT CALLBACK onResizedSwapChain(ID3D10Device *device, IDXGISwapChain *swapCh
 
     hud.SetLocation(desc->Width - (45 + HUD_WIDTH), 0);
 
-    SMAA::Preset preset = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
-    bool predication = hud.GetCheckBox(IDC_PREDICATION)->GetChecked();
-    smaa = new SMAA(device, desc->Width, desc->Height, preset, predication);
-    initSMAA();
+    initSMAA(device, desc);
+
     depthStencil = new DepthStencil(device, desc->Width, desc->Height,  DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
     depthBufferRT = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R32_FLOAT);
     backbufferRT = new BackbufferRenderTarget(device, DXUTGetDXGISwapChain());
     tmpRT_SRGB = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
     tmpRT = new RenderTarget(device, *tmpRT_SRGB, DXGI_FORMAT_R8G8B8A8_UNORM);
+    velocityRT = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R16G16_FLOAT);
     for (int i = 0; i < 2; i++)
         finalRT[i] = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
 
     float aspect = (float) desc->Width / desc->Height;
-    camera.setProjection(18.0f * D3DX_PI / 180.f, aspect, 0.1f, 1000.0f);
+    camera.setProjection(18.0f * D3DX_PI / 180.f, aspect, 0.01f, 100.0f);
     camera.setViewportSize(D3DXVECTOR2(float(desc->Width), float(desc->Height)));
 
     return S_OK;
@@ -390,12 +419,13 @@ void CALLBACK onReleasingSwapChain(void *context) {
     SAFE_DELETE(backbufferRT);
     SAFE_DELETE(tmpRT);
     SAFE_DELETE(tmpRT_SRGB);
+    SAFE_DELETE(velocityRT);
     for (int i = 0; i < 2; i++)
         SAFE_DELETE(finalRT[i]);
 }
 
 
-void renderMesh(ID3D10Device *device) {
+void renderMesh(ID3D10Device *device, const D3DXVECTOR2 &jitter) {
     D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"Render Scene");
     HRESULT hr;
 
@@ -404,22 +434,46 @@ void renderMesh(ID3D10Device *device) {
     SaveRenderTargetsScope saveRenderTargets(device);
     SaveInputLayoutScope saveInputLayout(device);
 
-    device->OMSetRenderTargets(1, *tmpRT_SRGB, *depthStencil);
+    // Set the render targets:
+    ID3D10RenderTargetView *rt[] = { *tmpRT_SRGB, *velocityRT };
+    device->OMSetRenderTargets(2, rt, *depthStencil);
 
+    // Calculate current view-projection matrix:
+    currViewProj = camera.getViewMatrix() * camera.getProjectionMatrix();
+
+    // Covert the jitter from screen space to non-homogeneous projection space:
+    const DXGI_SURFACE_DESC *desc = DXUTGetDXGIBackBufferSurfaceDesc();
+    D3DXVECTOR2 jitterProjectionSpace = 2.0f * jitter;
+    jitterProjectionSpace.x /= float(desc->Width); jitterProjectionSpace.y /= float(desc->Height);
+    V(simpleEffect->GetVariableByName("jitter")->AsVector()->SetFloatVector((float *) jitterProjectionSpace));
+
+    // Set enviroment map for metal reflections:
+    V(simpleEffect->GetVariableByName("envTex")->AsShaderResource()->SetResource(envTexSRV));
+
+    // Set the vertex layout:
     device->IASetInputLayout(vertexLayout);
+
+    // Render the grid:
     for (float x = -5.0; x <= 5.0; x += 1.0) {
-        for (float y = -4.0; y <= 4.0; y += 1.0) {
+        for (float y = -5.0; y <= 5.0; y += 1.0) {
             D3DXMATRIX world;
-            D3DXMatrixTranslation(&world, 0.5f + x, 0.0f, 0.5f + y);
+            D3DXMatrixTranslation(&world, x, y, 0.0f);
 
-            D3DXMATRIX transform = world * camera.getViewMatrix() * camera.getProjectionMatrix();
+            D3DXMATRIX currWorldViewProj = world * currViewProj;
+            D3DXMATRIX prevWorldViewProj = world * prevViewProj;
 
-            V(simpleEffect->GetVariableByName("transform")->AsMatrix()->SetMatrix((float *) transform));
+            V(simpleEffect->GetVariableByName("currWorldViewProj")->AsMatrix()->SetMatrix((float *) currWorldViewProj));
+            V(simpleEffect->GetVariableByName("prevWorldViewProj")->AsMatrix()->SetMatrix((float *) prevWorldViewProj));
+            V(simpleEffect->GetVariableByName("eyePositionW")->AsVector()->SetFloatVector((float *) &camera.getEyePosition()));
+            V(simpleEffect->GetVariableByName("world")->AsMatrix()->SetMatrix((float *) world));
             V(simpleEffect->GetTechniqueByName("Simple")->GetPassByIndex(0)->Apply(0));
 
-            mesh.Render(device, simpleEffect->GetTechniqueByName("Simple"));
+            mesh.Render(device, simpleEffect->GetTechniqueByName("Simple"), simpleEffect->GetVariableByName("diffuseTex")->AsShaderResource(), simpleEffect->GetVariableByName("normalTex")->AsShaderResource());
         }
     }
+
+    // Update previous view-projection matrix:
+    prevViewProj = currViewProj;
 
     D3DPERF_EndEvent();
 }
@@ -435,14 +489,14 @@ void saveBackbuffer(ID3D10Device *device) {
 
 
 void doBenchmark() {
-    benchmarkFile << timer->getSection(L"SMAA") << endl;
+    benchmarkFile << profileTimer->getSection(L"SMAA") << endl;
 
     int next = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() + 1;
     int n = hud.GetComboBox(IDC_INPUT)->GetNumItems();
     hud.GetComboBox(IDC_INPUT)->SetSelectedByIndex(next < n? next : n);
     loadImage();
 
-    timer->reset();
+    profileTimer->reset();
 
     if (next == n) {
         benchmark = false;
@@ -481,10 +535,10 @@ void drawHud(float elapsedTime) {
         txtHelper->DrawTextLine(L"Press 'tab' to toogle the HUD, 'a' and 'd' to quickly cycle through the images");
 
         txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 0.5f, 0.0f, 1.0f));
-        if (timer->isEnabled()) {
+        if (profileTimer->isEnabled()) {
             wstringstream s;
             s << setprecision(2) << std::fixed;
-            s << *timer;
+            s << *profileTimer;
             txtHelper->DrawTextLine(s.str().c_str());
         }
 
@@ -495,6 +549,8 @@ void drawHud(float elapsedTime) {
 
 
 void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime, void *context) {
+    framerateLockTimer->start();
+
     // Calculate next subpixel index:
     int previousIndex = subpixelIndex;
     int currentIndex = (subpixelIndex + 1) % 2;
@@ -508,7 +564,13 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
     // Clear render targets:
     float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     device->ClearRenderTargetView(*tmpRT_SRGB, clearColor);
+    device->ClearRenderTargetView(*velocityRT, clearColor);
     device->ClearDepthStencilView(*depthStencil, D3D10_CLEAR_DEPTH | D3D10_CLEAR_STENCIL, 1.0, 0);
+
+    // Fetch configuration parameters:
+    bool antialiasing = hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked();
+    SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_SMAA_MODE)->GetSelectedData()));
+    SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTION_MODE)->GetSelectedData()));
 
     // Render the scene:
     if (hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() > 0) {
@@ -516,36 +578,32 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
         Copy::go(inputColorSRV, *tmpRT_SRGB, &viewport);
         Copy::go(inputDepthSRV, *depthBufferRT, &viewport);
     } else {
-        if (hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked() && 
-            SMAA::Mode(int(hud.GetComboBox(IDC_SMAA_MODE)->GetSelectedData())) == SMAA::MODE_SMAA_T2X) {
+        if (antialiasing && mode == SMAA::MODE_SMAA_T2X) {
             D3DXVECTOR2 jitter[] = {
                 D3DXVECTOR2(-0.25f,  0.25f),
                 D3DXVECTOR2( 0.25f, -0.25f)
             };
-            const DXGI_SURFACE_DESC *desc = DXUTGetDXGIBackBufferSurfaceDesc();
-            float aspect = (float) desc->Width / desc->Height;
-            camera.setJitteredProjection(18.0f * D3DX_PI / 180.f, aspect, 0.1f, 1000.0f, jitter[subpixelIndex]);
+            renderMesh(device, jitter[subpixelIndex]);
+        } else {
+            renderMesh(device, D3DXVECTOR2(0.0f, 0.0f));
         }
-
-        renderMesh(device);
     }
 
     // Run SMAA
-    if (hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked()) {
-        SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTION_MODE)->GetSelectedData()));
-        int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? timer->getRepetitionsCount() : 1;
+    if (antialiasing) {
+        int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? profileTimer->getRepetitionsCount() : 1;
 
-        SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_SMAA_MODE)->GetSelectedData()));
         ID3D10RenderTargetView *dstRTV = mode == SMAA::MODE_SMAA_1X?
-                                         (ID3D10RenderTargetView *) *backbufferRT : *finalRT[currentIndex];
+                                         (ID3D10RenderTargetView *) *backbufferRT :
+                                         *finalRT[currentIndex];
 
-        timer->start();
+        profileTimer->start();
         for (int i = 0; i < n; i++) { // This loop is for profiling.
             smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, dstRTV, *depthStencil, input, mode, subpixelIndex);
             if (mode == SMAA::MODE_SMAA_T2X)
-                smaa->resolve(*finalRT[currentIndex], *finalRT[previousIndex], *backbufferRT);
+                smaa->resolve(*finalRT[currentIndex], *finalRT[previousIndex], *velocityRT, *backbufferRT);
         }
-        timer->clock(L"SMAA");
+        profileTimer->clock(L"SMAA");
     } else {
         Copy::go(*tmpRT_SRGB, *backbufferRT);
     }
@@ -566,6 +624,13 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
 
     // Update subpixel index:
     subpixelIndex = currentIndex;
+
+    // Lock the frame rate:
+    FramerateLock framerateLock = FramerateLock(int(hud.GetComboBox(IDC_LOCK_FRAMERATE)->GetSelectedData()));
+    if (framerateLock == FPS_LOCK_TO_30)
+        Sleep(max(33 - int(1000.0f * framerateLockTimer->clock()), 0));
+    else if (framerateLock == FPS_LOCK_TO_60)
+        Sleep(max(16 - int(1000.0f * framerateLockTimer->clock()), 0));
 }
 
 
@@ -643,14 +708,14 @@ void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context
         }
         case 'X':
             hud.GetCheckBox(IDC_PROFILE)->SetChecked(!hud.GetCheckBox(IDC_PROFILE)->GetChecked());
-            timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
+            profileTimer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
             break;
         case 'Z':
             hud.GetCheckBox(IDC_ANTIALIASING)->SetChecked(!hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked());
             break;
         case 'P':
             hud.GetCheckBox(IDC_PROFILE)->SetChecked(true);
-            timer->setEnabled(true);
+            profileTimer->setEnabled(true);
             benchmark = true;
             benchmarkFile.open("Benchmark.txt",  ios_base::out);
             hud.GetComboBox(IDC_INPUT)->SetSelectedByIndex(1);
@@ -771,7 +836,7 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
         }
         case IDC_INPUT:
             if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
-                timer->reset();            
+                profileTimer->reset();
                 V(loadInput());
                 resizeWindow();
                 onReleasingSwapChain(NULL);
@@ -785,30 +850,43 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 }
             }
             break;
+        case IDC_SMAA_MODE: {
+            SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_SMAA_MODE)->GetSelectedData()));
+            hud.GetCheckBox(IDC_REPROJECTION)->SetEnabled(mode != SMAA::MODE_SMAA_1X);
+
+            // Refill the temporal buffer:
+            onFrameRender(DXUTGetD3D10Device(), DXUTGetTime(), DXUTGetElapsedTime(), NULL);
+            break;
+        }
         case IDC_PRESET:
             if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
                 SMAA::Preset selected = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
                 setVisibleCustomControls(selected == SMAA::PRESET_CUSTOM);
-                onReleasingSwapChain(NULL);
-                onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
+
+                SAFE_DELETE(smaa);
+                initSMAA(DXUTGetD3D10Device(), DXUTGetDXGIBackBufferSurfaceDesc());
             }
             break;
         case IDC_ANTIALIASING:
             if (event == EVENT_CHECKBOX_CHANGED) {
-                timer->reset();
+                profileTimer->reset();
                 hud.GetComboBox(IDC_VIEW_MODE)->SetSelectedByIndex(0);
+
+                // Refill the temporal buffer:
+                onFrameRender(DXUTGetD3D10Device(), DXUTGetTime(), DXUTGetElapsedTime(), NULL);
             }
             break;
         case IDC_PREDICATION:
+        case IDC_REPROJECTION:
             if (event == EVENT_CHECKBOX_CHANGED) {
-                onReleasingSwapChain(NULL);
-                onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
+                SAFE_DELETE(smaa);
+                initSMAA(DXUTGetD3D10Device(), DXUTGetDXGIBackBufferSurfaceDesc());
             }
             break;
         case IDC_PROFILE:
             if (event == EVENT_CHECKBOX_CHANGED) {
-                timer->reset();
-                timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
+                profileTimer->reset();
+                profileTimer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
             }
             break;
         case IDC_THRESHOLD:
@@ -917,6 +995,15 @@ void initApp() {
 
     hud.AddCheckBox(IDC_ANTIALIASING, L"Enable SMAA", 35, iY += 24, HUD_WIDTH, 22, true);
     hud.AddCheckBox(IDC_PREDICATION, L"Predicated Tresholding", 35, iY += 24, HUD_WIDTH, 22, false);
+    hud.AddCheckBox(IDC_REPROJECTION, L"Temporal Reprojection", 35, iY += 24, HUD_WIDTH, 22, true);
+
+    iY += 24;
+
+    hud.AddComboBox(IDC_LOCK_FRAMERATE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
+    hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Unlock Framerate", (LPVOID) FPS_UNLOCK);
+    hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Lock to 30fps", (LPVOID) FPS_LOCK_TO_30);
+    hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Lock to 60fps", (LPVOID) FPS_LOCK_TO_60);
+    hud.GetComboBox(IDC_LOCK_FRAMERATE)->SetSelectedByData((LPVOID) FPS_LOCK_TO_30);
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, HUD_WIDTH, 22, false);
 
     iY += 24;
@@ -945,7 +1032,7 @@ void initApp() {
     s = wstringstream();
     s << L"Corner Rounding: " << commandlineOptions.cornerRounding;
     hud.AddStatic(IDC_CORNER_ROUNDING_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
-    hud.AddSlider(IDC_CORNER_ROUNDING, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.cornerRounding / 100.0f)); // FIXME
+    hud.AddSlider(IDC_CORNER_ROUNDING, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.cornerRounding / 100.0f));
     hud.GetStatic(IDC_CORNER_ROUNDING_LABEL)->SetVisible(false);
     hud.GetSlider(IDC_CORNER_ROUNDING)->SetVisible(false);
 }

@@ -124,5 +124,8 @@
     <CustomBuild Include="Shaders\SMAA.fx">
       <Filter>Shaders</Filter>
     </CustomBuild>
+    <CustomBuild Include="Shaders\Simple.fx">
+      <Filter>Shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

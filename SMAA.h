@@ -88,7 +88,9 @@
  *
  * For quickstarters: just use luma edge detection.
  *
- * Ok then, let's go!
+ * The general advise is to not rush the integration process and ensure each
+ * step is done correctly (don't try to integrate SMAA T2x with predicated edge
+ * detection from the start!). Ok then, let's go!
  *
  *  1. The first step is to create two RGBA temporal framebuffers for holding
  *     |edgesTex| and |blendTex|.
@@ -156,8 +158,9 @@
  *     the code), then mask execution by using it the second pass. The last
  *     pass should be executed in all pixels.
  *
- * After this point you can choose to enable predicated thresholding and/or
- * temporal supersampling:
+ *
+ * After this point you can choose to enable predicated thresholding,
+ * temporal supersampling and motion blur integration:
  *
  * a) If you want to use predicated thresholding, take a look into
  *    SMAA_PREDICATION; you'll need to pass an extra texture in the edge
@@ -166,19 +169,19 @@
  * b) If you want to enable temporal supersampling:
  *
  * 1. The first step is to render using subpixel jitters. I won't enter in
- *    details but it's as simple as setting up the proper projection matrix at
- *    each frame, you can check we do it in our DX10 demo. Also take a look
- *    into CryENGINE's temporal supersampling for more information:
- *    http://iryoku.com/aacourse/downloads/13-Anti-Aliasing-Methods-in-CryENGINE-3.pdf
+ *    details, but it's as simple as moving each vertex position in the vertex
+ *    shader, you can check how we do it in our DX10 demo.
  *
  * 2. Then, you must setup the temporal resolve. You may want to take a look
- *    into SMAAResolve for resolving 2x modes.
+ *    into SMAAResolve for resolving 2x modes. After you get it working, you'll
+ *    probably see ghosting everywhere. But fear not, you can enable the
+ *    CryENGINE temporal reprojection by setting the SMAA_REPROJECTION macro.
  *
  * 3. The next step is to apply SMAA to each subpixel jittered frame, just as
  *    done for 1x.
  *
  * 4. At this point you should already have something usable, but for best
- *    results the proper area textures must be set depeding on current jitter.
+ *    results the proper area textures must be set depending on current jitter.
  *    For this, the parameter 'subsampleIndices' of
  *    'SMAABlendingWeightCalculationPS' must be set as follows, for our T2x
  *    mode:
@@ -187,6 +190,22 @@
  *             +------------------------+------------------------|
  *             | float2(-0.25f,  0.25f) |    int4(1, 1, 1, 0)    |
  *             | float2( 0.25f, -0.25f) |    int4(2, 2, 2, 0)    |
+ *
+ *    These jitter positions assume a bottom-to-top y axis.
+ *
+ * More information about temporal supersampling here:
+ *    http://iryoku.com/aacourse/downloads/13-Anti-Aliasing-Methods-in-CryENGINE-3.pdf
+ *
+ * c) If motion blur is used, you may want to do the edge detection pass
+ *    together with motion blur. This has two advantages:
+ *
+ * 1. Pixels under heavy motion can be omitted from the edge detection process.
+ *    For these pixels we can just store "no edge", as motion blur will take
+ *    care of them.
+ * 2. The center pixel tap is reused.
+ *
+ * Note that in this case depth testing should be used instead of stenciling,
+ * as we have to write all the pixels in the motion blur pass.
  *
  * That is!
  */
@@ -224,9 +243,12 @@
  * Lowering this value you will be able to detect more edges at the expense of
  * performance. 
  *
- * Range: [0.0 .. 0.5]
+ * Range: [0, 0.5]
  *   0.1 is a reasonable value, and allows to catch most visible edges.
  *   0.05 is a rather overkill value, that allows to catch 'em all.
+ *
+ *   If temporal supersampling is used, 0.2 could be a reasonable value, as low
+ *   contrast edges are properly filtered by just 2x.
  */
 #ifndef SMAA_THRESHOLD
 #define SMAA_THRESHOLD 0.1
@@ -249,7 +271,7 @@
  * perfectly handled by, for example 16, is 64 (by perfectly, we meant that
  * longer lines won't look as good, but still antialiased).
  *
- * Range: [0 .. 98]
+ * Range: [0, 98]
  */
 #ifndef SMAA_MAX_SEARCH_STEPS
 #define SMAA_MAX_SEARCH_STEPS 16
@@ -257,10 +279,10 @@
 
 /**
  * SMAA_MAX_SEARCH_STEPS_DIAG specifies the maximum steps performed in the
- * diagonal pattern searchs, at each side of the pixel. In this case we jump
+ * diagonal pattern searches, at each side of the pixel. In this case we jump
  * one pixel at time, instead of two.
  *
- * Range: [0 .. 20]; set it to 0 to disable diagonal processing.
+ * Range: [0, 20]; set it to 0 to disable diagonal processing.
  *
  * On high-end machines it is cheap (between a 0.8x and 0.9x slower for 16 
  * steps), but it can have a significant impact on older machines.
@@ -272,7 +294,7 @@
 /**
  * SMAA_CORNER_ROUNDING specifies how much sharp corners will be rounded.
  *
- * Range: [0 .. 100]; set it to 100 to disable corner detection.
+ * Range: [0, 100]; set it to 100 to disable corner detection.
  */
 #ifndef SMAA_CORNER_ROUNDING
 #define SMAA_CORNER_ROUNDING 25
@@ -309,7 +331,7 @@
  * How much to scale the global threshold used for luma or color edge
  * detection when using predication.
  *
- * Range: [1 .. 5]
+ * Range: [1, 5]
  */
 #ifndef SMAA_PREDICATION_SCALE
 #define SMAA_PREDICATION_SCALE 2.0
@@ -318,11 +340,39 @@
 /**
  * How much to locally decrease the threshold.
  *
- * Range: [0 .. 1]
+ * Range: [0, 1]
  */
 #ifndef SMAA_PREDICATION_STRENGTH
 #define SMAA_PREDICATION_STRENGTH 0.4
 #endif
+
+/**
+ * Temporal reprojection allows to remove ghosting artifacts when using
+ * temporal supersampling. We use the CryEngine 3 method which also introduces
+ * velocity weighting. This feature is of extreme importance for totally
+ * removing ghosting. More information here:
+ *    http://iryoku.com/aacourse/downloads/13-Anti-Aliasing-Methods-in-CryENGINE-3.pdf
+ *
+ * Note that you'll need to setup a velocity buffer for enabling reprojection.
+ * For static geometry, saving the previous depth buffer is a viable
+ * alternative.
+ */
+#ifndef SMAA_REPROJECTION
+#define SMAA_REPROJECTION 0
+#endif
+
+/**
+ * SMAA_REPROJECTION_WEIGHT_SCALE controls the velocity weighting. It allows to
+ * remove ghosting trails behind the moving object, which are not removed by
+ * just using reprojection. Using low values will exhibit ghosting, while using
+ * high values will disable temporal supersampling under motion.
+ *
+ * Behind the scenes, velocity weighting removes temporal supersampling when
+ * the velocity of the subsamples differs (meaning they are different objects).
+ *
+ * Range: [0, 80]
+ */
+#define SMAA_REPROJECTION_WEIGHT_SCALE 30.0
 
 /**
  * In the last pass we leverage bilinear filtering to avoid some lerps.
@@ -360,6 +410,7 @@
 #define SMAASampleLevelZero(tex, coord) tex2Dlod(tex, float4(coord, 0.0, 0.0))
 #define SMAASampleLevelZeroPoint(tex, coord) tex2Dlod(tex, float4(coord, 0.0, 0.0))
 #define SMAASample(tex, coord) tex2D(tex, coord)
+#define SMAASamplePoint(tex, coord) tex2D(tex, coord)
 #define SMAASampleLevelZeroOffset(tex, coord, off) tex2Dlod(tex, float4(coord + off * SMAA_PIXEL_SIZE, 0.0, 0.0))
 #define SMAASampleOffset(tex, coord, off) tex2D(tex, coord + off * SMAA_PIXEL_SIZE)
 #endif
@@ -370,6 +421,7 @@ SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; Addres
 #define SMAASampleLevelZero(tex, coord) tex.SampleLevel(LinearSampler, coord, 0)
 #define SMAASampleLevelZeroPoint(tex, coord) tex.SampleLevel(PointSampler, coord, 0)
 #define SMAASample(tex, coord) SMAASampleLevelZero(tex, coord)
+#define SMAASamplePoint(tex, coord) SMAASampleLevelZeroPoint(tex, coord)
 #define SMAASampleLevelZeroOffset(tex, coord, off) tex.SampleLevel(LinearSampler, coord, 0, off)
 #define SMAASampleOffset(tex, coord, off) SMAASampleLevelZeroOffset(tex, coord, off)
 #endif
@@ -381,7 +433,7 @@ SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; Addres
 // Misc functions
 
 /**
- * Gathers current pixel, and the top-left neighbours.
+ * Gathers current pixel, and the top-left neighbors.
  */
 float3 SMAAGatherNeighbours(float2 texcoord,
                             float4 offset[3],
@@ -438,11 +490,11 @@ void SMAABlendWeightCalculationVS(float4 position,
 
     pixcoord = texcoord / SMAA_PIXEL_SIZE;
 
-    // We will use these offsets for the searchs later on (see @PSEUDO_GATHER4):
+    // We will use these offsets for the searches later on (see @PSEUDO_GATHER4):
     offset[0] = texcoord.xyxy + SMAA_PIXEL_SIZE.xyxy * float4(-0.25, -0.125,  1.25, -0.125);
     offset[1] = texcoord.xyxy + SMAA_PIXEL_SIZE.xyxy * float4(-0.125, -0.25, -0.125,  1.25);
 
-    // And these for the searchs, they indicate the ends of the loops:
+    // And these for the searches, they indicate the ends of the loops:
     offset[2] = float4(offset[0].xz, offset[1].yw) + 
                 float4(-2.0, 2.0, -2.0, 2.0) *
                 SMAA_PIXEL_SIZE.xxyy * SMAA_MAX_SEARCH_STEPS;
@@ -1019,6 +1071,24 @@ float4 SMAANeighborhoodBlendingPS(float2 texcoord,
         else
             offset.x = 0.0;
 
+        #if SMAA_REPROJECTION == 1
+        // Fetch the opposite color and lerp by hand:
+        float4 C = SMAASampleLevelZero(colorTex, texcoord);
+        texcoord += sign(offset) * SMAA_PIXEL_SIZE;
+        float4 Cop = SMAASampleLevelZero(colorTex, texcoord);
+        float s = abs(offset.x) > abs(offset.y)? abs(offset.x) : abs(offset.y);
+
+        // Unpack the velocity values:
+        C.a *= C.a;
+        Cop.a *= Cop.a;
+
+        // Lerp the colors:
+        float4 Caa = lerp(C, Cop, s);
+
+        // Unpack velocity and return the resulting value:
+        Caa.a = sqrt(Caa.a);
+        return Caa;
+        #else
         #if SMAA_HLSL_4 == 1 || SMAA_DIRECTX9_LINEAR_BLEND == 0
         // We exploit bilinear filtering to mix current pixel with the chosen
         // neighbor:
@@ -1032,6 +1102,7 @@ float4 SMAANeighborhoodBlendingPS(float2 texcoord,
         float s = abs(offset.x) > abs(offset.y)? abs(offset.x) : abs(offset.y);
         return lerp(C, Cop, s);
         #endif
+        #endif
     }
 }
 
@@ -1040,10 +1111,35 @@ float4 SMAANeighborhoodBlendingPS(float2 texcoord,
 
 float4 SMAAResolvePS(float2 texcoord,
                      SMAATexture2D colorTexCurr,
-                     SMAATexture2D colorTexPrev) {
+                     SMAATexture2D colorTexPrev
+                     #if SMAA_REPROJECTION == 1
+                     , SMAATexture2D velocityTex
+                     #endif
+                     ) {
+    #if SMAA_REPROJECTION == 1
+    // Velocity is calculated from previous to current position, so we need to
+    // inverse it:
+    float2 velocity = -SMAASample(velocityTex, texcoord).rg;
+
+    // Fetch current pixel:
+    float4 current = SMAASample(colorTexCurr, texcoord);
+
+    // Reproject current coordinates and fetch previous pixel:
+    float4 previous = SMAASample(colorTexPrev, texcoord + velocity);
+
+    // Attenuate the previous pixel if we are moving fast, or if the velocity
+    // is different:
+    float delta = abs(current.a * current.a - previous.a * previous.a) / 5.0;
+    float weight = 0.5 * saturate(1.0 - (sqrt(delta) * SMAA_REPROJECTION_WEIGHT_SCALE));
+
+    // Blend the pixels:
+    return lerp(current, previous, weight);
+    #else
+    // Just blend the pixels:
     float4 current = SMAASample(colorTexCurr, texcoord);
     float4 previous = SMAASample(colorTexPrev, texcoord);
     return lerp(current, previous, 0.5);
+    #endif
 }
 
 //-----------------------------------------------------------------------------

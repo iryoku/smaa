@@ -169,7 +169,7 @@ void Camera::build() {
     D3DXMatrixRotationX(&t, angle.y);
     view = t * view;
 
-    D3DXMatrixRotationY(&t, angle.x);
+    D3DXMatrixRotationZ(&t, angle.x);
     view = t * view;
 
     D3DXMATRIX viewInverse;

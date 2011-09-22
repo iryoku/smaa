@@ -21,3 +21,6 @@ Unigine06.dds RCDATA "..\\Media\\Unigine06.dds"
 Unigine07.dds RCDATA "..\\Media\\Unigine07.dds"
 
 Fence.sdkmesh RCDATA "..\\Media\\Fence.sdkmesh"
+DiffuseMap.dds RCDATA "..\\Media\\DiffuseMap.dds"
+NormalMap.dds RCDATA "..\\Media\\NormalMap.dds"
+EnvMap.dds RCDATA "..\\Media\\EnvMap.dds"
