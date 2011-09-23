@@ -84,6 +84,10 @@ bool showHud = true;
 bool benchmark = false;
 fstream benchmarkFile;
 
+enum RecPlayState { RECPLAY_IDLE, RECPLAY_RECORDING, RECPLAY_PLAYING } recPlayState;
+double recPlayTime = 0.0;
+double recPlayDuration = 0.0;
+
 D3DXMATRIX prevViewProj, currViewProj;
 int subpixelIndex = 0;
 
@@ -659,6 +663,15 @@ void drawHud(float elapsedTime) {
             txtHelper->DrawTextLine(s.str().c_str());
         }
 
+        wstringstream s;
+        if (recPlayState == RECPLAY_RECORDING) {
+            s << setprecision(2) << std::fixed << L"Recording: " << (DXUTGetTime() - recPlayTime);
+            txtHelper->DrawTextLine(s.str().c_str());
+        } else if (recPlayState == RECPLAY_PLAYING) {
+            s << setprecision(2) << std::fixed << L"Playing: " << (DXUTGetTime() - recPlayTime);
+            txtHelper->DrawTextLine(s.str().c_str());
+        }
+
         txtHelper->End();
     }
     D3DPERF_EndEvent();
@@ -725,6 +738,12 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
 
 void CALLBACK onFrameMove(double time, float elapsedTime, void *context) {
     camera.frameMove(elapsedTime);
+
+    if (recPlayState == RECPLAY_PLAYING &&
+        DXUTGetTime() - recPlayTime > recPlayDuration) {
+        recPlayState = RECPLAY_IDLE;
+        camera.setAngularVelocity(D3DXVECTOR2(0.0f, 0.0f));
+    }
 }
 
 
@@ -802,6 +821,29 @@ void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context
             benchmarkFile.open("Benchmark.txt",  ios_base::out);
             hud.GetComboBox(IDC_INPUT)->SetSelectedByIndex(1);
             V(loadInput());
+            break;
+        case 'R':
+            if (recPlayState != RECPLAY_RECORDING) {
+                recPlayState = RECPLAY_RECORDING;
+                recPlayTime = DXUTGetTime();
+                fstream f("Movie.txt", fstream::out);
+                f << camera;
+            } else {
+                recPlayState = RECPLAY_IDLE;
+                fstream f("Movie.txt", fstream::out | fstream::app);
+                f << (DXUTGetTime() - recPlayTime);
+            }
+            break;
+        case 'T':
+            if (recPlayState == RECPLAY_RECORDING) {
+                fstream f("Movie.txt", fstream::out | fstream::app);
+                f << (DXUTGetTime() - recPlayTime);
+            }
+            recPlayState = RECPLAY_PLAYING;
+            recPlayTime = DXUTGetTime();
+            fstream f("Movie.txt", fstream::in);
+            f >> camera;
+            f >> recPlayDuration;
             break;
     }
 }

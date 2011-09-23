@@ -243,6 +243,8 @@ ostream &operator <<(ostream &os, const Camera &camera) {
     os << camera.distance << endl;
     os << camera.angle.x << " " << camera.angle.y << endl;
     os << camera.panPosition.x << " " << camera.panPosition.y << endl;
+    os << camera.angularVelocity.x << " " << camera.angularVelocity.y << endl;
+    os << camera.attenuation << endl;
     return os;
 }
 
@@ -251,5 +253,7 @@ istream &operator >>(istream &is, Camera &camera) {
     is >> camera.distance;
     is >> camera.angle.x >> camera.angle.y;
     is >> camera.panPosition.x >> camera.panPosition.y;
+    is >> camera.angularVelocity.x >> camera.angularVelocity.y;
+    is >> camera.attenuation;
     return is;
 }
