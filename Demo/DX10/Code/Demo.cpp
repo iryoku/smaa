@@ -132,14 +132,15 @@ enum FramerateLock { FPS_UNLOCK, FPS_LOCK_TO_15, FPS_LOCK_TO_30, FPS_LOCK_TO_60 
 #define IDC_REPROJECTION                11
 #define IDC_LOCK_FRAMERATE              12
 #define IDC_PROFILE                     13
-#define IDC_THRESHOLD_LABEL             14
-#define IDC_THRESHOLD                   15
-#define IDC_MAX_SEARCH_STEPS_LABEL      16
-#define IDC_MAX_SEARCH_STEPS            17
-#define IDC_MAX_SEARCH_STEPS_DIAG_LABEL 18
-#define IDC_MAX_SEARCH_STEPS_DIAG       19
-#define IDC_CORNER_ROUNDING_LABEL       20
-#define IDC_CORNER_ROUNDING             21
+#define IDC_SHADING                     14
+#define IDC_THRESHOLD_LABEL             15
+#define IDC_THRESHOLD                   16
+#define IDC_MAX_SEARCH_STEPS_LABEL      17
+#define IDC_MAX_SEARCH_STEPS            18
+#define IDC_MAX_SEARCH_STEPS_DIAG_LABEL 19
+#define IDC_MAX_SEARCH_STEPS_DIAG       20
+#define IDC_CORNER_ROUNDING_LABEL       21
+#define IDC_CORNER_ROUNDING             22
 
 
 float round(float n) {
@@ -264,6 +265,8 @@ void setModeControls() {
     hud.GetSlider(IDC_CORNER_ROUNDING)->SetEnabled(!isMsaa);
 
     hud.GetCheckBox(IDC_PROFILE)->SetChecked(hud.GetCheckBox(IDC_PROFILE)->GetChecked() && !isMsaa);
+
+    hud.GetCheckBox(IDC_SHADING)->SetEnabled(hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() == 0);
 }
 
 
@@ -520,12 +523,15 @@ void renderMesh(ID3D10Device *device, const D3DXVECTOR2 &jitter) {
     // Set enviroment map for metal reflections:
     V(simpleEffect->GetVariableByName("envTex")->AsShaderResource()->SetResource(envTexSRV));
 
+    // Enable/Disable shading:
+    V(simpleEffect->GetVariableByName("shading")->AsScalar()->SetBool(hud.GetCheckBox(IDC_SHADING)->GetChecked()));
+
     // Set the vertex layout:
     device->IASetInputLayout(vertexLayout);
 
     // Render the grid:
-    for (float x = -5.0; x <= 5.0; x += 1.0) {
-        for (float y = -5.0; y <= 5.0; y += 1.0) {
+    for (float x = -20.0; x <= 20.0; x += 1.0) {
+        for (float y = -20.0; y <= 20.0; y += 1.0) {
             D3DXMATRIX world;
             D3DXMatrixTranslation(&world, x, y, 0.0f);
 
@@ -761,8 +767,19 @@ LRESULT CALLBACK msgProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, bool
     if (*finished)
         return 0;
 
-   if (camera.handleMessages(hwnd, msg, wparam, lparam))
-        return 0;
+    if (camera.handleMessages(hwnd, msg, wparam, lparam)) {
+        switch(msg) {
+            case WM_LBUTTONDOWN:
+            case WM_MBUTTONDOWN:
+            case WM_RBUTTONDOWN:
+                if (recPlayState == RECPLAY_PLAYING) {
+                    recPlayState = RECPLAY_IDLE;
+                    camera.setAngularVelocity(D3DXVECTOR2(0.0f, 0.0f));
+                }
+                break;
+         }
+         return 0;
+    }
 
     return 0;
 }
@@ -1132,6 +1149,7 @@ void initApp() {
     hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Lock to 60fps", (LPVOID) FPS_LOCK_TO_60);
     hud.GetComboBox(IDC_LOCK_FRAMERATE)->SetSelectedByData((LPVOID) FPS_LOCK_TO_30);
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, HUD_WIDTH, 22, false, 'X');
+    hud.AddCheckBox(IDC_SHADING, L"Shading", 35, iY += 24, HUD_WIDTH, 22, false, 'S');
 
     iY += 24;
 

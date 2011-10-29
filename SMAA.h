@@ -75,10 +75,10 @@
  *
  * You've three edge detection methods to choose from: luma, color or depth.
  * They represent different quality/performance and anti-aliasing/sharpness
- * tradeoffs, so our recommendation is for you to choose the one that suits
- * better your particular scenario:
+ * tradeoffs, so our recommendation is for you to choose the one that best
+ * suits your particular scenario:
  *
- * - Depth edge detection is usually the faster but it may miss some edges.
+ * - Depth edge detection is usually the fastest but it may miss some edges.
  *
  * - Luma edge detection is usually more expensive than depth edge detection,
  *   but catches visible edges that depth edge detection can miss.
@@ -88,7 +88,7 @@
  *
  * For quickstarters: just use luma edge detection.
  *
- * The general advise is to not rush the integration process and ensure each
+ * The general advice is to not rush the integration process and ensure each
  * step is done correctly (don't try to integrate SMAA T2x with predicated edge
  * detection from the start!). Ok then, let's go!
  *
@@ -98,7 +98,7 @@
  *     In DX10, you can use a RG framebuffer for the edges texture, but in our
  *     experience it yields worse performance.
  *
- *     In the Xbox 360, you can use the same framebuffer for resolving both
+ *     On the Xbox 360, you can use the same framebuffer for resolving both
  *     |edgesTex| and |blendTex|, as they aren't needed simultaneously.
  *
  *  2. Both temporal framebuffers |edgesTex| and |blendTex| must be cleared
@@ -118,7 +118,7 @@
  *  5. All texture reads and buffer writes must be non-sRGB, with the exception
  *     of the input read and the output write of input in 
  *     'SMAANeighborhoodBlending' (and only in this pass!). If sRGB reads in
- *     this last pass are not possible, the technique will work anyways, but
+ *     this last pass are not possible, the technique will work anyway, but
  *     will perform antialiasing in gamma space. 
  *
  *     IMPORTANT: for best results the input read for the color/luma edge 
@@ -168,9 +168,9 @@
  *
  * b) If you want to enable temporal supersampling:
  *
- * 1. The first step is to render using subpixel jitters. I won't enter in
- *    details, but it's as simple as moving each vertex position in the vertex
- *    shader, you can check how we do it in our DX10 demo.
+ * 1. The first step is to render using subpixel jitters. I won't go into
+ *    detail, but it's as simple as moving each vertex position in the
+ *    vertex shader, you can check how we do it in our DX10 demo.
  *
  * 2. Then, you must setup the temporal resolve. You may want to take a look
  *    into SMAAResolve for resolving 2x modes. After you get it working, you'll
@@ -207,7 +207,7 @@
  * Note that in this case depth testing should be used instead of stenciling,
  * as we have to write all the pixels in the motion blur pass.
  *
- * That is!
+ * That's it!
  */
 
 //-----------------------------------------------------------------------------
@@ -1127,12 +1127,11 @@ float4 SMAAResolvePS(float2 texcoord,
     // Reproject current coordinates and fetch previous pixel:
     float4 previous = SMAASample(colorTexPrev, texcoord + velocity);
 
-    // Attenuate the previous pixel if we are moving fast, or if the velocity
-    // is different:
+    // Attenuate the previous pixel if the velocity is different:
     float delta = abs(current.a * current.a - previous.a * previous.a) / 5.0;
     float weight = 0.5 * saturate(1.0 - (sqrt(delta) * SMAA_REPROJECTION_WEIGHT_SCALE));
 
-    // Blend the pixels:
+    // Blend the pixels according to the calculated weight:
     return lerp(current, previous, weight);
     #else
     // Just blend the pixels:

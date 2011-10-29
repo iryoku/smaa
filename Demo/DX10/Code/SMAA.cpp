@@ -121,13 +121,13 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     vector<D3D10_SHADER_MACRO> defines;
     stringstream s;
 
-    // Setup pixel size macro:
+    // Setup the pixel size macro:
     s << "float2(1.0 / " << width << ", 1.0 / " << height << ")";
     string pixelSizeText = s.str();
     D3D10_SHADER_MACRO pixelSizeMacro = { "SMAA_PIXEL_SIZE", pixelSizeText.c_str() };
     defines.push_back(pixelSizeMacro);
 
-    // Setup preset macro:
+    // Setup the preset macro:
     D3D10_SHADER_MACRO presetMacros[] = {
         { "SMAA_PRESET_LOW", "1" },
         { "SMAA_PRESET_MEDIUM", "1" },
@@ -137,19 +137,19 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     };
     defines.push_back(presetMacros[int(preset)]);
 
-    // Setup predicated thresholding macro:
+    // Setup the predicated thresholding macro:
     if (predication) {
         D3D10_SHADER_MACRO predicationMacro = { "SMAA_PREDICATION", "1" };
         defines.push_back(predicationMacro);
     }
 
-    // Setup reprojection macro:
+    // Setup the reprojection macro:
     if (reprojection) {
         D3D10_SHADER_MACRO reprojectionMacro = { "SMAA_REPROJECTION", "1" };
         defines.push_back(reprojectionMacro);
     }
 
-    // Setup target macro:
+    // Setup the target macro:
     if (dx10_1) {
         D3D10_SHADER_MACRO dx101Macro = { "SMAA_HLSL_4_1", "1" };
         defines.push_back(dx101Macro);

@@ -35,6 +35,7 @@ float2 jitter;
 
 
 // For shading:
+bool shading;
 matrix world;
 float3 eyePositionW;
 
@@ -66,9 +67,9 @@ struct SimpleV2P {
     float3 prevPosition : TEXCOORD2;
 
     // For shading:
-    float3 normalW : TEXCOORD3;
-    float3 tangentW : TEXCOORD4;
-    float3 positionW : TEXCOORD5;
+    centroid float3 normalW : TEXCOORD3;
+    centroid float3 tangentW : TEXCOORD4;
+    centroid float3 positionW : TEXCOORD5;
 };
 
 
@@ -172,7 +173,7 @@ float4 SimplePS(SimpleV2P input,
     float velocityLength = sqrt(5.0 * length(velocity));
 
     // Shade the pixel:
-    float3 color = Shade(input);
+    float3 color = shading? Shade(input) : 0.5;
 
     // Output the results, packing the velocity length in the alpha channel:
     return float4(color, velocityLength);
