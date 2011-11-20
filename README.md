@@ -8,6 +8,28 @@ SMAA is a very efficient GPU-based MLAA implementation, capable of handling subp
 Checkout the [technical paper](http://www.iryoku.com/smaa/) for more info!
 
 
+Thanks To
+---------
+
+**Stephen Hill** ‒ for its invaluable support.
+
+**Alex Fry** ‒ for its priceless help with the devkit.
+
+**Naty Hoffman** ‒ for helping us to touch base with the game developer community.
+
+**Jean-Francois St-Amour** ‒ for providing us great images for testing.
+
+**Johan Andersson** ‒ for providing the fantastic BF3 image and clearing important questions.
+
+**Dmitriy Jdone** ‒ for porting the code to GLSL.
+
+**Weibo Xie** ‒ for the suggested optimizations.
+
+**Alexander Reshetov** ‒ for creating MLAA, and opening our mind.
+
+**Everyone on the [SIGGRAPH course](http://iryoku.com/aacourse/)** ‒ for the incredible inspiration.
+
+
 Usage
 -----
 
@@ -25,21 +47,17 @@ https://github.com/iryoku/smaa/issues
 Authors
 -------
 
-**Jorge Jimenez**
+**Jorge Jimenez** http://www.iryoku.com/
 
-+ http://www.iryoku.com/
+**Jose I. Echevarria** http://cheveone.blogspot.com/
 
-**Jose I. Echevarria**
-
-+ http://cheveone.blogspot.com/
+**Tiago Sousa** https://twitter.com/#!/CRYTEK_TIAGO
 
 **Belen Masia**
 
 **Fernando Navarro**
 
-**Diego Gutierrez**
-
-+ http://giga.cps.unizar.es/~diegog/
+**Diego Gutierrez** http://giga.cps.unizar.es/~diegog/
 
 
 Copyright and License

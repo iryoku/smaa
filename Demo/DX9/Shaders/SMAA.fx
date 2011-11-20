@@ -182,7 +182,7 @@ float4 DX9_SMAABlendingWeightCalculationPS(float4 position : SV_POSITION,
                                            uniform SMAATexture2D edgesTex, 
                                            uniform SMAATexture2D areaTex, 
                                            uniform SMAATexture2D searchTex) : COLOR {
-    return SMAABlendingWeightCalculationPS(texcoord, pixcoord, offset, edgesTex, areaTex, searchTex);
+    return SMAABlendingWeightCalculationPS(texcoord, pixcoord, offset, edgesTex, areaTex, searchTex, 0);
 }
 
 float4 DX9_SMAANeighborhoodBlendingPS(float4 position : SV_POSITION,
