@@ -496,7 +496,7 @@ SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; Addres
 float3 SMAAGatherNeighbours(float2 texcoord,
                             float4 offset[3],
                             SMAATexture2D tex) {
-    #if SMAA_HLSL_4_1 == 1
+    #if SMAA_HLSL_4_1 == 1 || SMAA_GLSL_4 == 1
     return SMAAGather(tex, texcoord + SMAA_PIXEL_SIZE * float2(-0.5, -0.5)).grb;
     #else
     float P = SMAASample(tex, texcoord).r;
@@ -514,7 +514,7 @@ float2 SMAACalculatePredicatedThreshold(float2 texcoord,
                                         SMAATexture2D colorTex,
                                         SMAATexture2D predicationTex) {
     float3 neighbours = SMAAGatherNeighbours(texcoord, offset, predicationTex);
-    float2 delta = abs(neighbours.xx - float2(neighbours.y, neighbours.z));
+    float2 delta = abs(neighbours.xx - neighbours.yz);
     float2 edges = step(SMAA_PREDICATION_THRESHOLD, delta);
     return SMAA_PREDICATION_SCALE * SMAA_THRESHOLD * (1.0 - SMAA_PREDICATION_STRENGTH * edges);
 }
