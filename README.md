@@ -1,8 +1,6 @@
 SMAA: Subpixel Morphological Antialiasing
 =========================================
 
-**NOTE THAT SMAA DEVELOPMENT IS IN PROGRESS, WITH SOME FEATURES STILL MISSING.**
-
 SMAA is a very efficient GPU-based MLAA implementation, capable of handling subpixel features seamlessly, and featuring an advanced pattern detection & handling mechanism.
 
 Checkout the [technical paper](http://www.iryoku.com/smaa/) for more info!
@@ -20,6 +18,8 @@ Thanks To
 **Jean-Francois St-Amour** ‒ for providing us great images for testing.
 
 **Johan Andersson** ‒ for providing the fantastic BF3 image and clearing important questions.
+
+**Andrej Dudenhenfer** ‒ for creating the SMAA injector.
 
 **Dmitriy Jdone** ‒ for porting the code to GLSL.
 

@@ -213,6 +213,7 @@ class SaveDepthStencilScope {
 
 class Utils {
     public:
+        static ID3D10Texture2D *createStagingTexture(ID3D10Device *device, ID3D10Texture2D *texture);
         static D3D10_VIEWPORT viewportFromView(ID3D10View *view);
         static D3D10_VIEWPORT viewportFromTexture2D(ID3D10Texture2D *texture2D);
 };

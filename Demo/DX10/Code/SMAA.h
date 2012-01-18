@@ -56,7 +56,7 @@ class SMAA {
     public:
         class ExternalStorage;
 
-        enum Mode { MODE_SMAA_1X, MODE_SMAA_T2X };
+        enum Mode { MODE_SMAA_1X, MODE_SMAA_T2X, MODE_SMAA_S2X, MODE_SMAA_4X };
         enum Preset { PRESET_LOW, PRESET_MEDIUM, PRESET_HIGH, PRESET_ULTRA, PRESET_CUSTOM };
         enum Input { INPUT_LUMA, INPUT_COLOR, INPUT_DEPTH };
 
@@ -100,17 +100,33 @@ class SMAA {
                 ID3D10RenderTargetView *dstRTV, // Output render target.
                 ID3D10DepthStencilView *dsv, // Depth-stencil buffer for optimizations.
                 Input input, // Selects the input for edge detection.
-                Mode mode=MODE_SMAA_1X,
-                int subsampleIndex=0);
+                Mode mode=MODE_SMAA_1X, // Selects the SMAA mode.
+                int subsampleIndex=0, // See SMAA.h (in the root directory)
+                float blendFactor=1.0f); // Allows to blend with the output render target.
 
         /**
          * This function perform a temporal resolve of two buffers. They must
          * contain temporary jittered color subsamples.
          */
-        void resolve(ID3D10ShaderResourceView *currentSRV,
-                     ID3D10ShaderResourceView *previousSRV,
-                     ID3D10ShaderResourceView *velocitySRV,
-                     ID3D10RenderTargetView *dstRTV); 
+        void reproject(ID3D10ShaderResourceView *currentSRV,
+                       ID3D10ShaderResourceView *previousSRV,
+                       ID3D10ShaderResourceView *velocitySRV,
+                       ID3D10RenderTargetView *dstRTV);
+
+        /**
+         * This function separates 2 subsamples in a 2x multisampled buffer
+         * (srcSRV) into two different render targets.
+         */
+        void separate(ID3D10ShaderResourceView *srcSRV,
+                      ID3D10RenderTargetView *dst1RTV,
+                      ID3D10RenderTargetView *dst2RTV);
+
+        /**
+         * Reorders the subsample indices to match the standard
+         * D3D1*_STANDARD_MULTISAMPLE_PATTERN arrangement.
+         * See related SMAA::detectMSAAOrder.
+         */
+        int msaaReorder(int sample) const { return msaaOrderMap[sample]; }
 
         /**
          * Threshold for the edge detection. Only has effect if PRESET_CUSTOM
@@ -173,6 +189,15 @@ class SMAA {
         };
 
     private:
+        /**
+         * Detects the sample order of MSAA 2x by rendering a quad that fills
+         * the left half of a 1x1 MSAA 2x buffer. The sample #0 of this buffer
+         * is then loaded and stored into a temporal 1x1 buffer. We transfer
+         * this value to the CPU, and check its value to determine the actual
+         * sample order. See related SMAA::msaaReorder.
+         */
+        void detectMSAAOrder();
+
         void loadAreaTex();
         void loadSearchTex();
         void edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input);
@@ -193,20 +218,24 @@ class SMAA {
         ID3D10ShaderResourceView *searchTexSRV;
 
         ID3D10EffectScalarVariable *thresholdVariable, *cornerRoundingVariable,
-                                   *maxSearchStepsVariable, *maxSearchStepsDiagVariable;
+                                   *maxSearchStepsVariable, *maxSearchStepsDiagVariable,
+                                   *blendFactorVariable;
         ID3D10EffectVectorVariable *subsampleIndicesVariable;
         ID3D10EffectShaderResourceVariable *areaTexVariable, *searchTexVariable,
-                                           *colorTexVariable, *colorTexGammaVariable, *colorTexPrevVariable,
+                                           *colorTexVariable, *colorTexGammaVariable, *colorTexPrevVariable, *colorMSTexVariable,
                                            *depthTexVariable, *velocityTexVariable,
                                            *edgesTexVariable, *blendTexVariable;
 
         ID3D10EffectTechnique *edgeDetectionTechniques[3],
-                              *blendWeightCalculationTechnique,
+                              *blendingWeightCalculationTechnique,
                               *neighborhoodBlendingTechnique,
-                              *resolveTechnique;
+                              *resolveTechnique,
+                              *separateTechnique;
 
         float threshold, cornerRounding;
         int maxSearchSteps, maxSearchStepsDiag;
+
+        int msaaOrderMap[2];
 };
 
 #endif

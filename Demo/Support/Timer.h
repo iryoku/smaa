@@ -60,6 +60,8 @@ class Timer {
         float clock(const std::wstring &msg=L"");
         float accumulated() const { return accum; }
 
+        void sleep(float ms);
+
         void setEnabled(bool enabled) { this->enabled = enabled; }
         bool isEnabled() const { return enabled; }
 

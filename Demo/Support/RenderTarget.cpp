@@ -346,13 +346,17 @@ void Quad::draw() {
 
 SaveViewportsScope::SaveViewportsScope(ID3D10Device *device) : device(device), numViewports(0) {
     device->RSGetViewports(&numViewports, NULL);
-    viewports.resize(numViewports);
-    device->RSGetViewports(&numViewports, &viewports.front());
+    if (numViewports > 0) {
+        viewports.resize(numViewports);
+        device->RSGetViewports(&numViewports, &viewports.front());
+    }
 }
 
 
 SaveViewportsScope::~SaveViewportsScope() {
-    device->RSSetViewports(numViewports, &viewports.front());
+    if (numViewports > 0) {
+        device->RSSetViewports(numViewports, &viewports.front());
+    }
 }
 
 
@@ -400,6 +404,21 @@ SaveDepthStencilScope::SaveDepthStencilScope(ID3D10Device *device) : device(devi
 SaveDepthStencilScope::~SaveDepthStencilScope() {
     device->OMSetDepthStencilState(depthStencilState, stencilRef);
     SAFE_RELEASE(depthStencilState);
+}
+
+
+ID3D10Texture2D *Utils::createStagingTexture(ID3D10Device *device, ID3D10Texture2D *texture) {
+    HRESULT hr;
+
+    D3D10_TEXTURE2D_DESC texdesc;
+    texture->GetDesc(&texdesc);
+    texdesc.Usage = D3D10_USAGE_STAGING;
+    texdesc.BindFlags = 0;
+    texdesc.CPUAccessFlags = D3D10_CPU_ACCESS_READ;
+
+    ID3D10Texture2D *stagingTexture;
+    V(device->CreateTexture2D(&texdesc, NULL, &stagingTexture));
+    return stagingTexture;
 }
 
 

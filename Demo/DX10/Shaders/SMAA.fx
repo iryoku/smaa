@@ -50,6 +50,13 @@
 int4 subsampleIndices;
 
 /**
+ * This is required for blending the results of previous subsample with the
+ * output render target; it's used in SMAA S2x and 4x, for other modes just use
+ * 1.0 (no blending).
+ */
+float blendFactor = 1.0;
+
+/**
  * This can be ignored; its purpose is to support interactive custom parameter
  * tweaking.
  */
@@ -104,6 +111,14 @@ DepthStencilState DisableDepthUseStencil {
     FrontFaceStencilFunc = EQUAL;
 };
 
+BlendState Blend {
+    AlphaToCoverageEnable = FALSE;
+    BlendEnable[0] = TRUE;
+    SrcBlend = BLEND_FACTOR;
+    DestBlend = INV_BLEND_FACTOR;
+    BlendOp = ADD;
+};
+
 BlendState NoBlending {
     AlphaToCoverageEnable = FALSE;
     BlendEnable[0] = FALSE;
@@ -113,9 +128,10 @@ BlendState NoBlending {
 /**
  * Input textures
  */
-Texture2D colorTexPrev;
 Texture2D colorTex;
 Texture2D colorTexGamma;
+Texture2D colorTexPrev;
+Texture2DMS<float4, 2> colorMSTex;
 Texture2D depthTex;
 Texture2D velocityTex;
 
@@ -142,12 +158,12 @@ void DX10_SMAAEdgeDetectionVS(float4 position : POSITION,
     SMAAEdgeDetectionVS(position, svPosition, texcoord, offset);
 }
 
-void DX10_SMAABlendWeightCalculationVS(float4 position : POSITION,
-                                       out float4 svPosition : SV_POSITION,
-                                       inout float2 texcoord : TEXCOORD0,
-                                       out float2 pixcoord : TEXCOORD1,
-                                       out float4 offset[3] : TEXCOORD2) {
-    SMAABlendWeightCalculationVS(position, svPosition, texcoord, pixcoord, offset);
+void DX10_SMAABlendingWeightCalculationVS(float4 position : POSITION,
+                                          out float4 svPosition : SV_POSITION,
+                                          inout float2 texcoord : TEXCOORD0,
+                                          out float2 pixcoord : TEXCOORD1,
+                                          out float4 offset[3] : TEXCOORD2) {
+    SMAABlendingWeightCalculationVS(position, svPosition, texcoord, pixcoord, offset);
 }
 
 void DX10_SMAANeighborhoodBlendingVS(float4 position : POSITION,
@@ -161,6 +177,12 @@ void DX10_SMAAResolveVS(float4 position : POSITION,
                         out float4 svPosition : SV_POSITION,
                         inout float2 texcoord : TEXCOORD0) {
     SMAAResolveVS(position, svPosition, texcoord);
+}
+
+void DX10_SMAASeparateVS(float4 position : POSITION,
+                         out float4 svPosition : SV_POSITION,
+                         inout float2 texcoord : TEXCOORD0) {
+    SMAASeparateVS(position, svPosition, texcoord);
 }
 
 float4 DX10_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
@@ -222,6 +244,14 @@ float4 DX10_SMAAResolvePS(float4 position : SV_POSITION,
     #endif
 }
 
+void DX10_SMAASeparatePS(float4 position : SV_POSITION,
+                         float2 texcoord : TEXCOORD0,
+                         out float4 target0 : SV_TARGET0,
+                         out float4 target1 : SV_TARGET1,
+                         uniform SMAATexture2DMS2 colorMSTex) {
+    SMAASeparatePS(position, texcoord, target0, target1, colorMSTex);
+}
+
 /**
  * Edge detection techniques
  */
@@ -263,7 +293,7 @@ technique10 DepthEdgeDetection {
  */
 technique10 BlendingWeightCalculation {
     pass BlendingWeightCalculation {
-        SetVertexShader(CompileShader(vs_4_0, DX10_SMAABlendWeightCalculationVS()));
+        SetVertexShader(CompileShader(vs_4_0, DX10_SMAABlendingWeightCalculationVS()));
         SetGeometryShader(NULL);
         SetPixelShader(CompileShader(PS_VERSION, DX10_SMAABlendingWeightCalculationPS(edgesTex, areaTex, searchTex)));
 
@@ -282,7 +312,8 @@ technique10 NeighborhoodBlending {
         SetPixelShader(CompileShader(PS_VERSION, DX10_SMAANeighborhoodBlendingPS(colorTex, blendTex)));
 
         SetDepthStencilState(DisableDepthStencil, 0);
-        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+        SetBlendState(Blend, float4(blendFactor, blendFactor, blendFactor, blendFactor), 0xFFFFFFFF);
+        // For SMAA 1x, just use NoBlending!
     }
 }
 
@@ -294,6 +325,20 @@ technique10 Resolve {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAAResolveVS()));
         SetGeometryShader(NULL);
         SetPixelShader(CompileShader(PS_VERSION, DX10_SMAAResolvePS(colorTex, colorTexPrev, velocityTex)));
+
+        SetDepthStencilState(DisableDepthStencil, 0);
+        SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+    }
+}
+
+/**
+ * 2x multisampled buffer conversion into two regular buffers
+ */
+technique10 Separate {
+    pass Separate {
+        SetVertexShader(CompileShader(vs_4_0, DX10_SMAASeparateVS()));
+        SetGeometryShader(NULL);
+        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAASeparatePS(colorMSTex)));
 
         SetDepthStencilState(DisableDepthStencil, 0);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);

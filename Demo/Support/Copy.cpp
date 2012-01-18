@@ -43,7 +43,6 @@ Quad *Copy::quad;
 
 void Copy::init(ID3D10Device *device) {
     Copy::device = device;
-    
 
     string s = "Texture2D tex;"
                "SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; AddressV = Clamp; };"
@@ -58,7 +57,7 @@ void Copy::init(ID3D10Device *device) {
                "}}";
 
     HRESULT hr;
-    V(D3DX10CreateEffectFromMemory(s.c_str(), s.length(), NULL, NULL, NULL, "fx_4_0", D3DXFX_NOT_CLONEABLE, 0, device, NULL, NULL, &effect, NULL, NULL));
+    V(D3DX10CreateEffectFromMemory(s.c_str(), s.length(), NULL, NULL, NULL, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, NULL, NULL, &effect, NULL, NULL));
 
     D3D10_PASS_DESC desc;
     V(effect->GetTechniqueByName("Copy")->GetPassByIndex(0)->GetDesc(&desc));

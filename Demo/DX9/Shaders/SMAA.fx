@@ -140,11 +140,11 @@ void DX9_SMAAEdgeDetectionVS(inout float4 position : POSITION,
     SMAAEdgeDetectionVS(position, position, texcoord, offset);
 }
 
-void DX9_SMAABlendWeightCalculationVS(inout float4 position : POSITION,
-                                      inout float2 texcoord : TEXCOORD0,
-                                      out float2 pixcoord : TEXCOORD1,
-                                      out float4 offset[3] : TEXCOORD2) {
-    SMAABlendWeightCalculationVS(position, position, texcoord, pixcoord, offset);
+void DX9_SMAABlendingWeightCalculationVS(inout float4 position : POSITION,
+                                         inout float2 texcoord : TEXCOORD0,
+                                         out float2 pixcoord : TEXCOORD1,
+                                         out float4 offset[3] : TEXCOORD2) {
+    SMAABlendingWeightCalculationVS(position, position, texcoord, pixcoord, offset);
 }
 
 void DX9_SMAANeighborhoodBlendingVS(inout float4 position : POSITION,
@@ -204,6 +204,7 @@ technique LumaEdgeDetection {
         ZEnable = false;        
         SRGBWriteEnable = false;
         AlphaBlendEnable = false;
+        AlphaTestEnable = false;
 
         // We will be creating the stencil buffer for later usage.
         StencilEnable = true;
@@ -219,6 +220,7 @@ technique ColorEdgeDetection {
         ZEnable = false;        
         SRGBWriteEnable = false;
         AlphaBlendEnable = false;
+        AlphaTestEnable = false;
 
         // We will be creating the stencil buffer for later usage.
         StencilEnable = true;
@@ -234,6 +236,7 @@ technique DepthEdgeDetection {
         ZEnable = false;        
         SRGBWriteEnable = false;
         AlphaBlendEnable = false;
+        AlphaTestEnable = false;
 
         // We will be creating the stencil buffer for later usage.
         StencilEnable = true;
@@ -244,11 +247,12 @@ technique DepthEdgeDetection {
 
 technique BlendWeightCalculation {
     pass BlendWeightCalculation {
-        VertexShader = compile vs_3_0 DX9_SMAABlendWeightCalculationVS();
+        VertexShader = compile vs_3_0 DX9_SMAABlendingWeightCalculationVS();
         PixelShader = compile ps_3_0 DX9_SMAABlendingWeightCalculationPS(edgesTex, areaTex, searchTex);
         ZEnable = false;
         SRGBWriteEnable = false;
         AlphaBlendEnable = false;
+        AlphaTestEnable = false;
 
         // Here we want to process only marked pixels.
         StencilEnable = true;
@@ -265,6 +269,7 @@ technique NeighborhoodBlending {
         ZEnable = false;
         SRGBWriteEnable = true;
         AlphaBlendEnable = false;
+        AlphaTestEnable = false;
 
         // Here we want to process all the pixels.
         StencilEnable = false;

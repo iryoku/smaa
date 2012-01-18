@@ -193,12 +193,14 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     cornerRoundingVariable = effect->GetVariableByName("cornerRounding")->AsScalar();
     maxSearchStepsVariable = effect->GetVariableByName("maxSearchSteps")->AsScalar();
     maxSearchStepsDiagVariable = effect->GetVariableByName("maxSearchStepsDiag")->AsScalar();
+    blendFactorVariable = effect->GetVariableByName("blendFactor")->AsScalar();
     subsampleIndicesVariable = effect->GetVariableByName("subsampleIndices")->AsVector();
     areaTexVariable = effect->GetVariableByName("areaTex")->AsShaderResource();
     searchTexVariable = effect->GetVariableByName("searchTex")->AsShaderResource();
     colorTexVariable = effect->GetVariableByName("colorTex")->AsShaderResource();
     colorTexGammaVariable = effect->GetVariableByName("colorTexGamma")->AsShaderResource();
     colorTexPrevVariable = effect->GetVariableByName("colorTexPrev")->AsShaderResource();
+    colorMSTexVariable = effect->GetVariableByName("colorMSTex")->AsShaderResource();
     depthTexVariable = effect->GetVariableByName("depthTex")->AsShaderResource();
     velocityTexVariable = effect->GetVariableByName("velocityTex")->AsShaderResource();
     edgesTexVariable = effect->GetVariableByName("edgesTex")->AsShaderResource();
@@ -208,9 +210,13 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     edgeDetectionTechniques[0] = effect->GetTechniqueByName("LumaEdgeDetection");
     edgeDetectionTechniques[1] = effect->GetTechniqueByName("ColorEdgeDetection");
     edgeDetectionTechniques[2] = effect->GetTechniqueByName("DepthEdgeDetection");
-    blendWeightCalculationTechnique = effect->GetTechniqueByName("BlendingWeightCalculation");
+    blendingWeightCalculationTechnique = effect->GetTechniqueByName("BlendingWeightCalculation");
     neighborhoodBlendingTechnique = effect->GetTechniqueByName("NeighborhoodBlending");
     resolveTechnique = effect->GetTechniqueByName("Resolve");
+    separateTechnique = effect->GetTechniqueByName("Separate");
+
+    // Detect MSAA 2x subsample order:
+    detectMSAAOrder();
 }
 
 
@@ -233,7 +239,8 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
               ID3D10DepthStencilView *dsv,
               Input input,
               Mode mode,
-              int subsampleIndex) {
+              int subsampleIndex,
+              float blendFactor) {
     HRESULT hr;
 
     // Save the state:
@@ -262,6 +269,7 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
         V(maxSearchStepsVariable->SetFloat(float(maxSearchSteps)));
         V(maxSearchStepsDiagVariable->SetFloat(float(maxSearchStepsDiag)));
     }
+    V(blendFactorVariable->SetFloat(blendFactor));
     V(colorTexVariable->SetResource(srcSRV));
     V(edgesTexVariable->SetResource(*edgesRT));
     V(blendTexVariable->SetResource(*blendRT));
@@ -277,10 +285,10 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
 }
 
 
-void SMAA::resolve(ID3D10ShaderResourceView *currentSRV,
-                   ID3D10ShaderResourceView *previousSRV,
-                   ID3D10ShaderResourceView *velocitySRV,
-                   ID3D10RenderTargetView *dstRTV) {
+void SMAA::reproject(ID3D10ShaderResourceView *currentSRV,
+                     ID3D10ShaderResourceView *previousSRV,
+                     ID3D10ShaderResourceView *velocitySRV,
+                     ID3D10RenderTargetView *dstRTV) {
     D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: temporal resolve");
     HRESULT hr;
 
@@ -305,6 +313,39 @@ void SMAA::resolve(ID3D10ShaderResourceView *currentSRV,
 
     // Do it!
     device->OMSetRenderTargets(1, &dstRTV, NULL);
+    quad->draw();
+    device->OMSetRenderTargets(0, NULL, NULL);
+
+    D3DPERF_EndEvent();
+}
+
+
+void SMAA::separate(ID3D10ShaderResourceView *srcSRV,
+                    ID3D10RenderTargetView *dst1RTV,
+                    ID3D10RenderTargetView *dst2RTV) {
+    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: separate");
+    HRESULT hr;
+
+    // Save the state:
+    SaveViewportsScope saveViewport(device);
+    SaveRenderTargetsScope saveRenderTargets(device);
+    SaveInputLayoutScope saveInputLayout(device);
+    SaveBlendStateScope saveBlendState(device);
+    SaveDepthStencilScope saveDepthStencil(device);
+
+    // Setup the viewport and the vertex layout:
+    edgesRT->setViewport();
+    quad->setInputLayout();
+
+    // Setup variables:
+    V(colorMSTexVariable->SetResource(srcSRV));
+
+    // Select the technique accordingly:
+    V(separateTechnique->GetPassByIndex(0)->Apply(0));
+
+    // Do it!
+    ID3D10RenderTargetView *dst[] = { dst1RTV, dst2RTV };
+    device->OMSetRenderTargets(2, dst, NULL);
     quad->draw();
     device->OMSetRenderTargets(0, NULL, NULL);
 
@@ -410,6 +451,25 @@ void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv, Mode mode
     D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: 2nd pass");
     HRESULT hr;
 
+    /**
+     * Orthogonal indices:
+     *     [0]:  0.0
+     *     [1]: -0.25
+     *     [2]:  0.25
+     *     [3]: -0.125
+     *     [4]:  0.125
+     *     [5]: -0.375
+     *     [6]:  0.375
+     *
+     * Diagonal indices:
+     *     [0]:  0.00,   0.00
+     *     [1]:  0.25,  -0.25
+     *     [2]: -0.25,   0.25
+     *     [3]:  0.125, -0.125
+     *     [4]: -0.125,  0.125
+     *
+     * Indices layout: indices[4] = { |, --,  /, \ }
+     */
 
     switch (mode) {
         case MODE_SMAA_1X: {
@@ -417,10 +477,38 @@ void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv, Mode mode
             V(subsampleIndicesVariable->SetIntVector(indices));
             break;
         }
-        case MODE_SMAA_T2X: {
+        case MODE_SMAA_T2X:
+        case MODE_SMAA_S2X: {
+            /***
+             * Sample positions (bottom-to-top y axis):
+             *   _______
+             *  | S1    |  S0:  0.25    -0.25
+             *  |       |  S1: -0.25     0.25
+             *  |____S0_|
+             */
+              int indices[][4] = {
+                { 1, 1, 1, 0 }, // S0
+                { 2, 2, 2, 0 }  // S1
+                // (it's 1 for the horizontal slot of S0 because horizontal
+                //  blending is reversed: positive numbers point to the right)
+            };
+            V(subsampleIndicesVariable->SetIntVector(indices[subsampleIndex]));
+            break;
+        }
+        case MODE_SMAA_4X: {
+            /***
+             * Sample positions (bottom-to-top y axis):
+             *   ________
+             *  |  S1    |  S0:  0.3750   -0.1250
+             *  |      S0|  S1: -0.1250    0.3750
+             *  |S3      |  S2:  0.1250   -0.3750
+             *  |____S2__|  S3: -0.3750    0.1250
+             */
             int indices[][4] = {
-                { 1, 1, 1, 0 },
-                { 2, 2, 2, 0 }
+                { 5, 3, 1, 3 }, // S0
+                { 4, 6, 2, 3 }, // S1
+                { 3, 5, 1, 4 }, // S2
+                { 6, 4, 2, 4 }  // S3
             };
             V(subsampleIndicesVariable->SetIntVector(indices[subsampleIndex]));
             break;
@@ -428,7 +516,7 @@ void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv, Mode mode
     }
 
     // Setup the technique (again):
-    V(blendWeightCalculationTechnique->GetPassByIndex(0)->Apply(0));
+    V(blendingWeightCalculationTechnique->GetPassByIndex(0)->Apply(0));
 
     // And here we go!
     device->OMSetRenderTargets(1, *blendRT, dsv);
@@ -452,4 +540,81 @@ void SMAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthS
     device->OMSetRenderTargets(0, NULL, NULL);
 
     D3DPERF_EndEvent();
+}
+
+
+void SMAA::detectMSAAOrder() {
+    HRESULT hr;
+
+    // Create the effect:
+    string s = "float4 RenderVS(float4 pos : POSITION,    inout float2 coord : TEXCOORD0) : SV_POSITION { pos.x = -0.5 + 0.5 * pos.x; return pos; }"
+               "float4 RenderPS(float4 pos : SV_POSITION,       float2 coord : TEXCOORD0) : SV_TARGET   { return 1.0; }"
+               "DepthStencilState DisableDepthStencil { DepthEnable = FALSE; StencilEnable = FALSE; };"
+               "BlendState NoBlending { AlphaToCoverageEnable = FALSE; BlendEnable[0] = FALSE; };"
+               "technique10 Render { pass Render {"
+               "SetVertexShader(CompileShader(vs_4_0, RenderVS())); SetGeometryShader(NULL); SetPixelShader(CompileShader(ps_4_0, RenderPS()));"
+               "SetDepthStencilState(DisableDepthStencil, 0);"
+               "SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);"
+               "}}"
+               "Texture2DMS<float4, 2> texMS;"
+               "float4 LoadVS(float4 pos : POSITION,    inout float2 coord : TEXCOORD0) : SV_POSITION { return pos; }"
+               "float4 LoadPS(float4 pos : SV_POSITION,       float2 coord : TEXCOORD0) : SV_TARGET   { int2 ipos = int2(pos.xy); return texMS.Load(ipos, 0); }"
+               "technique10 Load { pass Load {"
+               "SetVertexShader(CompileShader(vs_4_0, LoadVS())); SetGeometryShader(NULL); SetPixelShader(CompileShader(ps_4_0, LoadPS()));"
+               "SetDepthStencilState(DisableDepthStencil, 0);"
+               "SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);"
+               "}}";
+    ID3D10Effect *effect;
+    V(D3DX10CreateEffectFromMemory(s.c_str(), s.length(), NULL, NULL, NULL, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, NULL, NULL, &effect, NULL, NULL));
+
+    // Create the buffers:
+    DXGI_SAMPLE_DESC sampleDesc = { 2, 0 };
+    RenderTarget *renderTargetMS = new RenderTarget(device, 1, 1, DXGI_FORMAT_R8_UNORM, sampleDesc);
+    RenderTarget *renderTarget = new RenderTarget(device, 1, 1, DXGI_FORMAT_R8_UNORM);
+    ID3D10Texture2D *stagingTexture = Utils::createStagingTexture(device, *renderTarget);
+
+    // Create a quad:
+    D3D10_PASS_DESC desc;
+    V(effect->GetTechniqueByName("Render")->GetPassByIndex(0)->GetDesc(&desc));
+    Quad *quad = new Quad(device, desc);
+
+    // Save DX state:
+    SaveViewportsScope saveViewport(device);
+    SaveRenderTargetsScope saveRenderTargets(device);
+    SaveInputLayoutScope saveInputLayout(device);
+
+    // Set viewport and input layout:
+    renderTargetMS->setViewport();
+    quad->setInputLayout();
+
+    // Render a quad that fills the left half of a 1x1 buffer:
+    V(effect->GetTechniqueByName("Render")->GetPassByIndex(0)->Apply(0));
+    device->OMSetRenderTargets(1, *renderTargetMS, NULL);
+    quad->draw();
+    device->OMSetRenderTargets(0, NULL, NULL);
+
+    // Load the sample 0 from previous 1x1 buffer:
+    V(effect->GetVariableByName("texMS")->AsShaderResource()->SetResource(*renderTargetMS));
+    V(effect->GetTechniqueByName("Load")->GetPassByIndex(0)->Apply(0));
+    device->OMSetRenderTargets(1, *renderTarget, NULL);
+    quad->draw();
+    device->OMSetRenderTargets(0, NULL, NULL);
+
+    // Copy the sample #0 into CPU memory:
+    device->CopyResource(stagingTexture, *renderTarget);
+    D3D10_MAPPED_TEXTURE2D map;
+    V(stagingTexture->Map(0, D3D10_MAP_READ, 0, &map));
+    BYTE value = ((char *) map.pData)[0];
+    stagingTexture->Unmap(0);
+
+    // Set the map indices:
+    msaaOrderMap[0] = int(value == 255);
+    msaaOrderMap[1] = int(value != 255);
+
+    // Release memory
+    SAFE_RELEASE(effect);
+    SAFE_DELETE(renderTargetMS);
+    SAFE_DELETE(renderTarget);
+    SAFE_RELEASE(stagingTexture);
+    SAFE_DELETE(quad);
 }

@@ -62,13 +62,19 @@ ID3DX10Sprite *sprite = NULL;
 CDXUTTextHelper *txtHelper = NULL;
 
 SMAA *smaa = NULL;
+
 DepthStencil *depthStencil = NULL;
-RenderTarget *depthBufferRT = NULL;
-BackbufferRenderTarget *backbufferRT = NULL;
+DepthStencil *depthStencil1x = NULL;
+
 RenderTarget *tmpRT_SRGB = NULL;
 RenderTarget *tmpRT = NULL;
+RenderTarget *tmp1xRT[2] = { NULL, NULL };
+RenderTarget *tmp1xRT_SRGB[2] = { NULL, NULL };
+RenderTarget *depthBufferRT = NULL;
 RenderTarget *velocityRT = NULL;
+RenderTarget *velocity1xRT = NULL;
 RenderTarget *finalRT[2] = { NULL, NULL };
+BackbufferRenderTarget *backbufferRT = NULL;
 
 ID3D10ShaderResourceView *inputColorSRV = NULL;
 ID3D10ShaderResourceView *inputDepthSRV = NULL;
@@ -116,7 +122,7 @@ struct {
 } commandlineOptions = {0.1f, 16, 8, 25.0f, L"", L""};
 
 
-enum FramerateLock { FPS_UNLOCK, FPS_LOCK_TO_15, FPS_LOCK_TO_30, FPS_LOCK_TO_60 };
+enum FramerateLock { FPS_UNLOCK, FPS_LOCK_TO_15=66, FPS_LOCK_TO_30=33, FPS_LOCK_TO_60=16 };
 
 
 #define IDC_TOGGLE_FULLSCREEN            1
@@ -342,6 +348,8 @@ void buildModesComboBox() {
 
     hud.GetComboBox(IDC_AA_MODE)->AddItem(L"SMAA 1x", (LPVOID) SMAA::MODE_SMAA_1X);
     hud.GetComboBox(IDC_AA_MODE)->AddItem(L"SMAA T2x", (LPVOID) SMAA::MODE_SMAA_T2X);
+    hud.GetComboBox(IDC_AA_MODE)->AddItem(L"SMAA S2x", (LPVOID) SMAA::MODE_SMAA_S2X);
+    hud.GetComboBox(IDC_AA_MODE)->AddItem(L"SMAA 4x", (LPVOID) SMAA::MODE_SMAA_4X);
 
     supportedMsaaModes.clear();
     for(int i = 0; i < sizeof(msaaModes) / sizeof(MSAAMode); i++){
@@ -387,7 +395,7 @@ HRESULT CALLBACK onCreateDevice(ID3D10Device *device, const DXGI_SURFACE_DESC *d
 
     D3DX10_IMAGE_LOAD_INFO loadInfo = D3DX10_IMAGE_LOAD_INFO();
     loadInfo.Filter = D3DX10_FILTER_POINT | D3DX10_FILTER_SRGB_IN;
-    V(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(NULL), L"EnvMap.dds", &loadInfo, NULL, &envTexSRV, NULL));
+    V_RETURN(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(NULL), L"EnvMap.dds", &loadInfo, NULL, &envTexSRV, NULL));
 
     buildModesComboBox();
 
@@ -457,27 +465,37 @@ HRESULT CALLBACK onResizedSwapChain(ID3D10Device *device, IDXGISwapChain *swapCh
 
     hud.SetLocation(desc->Width - (45 + HUD_WIDTH), 0);
 
+    float aspect = (float) desc->Width / desc->Height;
+    camera.setProjection(18.0f * D3DX_PI / 180.f, aspect, 0.01f, 100.0f);
+    camera.setViewportSize(D3DXVECTOR2(float(desc->Width), float(desc->Height)));
+
     initSMAA(device, desc);
 
     DXGI_SAMPLE_DESC sampleDesc;
     int mode = int(hud.GetComboBox(IDC_AA_MODE)->GetSelectedData());
     if (mode > 10) // Then, it's a MSAA mode:
         sampleDesc = supportedMsaaModes[mode - 10].desc;
-    else // Then, we are going to use SMAA:
+    else if (mode == SMAA::MODE_SMAA_S2X || mode == SMAA::MODE_SMAA_4X)
+        sampleDesc = msaaModes[1].desc;
+    else // Then, we are going to use SMAA 1x or SMAA T2x:
         sampleDesc = NoMSAA();
 
     depthStencil = new DepthStencil(device, desc->Width, desc->Height,  DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS, sampleDesc);
-    depthBufferRT = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R32_FLOAT);
-    backbufferRT = new BackbufferRenderTarget(device, DXUTGetDXGISwapChain());
+    depthStencil1x = new DepthStencil(device, desc->Width, desc->Height,  DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
+
     tmpRT_SRGB = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, sampleDesc);
     tmpRT = new RenderTarget(device, *tmpRT_SRGB, DXGI_FORMAT_R8G8B8A8_UNORM);
+    for (int i = 0; i < 2; i++) {
+        tmp1xRT_SRGB[i] = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, sampleDesc);
+        tmp1xRT[i] = new RenderTarget(device, *tmp1xRT_SRGB[i], DXGI_FORMAT_R8G8B8A8_UNORM);
+    }
+
+    depthBufferRT = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R32_FLOAT);
     velocityRT = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R16G16_FLOAT, sampleDesc);
+    velocity1xRT = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R16G16_FLOAT);
     for (int i = 0; i < 2; i++)
         finalRT[i] = new RenderTarget(device, desc->Width, desc->Height, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
-
-    float aspect = (float) desc->Width / desc->Height;
-    camera.setProjection(18.0f * D3DX_PI / 180.f, aspect, 0.01f, 100.0f);
-    camera.setViewportSize(D3DXVECTOR2(float(desc->Width), float(desc->Height)));
+    backbufferRT = new BackbufferRenderTarget(device, DXUTGetDXGISwapChain());
 
     return S_OK;
 }
@@ -487,14 +505,23 @@ void CALLBACK onReleasingSwapChain(void *context) {
     dialogResourceManager.OnD3D10ReleasingSwapChain();
 
     SAFE_DELETE(smaa);
+
     SAFE_DELETE(depthStencil);
-    SAFE_DELETE(depthBufferRT);
-    SAFE_DELETE(backbufferRT);
+    SAFE_DELETE(depthStencil1x);
+
     SAFE_DELETE(tmpRT);
     SAFE_DELETE(tmpRT_SRGB);
+    for (int i = 0; i < 2; i++) {
+        SAFE_DELETE(tmp1xRT[i]);
+        SAFE_DELETE(tmp1xRT_SRGB[i]);
+    }
+
+    SAFE_DELETE(depthBufferRT);
     SAFE_DELETE(velocityRT);
+    SAFE_DELETE(velocity1xRT);
     for (int i = 0; i < 2; i++)
         SAFE_DELETE(finalRT[i]);
+    SAFE_DELETE(backbufferRT);
 }
 
 
@@ -555,6 +582,51 @@ void renderMesh(ID3D10Device *device, const D3DXVECTOR2 &jitter) {
 }
 
 
+void renderScene(ID3D10Device *device) {
+    bool fromImage = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() > 0;
+    bool smaaEnabled = hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked() &&
+                       hud.GetCheckBox(IDC_ANTIALIASING)->GetEnabled();
+    SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_AA_MODE)->GetSelectedData()));
+
+    // Copy the image or render the mesh:
+    if (fromImage) {
+        D3D10_VIEWPORT viewport = Utils::viewportFromView(inputColorSRV);
+        Copy::go(inputColorSRV, *tmpRT_SRGB, &viewport);
+        Copy::go(inputDepthSRV, *depthBufferRT, &viewport);
+    } else {
+        D3DXVECTOR2 jitter;
+        if (smaaEnabled) {
+            switch (mode) {
+                case SMAA::MODE_SMAA_1X:
+                case SMAA::MODE_SMAA_S2X:
+                    jitter = D3DXVECTOR2(0.0f, 0.0f);
+                    break;
+                case SMAA::MODE_SMAA_T2X: {
+                    D3DXVECTOR2 jitters[] = {
+                        D3DXVECTOR2( 0.25f, -0.25f),
+                        D3DXVECTOR2(-0.25f,  0.25f)
+                    };
+                    jitter = jitters[subpixelIndex];
+                    break;
+                }
+                case SMAA::MODE_SMAA_4X:
+                    D3DXVECTOR2 jitters[] = {
+                        D3DXVECTOR2( 0.125f,  0.125f),
+                        D3DXVECTOR2(-0.125f, -0.125f)
+                    };
+                    jitter = jitters[subpixelIndex];
+                    break;
+            }
+        } else {
+            jitter = D3DXVECTOR2(0.0f, 0.0f);
+        }
+        renderMesh(device, jitter);
+    }
+
+    device->ResolveSubresource(*velocity1xRT, 0, *velocityRT, 0, DXGI_FORMAT_R16G16_FLOAT);
+}
+
+
 void runSMAA(ID3D10Device *device, SMAA::Mode mode) {
     // Calculate next subpixel index:
     int previousIndex = subpixelIndex;
@@ -564,41 +636,44 @@ void runSMAA(ID3D10Device *device, SMAA::Mode mode) {
     bool smaaEnabled = hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked() &&
                        hud.GetCheckBox(IDC_ANTIALIASING)->GetEnabled();
     SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTION_MODE)->GetSelectedData()));
-    bool fromImage = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() > 0;
     int repetitionsCount = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? profileTimer->getRepetitionsCount() : 1;
-
-    // Copy the image or render the mesh:
-    if (fromImage) {
-        D3D10_VIEWPORT viewport = Utils::viewportFromView(inputColorSRV);
-        Copy::go(inputColorSRV, *tmpRT_SRGB, &viewport);
-        Copy::go(inputDepthSRV, *depthBufferRT, &viewport);
-    } else {
-        if (smaaEnabled && mode == SMAA::MODE_SMAA_T2X) {
-            D3DXVECTOR2 jitter[] = {
-                D3DXVECTOR2(-0.25f,  0.25f),
-                D3DXVECTOR2( 0.25f, -0.25f)
-            };
-            renderMesh(device, jitter[subpixelIndex]);
-        } else {
-            renderMesh(device, D3DXVECTOR2(0.0f, 0.0f));
-        }
-    }
 
     // Run SMAA:
     if (smaaEnabled) {
-        ID3D10RenderTargetView *dstRTV = mode == SMAA::MODE_SMAA_1X?
-                                         (ID3D10RenderTargetView *) *backbufferRT :
-                                         *finalRT[currentIndex];
-
         profileTimer->start();
-        for (int i = 0; i < repetitionsCount; i++) { // This loop is for profiling.
-            smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, dstRTV, *depthStencil, input, mode, subpixelIndex);
-            if (mode == SMAA::MODE_SMAA_T2X)
-                smaa->resolve(*finalRT[currentIndex], *finalRT[previousIndex], *velocityRT, *backbufferRT);
+        switch (mode) {
+            case SMAA::MODE_SMAA_1X:
+                for (int i = 0; i < repetitionsCount; i++) // This loop is for profiling.
+                    smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode);
+                break;
+            case SMAA::MODE_SMAA_T2X:
+                for (int i = 0; i < repetitionsCount; i++) {
+                    smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, subpixelIndex);
+                    smaa->reproject(*finalRT[currentIndex], *finalRT[previousIndex], *velocityRT, *backbufferRT);
+                }
+                break;
+            case SMAA::MODE_SMAA_S2X:
+                for (int i = 0; i < repetitionsCount; i++) {
+                    smaa->separate(*tmpRT, *tmp1xRT[0], *tmp1xRT[1]);
+                    smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode, smaa->msaaReorder(0), 1.0);
+                    smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode, smaa->msaaReorder(1), 0.5);
+                }
+                break;
+            case SMAA::MODE_SMAA_4X:
+                for (int i = 0; i < repetitionsCount; i++) {
+                    smaa->separate(*tmpRT, *tmp1xRT[0], *tmp1xRT[1]);
+                    smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 2 * subpixelIndex + smaa->msaaReorder(0), 1.0);
+                    smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 2 * subpixelIndex + smaa->msaaReorder(1), 0.5);
+                    smaa->reproject(*finalRT[currentIndex], *finalRT[previousIndex], *velocity1xRT, *backbufferRT);
+                }
+                break;
         }
         profileTimer->clock(L"SMAA");
     } else {
-        Copy::go(*tmpRT_SRGB, *backbufferRT);
+        if (mode == SMAA::MODE_SMAA_1X)
+            Copy::go(*tmpRT_SRGB, *backbufferRT);
+        else
+            device->ResolveSubresource(*backbufferRT, 0, *tmpRT_SRGB, 0, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
     }
 
     // Update subpixel index:
@@ -615,7 +690,7 @@ void saveBackbuffer(ID3D10Device *device) {
 }
 
 
-void doBenchmark() {
+void runBenchmark() {
     benchmarkFile << profileTimer->getSection(L"SMAA") << endl;
 
     int next = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() + 1;
@@ -697,17 +772,22 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
     float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     device->ClearRenderTargetView(*tmpRT_SRGB, clearColor);
     device->ClearRenderTargetView(*velocityRT, clearColor);
+    device->ClearDepthStencilView(*depthStencil1x, D3D10_CLEAR_STENCIL, 1.0, 0);
     device->ClearDepthStencilView(*depthStencil, D3D10_CLEAR_DEPTH | D3D10_CLEAR_STENCIL, 1.0, 0);
+
+    // Render the scene:
+    renderScene(device);
 
     // Run SMAA or MSAA:
     SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_AA_MODE)->GetSelectedData()));
     switch (mode) {
         case SMAA::MODE_SMAA_1X:
         case SMAA::MODE_SMAA_T2X:
+        case SMAA::MODE_SMAA_S2X:
+        case SMAA::MODE_SMAA_4X:
             runSMAA(device, mode);
             break;
         default: // MSAA mode
-            renderMesh(device, D3DXVECTOR2(0.0f, 0.0f));
             device->ResolveSubresource(*backbufferRT, 0, *tmpRT_SRGB, 0, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
             break;
     }
@@ -720,7 +800,7 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
 
     // Run the benchmark, if required:
     if (benchmark)
-        doBenchmark();
+        runBenchmark();
 
     // Draw the HUD:
     drawTextures(device);
@@ -728,17 +808,8 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
 
     // Lock the frame rate:
     FramerateLock framerateLock = FramerateLock(int(hud.GetComboBox(IDC_LOCK_FRAMERATE)->GetSelectedData()));
-    switch (framerateLock) {
-        case FPS_LOCK_TO_15:
-            Sleep(max(66 - int(1000.0f * framerateLockTimer->clock()), 0));
-            break;
-        case FPS_LOCK_TO_30:
-            Sleep(max(33 - int(1000.0f * framerateLockTimer->clock()), 0));
-            break;
-        case FPS_LOCK_TO_60:
-            Sleep(max(16 - int(1000.0f * framerateLockTimer->clock()), 0));
-            break;
-    }
+    if (framerateLock != FPS_UNLOCK)
+        framerateLockTimer->sleep(int(framerateLock) / 1000.0f);
 }
 
 
@@ -747,6 +818,7 @@ void CALLBACK onFrameMove(double time, float elapsedTime, void *context) {
 
     if (recPlayState == RECPLAY_PLAYING &&
         DXUTGetTime() - recPlayTime > recPlayDuration) {
+
         recPlayState = RECPLAY_IDLE;
         camera.setAngularVelocity(D3DXVECTOR2(0.0f, 0.0f));
     }

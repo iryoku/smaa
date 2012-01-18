@@ -55,6 +55,9 @@
  * Here you'll find instructions to get the shader up and running as fast as
  * possible.
  *
+ * IMPORTANTE NOTICE: when updating, remember to update both this file and the
+ * precomputed textures! They may change from version to version.
+ *
  * The shader has three passes, chained together as follows:
  *
  *                           |input|------------------·
@@ -170,7 +173,7 @@
  *    SMAA_PREDICATION; you'll need to pass an extra texture in the edge
  *    detection pass.
  *
- * b) If you want to enable temporal supersampling:
+ * b) If you want to enable temporal supersampling (SMAA T2x):
  *
  * 1. The first step is to render using subpixel jitters. I won't go into
  *    detail, but it's as simple as moving each vertex position in the
@@ -192,21 +195,69 @@
  *
  *    @SUBSAMPLE_INDICES
  *
- *             |         jitter         |    subsampleIndices    |
- *             +------------------------+------------------------|
- *             | float2(-0.25f,  0.25f) |    int4(1, 1, 1, 0)    |
- *             | float2( 0.25f, -0.25f) |    int4(2, 2, 2, 0)    |
- *       OR
- *             +------------------------+------------------------|
- *             | float2( 0.25f,  0.25f) |    int4(2, 1, 0, 2)    |
- *             | float2(-0.25f, -0.25f) |    int4(1, 2, 0, 1)    |
+ *    | S# |  Camera Jitter   |  subsampleIndices  |
+ *    +----+------------------+--------------------+
+ *    |  0 |  ( 0.25, -0.25)  |  int4(1, 1, 1, 0)  |
+ *    |  1 |  (-0.25,  0.25)  |  int4(2, 2, 2, 0)  |
  *
- *    These jitter positions assume a bottom-to-top y axis.
+ *    These jitter positions assume a bottom-to-top y axis. S# stands for the
+ *    sample number.
  *
  * More information about temporal supersampling here:
  *    http://iryoku.com/aacourse/downloads/13-Anti-Aliasing-Methods-in-CryENGINE-3.pdf
  *
- * c) If motion blur is used, you may want to do the edge detection pass
+ * c) If you want to enable spatial multisampling (SMAA S2x):
+ *
+ * 1. The scene must be rendered using MSAA 2x. The MSAA 2x buffer must be
+ *    created with:
+ *      - DX10:     see below (*)
+ *      - DX10.1:   D3D10_STANDARD_MULTISAMPLE_PATTERN or
+ *      - DX11:     D3D11_STANDARD_MULTISAMPLE_PATTERN
+ *
+ *    This allows to ensure that the subsample order matches the table in
+ *    @SUBSAMPLE_INDICES.
+ *
+ *    (*) In the case of DX10, we refer the reader to:
+ *      - SMAA::detectMSAAOrder and
+ *      - SMAA::msaaReorder
+ *
+ *    These functions allow to match the standard multisample patterns by
+ *    detecting the subsample order for a specific GPU, and reordering
+ *    them appropriately.
+ *
+ * 2. A shader must be run to output each subsample into a separate buffer
+ *    (DX10 is required). You can use SMAASeparate for this purpose, or just do
+ *    it in an existing pass (for example, in the tone mapping pass).
+ *
+ * 3. The full SMAA 1x pipeline must be run for each separated buffer, storing
+ *    the results in the final buffer. The second run should alpha blend with
+ *    the existing final buffer using a blending factor of 0.5.
+ *    'subsampleIndices' must be adjusted as in the SMAA T2x case (see point
+ *    b).
+ *
+ * d) If you want to enable temporal supersampling on top of SMAA S2x
+ *    (which actually is SMAA 4x):
+ *
+ * 1. SMAA 4x consists on temporally jittering SMAA S2x, so the first step is
+ *    to calculate SMAA S2x for current frame. In this case, 'subsampleIndices'
+ *    must be set as follows:
+ *
+ *    | F# | S# |   Camera Jitter    |    Net Jitter     |  subsampleIndices  |
+ *    +----+----+--------------------+-------------------+--------------------+
+ *    |  0 |  0 |  ( 0.125,  0.125)  |  ( 0.375, -0.125) |  int4(5, 3, 1, 3)  |
+ *    |  0 |  1 |  ( 0.125,  0.125)  |  (-0.125,  0.375) |  int4(4, 6, 2, 3)  |
+ *    +----+----+--------------------+-------------------+--------------------+
+ *    |  1 |  2 |  (-0.125, -0.125)  |  ( 0.125, -0.375) |  int4(3, 5, 1, 4)  |
+ *    |  1 |  3 |  (-0.125, -0.125)  |  (-0.375,  0.125) |  int4(6, 4, 2, 4)  |
+ *
+ *    These jitter positions assume a bottom-to-top y axis. F# stands for the
+ *    frame number. S# stands for the sample number.
+ *
+ * 2. After calculating SMAA S2x for current frame (with the new subsample
+ *    indices), previous frame must be reprojected as in SMAA T2x mode (see
+ *    point b).
+ *
+ * e) If motion blur is used, you may want to do the edge detection pass
  *    together with motion blur. This has two advantages:
  *
  * 1. Pixels under heavy motion can be omitted from the edge detection process.
@@ -222,6 +273,11 @@
 
 //-----------------------------------------------------------------------------
 // SMAA Presets
+
+/**
+ * Note that if you use one of these presets, the corresponding macros below
+ * won't be used.
+ */
 
 #if SMAA_PRESET_LOW == 1
 #define SMAA_THRESHOLD 0.15
@@ -421,8 +477,8 @@
 #ifndef SMAA_AREATEX_MAX_DISTANCE_DIAG
 #define SMAA_AREATEX_MAX_DISTANCE_DIAG 20
 #endif
-#define SMAA_AREATEX_PIXEL_SIZE (1.0 / float2(160.0, 240.0))
-#define SMAA_AREATEX_SUBTEX_SIZE (1.0 / 3.0)
+#define SMAA_AREATEX_PIXEL_SIZE (1.0 / float2(160.0, 560.0))
+#define SMAA_AREATEX_SUBTEX_SIZE (1.0 / 7.0)
 
 //-----------------------------------------------------------------------------
 // Porting Functions
@@ -456,6 +512,8 @@ SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; Addres
 #define SMAAMad(a, b, c) mad(a, b, c)
 #define SMAA_FLATTEN [flatten]
 #define SMAA_BRANCH [branch]
+#define SMAATexture2DMS2 Texture2DMS<float4, 2>
+#define SMAALoad(tex, pos, sample) tex.Load(pos, sample)
 #endif
 #if SMAA_HLSL_4_1 == 1
 #define SMAAGather(tex, coord) tex.Gather(LinearSampler, coord, 0)
@@ -540,11 +598,11 @@ void SMAAEdgeDetectionVS(float4 position,
 /**
  * Blend Weight Calculation Vertex Shader
  */
-void SMAABlendWeightCalculationVS(float4 position,
-                                  out float4 svPosition,
-                                  inout float2 texcoord,
-                                  out float2 pixcoord,
-                                  out float4 offset[3]) {
+void SMAABlendingWeightCalculationVS(float4 position,
+                                     out float4 svPosition,
+                                     inout float2 texcoord,
+                                     out float2 pixcoord,
+                                     out float4 offset[3]) {
     svPosition = position;
 
     pixcoord = texcoord / SMAA_PIXEL_SIZE;
@@ -578,6 +636,15 @@ void SMAANeighborhoodBlendingVS(float4 position,
 void SMAAResolveVS(float4 position,
                    out float4 svPosition,
                    inout float2 texcoord) {
+    svPosition = position;
+}
+
+/**
+ * Separate Vertex Shader
+ */
+void SMAASeparateVS(float4 position,
+                    out float4 svPosition,
+                    inout float2 texcoord) {
     svPosition = position;
 }
 #endif // SMAA_ONLY_COMPILE_PS == 0
@@ -1154,8 +1221,7 @@ float4 SMAANeighborhoodBlendingPS(float2 texcoord,
         // Unpack velocity and return the resulting value:
         Caa.a = sqrt(Caa.a);
         return Caa;
-        #else
-        #if SMAA_HLSL_4 == 1 || SMAA_DIRECTX9_LINEAR_BLEND == 0
+        #elif SMAA_HLSL_4 == 1 || SMAA_DIRECTX9_LINEAR_BLEND == 0
         // We exploit bilinear filtering to mix current pixel with the chosen
         // neighbor:
         texcoord += offset * SMAA_PIXEL_SIZE;
@@ -1168,12 +1234,11 @@ float4 SMAANeighborhoodBlendingPS(float2 texcoord,
         float s = abs(offset.x) > abs(offset.y)? abs(offset.x) : abs(offset.y);
         return SMAALerp(C, Cop, s);
         #endif
-        #endif
     }
 }
 
 //-----------------------------------------------------------------------------
-// Temporal Resolve Pixel Shader (Optional Fourth Pass)
+// Temporal Resolve Pixel Shader (Optional Pass)
 
 float4 SMAAResolvePS(float2 texcoord,
                      SMAATexture2D colorTexCurr,
@@ -1206,6 +1271,21 @@ float4 SMAAResolvePS(float2 texcoord,
     return SMAALerp(current, previous, 0.5);
     #endif
 }
+
+//-----------------------------------------------------------------------------
+// Separate Multisamples Pixel Shader (Optional Pass)
+
+#if SMAA_HLSL_4 == 1 || SMAA_HLSL_4_1 == 1
+void SMAASeparatePS(float4 position : SV_POSITION,
+                    float2 texcoord : TEXCOORD0,
+                    out float4 target0,
+                    out float4 target1,
+                    uniform SMAATexture2DMS2 colorTexMS) {
+    int2 pos = int2(position.xy);
+    target0 = SMAALoad(colorTexMS, pos, 0);
+    target1 = SMAALoad(colorTexMS, pos, 1);
+}
+#endif
 
 //-----------------------------------------------------------------------------
 #endif // SMAA_ONLY_COMPILE_VS == 0

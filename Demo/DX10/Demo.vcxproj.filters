@@ -92,9 +92,6 @@
     <ClInclude Include="DXUT\Optional\SDKmisc.h">
       <Filter>DXUT</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\SMAA.h">
-      <Filter>Shaders</Filter>
-    </ClInclude>
     <ClInclude Include="Code\SMAA.h">
       <Filter>Code</Filter>
     </ClInclude>
@@ -115,6 +112,9 @@
     </ClInclude>
     <ClInclude Include="..\..\Textures\AreaTex.h">
       <Filter>Code\Textures</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\SMAA.h">
+      <Filter>Shaders</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

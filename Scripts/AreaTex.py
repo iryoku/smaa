@@ -14,8 +14,18 @@ from tempfile import *
 import operator
 
 # Subsample offsets for orthogonal and diagonal areas:
-SUBSAMPLE_OFFSETS_ORTHO = [0.0, -0.25, 0.25]
-SUBSAMPLE_OFFSETS_DIAG  = [(0.0, 0.0), (0.25, -0.25), (-0.25, 0.25)]
+SUBSAMPLE_OFFSETS_ORTHO = [ 0.0,   #0
+                           -0.25,  #1
+                            0.25,  #2
+                           -0.125, #3
+                            0.125, #4
+                           -0.375, #5
+                            0.375] #6
+SUBSAMPLE_OFFSETS_DIAG  = [( 0.00,   0.00),  #0
+                           ( 0.25,  -0.25),  #1
+                           (-0.25,   0.25),  #2
+                           ( 0.125, -0.125), #3
+                           (-0.125,  0.125)] #4
 
 # Texture sizes:
 # (it's quite possible that this is not easily configurable)

@@ -122,6 +122,11 @@ float Timer::clock(const wstring &msg) {
 }
 
 
+void Timer::sleep(float t) {
+    Sleep(max(int(1000.0f * (t - clock())), 0));
+}
+
+
 float Timer::mean(const std::wstring &msg, float t) {
     Section &section = sections[msg];
     if (windowSize > 1) {
