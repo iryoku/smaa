@@ -102,7 +102,9 @@ class ID3D10IncludeResource : public ID3DXInclude {
 SMAA::SMAA(IDirect3DDevice9 *device, int width, int height, Preset preset, const ExternalStorage &storage)
         : device(device),
           threshold(0.1f),
-          maxSearchSteps(8),
+          cornerRounding(0.25),
+          maxSearchStepsDiag(8),
+          maxSearchSteps(16),
           width(width), height(height) {
     HRESULT hr;
 
@@ -178,8 +180,10 @@ SMAA::SMAA(IDirect3DDevice9 *device, int width, int height, Preset preset, const
     loadSearchTex();
 
     // Create some handles for techniques and variables.
-    thresholdHandle = effect->GetParameterByName(NULL, "threshold");
-    maxSearchStepsHandle = effect->GetParameterByName(NULL, "maxSearchSteps");
+    thresholdHandle = effect->GetParameterByName(NULL, "custom_threshold");
+    maxSearchStepsHandle = effect->GetParameterByName(NULL, "custom_maxSearchSteps");
+    maxSearchStepsDiagHandle = effect->GetParameterByName(NULL, "custom_maxSearchStepsDiag");
+    CornerRoundingHandle = effect->GetParameterByName(NULL, "custom_CornerRounding");
     areaTexHandle = effect->GetParameterByName(NULL, "areaTex2D");
     searchTexHandle = effect->GetParameterByName(NULL, "searchTex2D");
     colorTexHandle = effect->GetParameterByName(NULL, "colorTex2D");
@@ -276,6 +280,8 @@ void SMAA::edgesDetectionPass(IDirect3DTexture9 *edges, Input input) {
     // Setup variables.
     V(effect->SetFloat(thresholdHandle, threshold));
     V(effect->SetFloat(maxSearchStepsHandle, float(maxSearchSteps)));
+    V(effect->SetFloat(maxSearchStepsDiagHandle, float(maxSearchStepsDiag)));
+    V(effect->SetFloat(CornerRoundingHandle, cornerRounding));		
 
     // Select the technique accordingly.
     switch (input) {
@@ -367,3 +373,4 @@ void SMAA::quad(int width, int height) {
     };
     V(device->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, quad, sizeof(quad[0])));
 }
+
