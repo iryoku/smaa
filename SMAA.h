@@ -483,6 +483,20 @@
 //-----------------------------------------------------------------------------
 // Porting Functions
 
+#if SMAA_CG == 1
+#define SMAATexture2D sampler2D
+#define SMAASampleLevelZero(tex, coord) tex2Dlod(tex, float4(coord, 0.0, 0.0))
+#define SMAASampleLevelZeroPoint(tex, coord) tex2Dlod(tex, float4(coord, 0.0, 0.0))
+#define SMAASample(tex, coord) tex2D(tex, coord)
+#define SMAASamplePoint(tex, coord) tex2D(tex, coord)
+#define SMAASampleLevelZeroOffset(tex, coord, offset) tex2Dlod(tex, float4(coord + offset * SMAA_PIXEL_SIZE, 0.0, 0.0))
+#define SMAASampleOffset(tex, coord, offset) tex2D(tex, coord + offset * SMAA_PIXEL_SIZE)
+#define SMAALerp(a, b, t) lerp(a, b, t)
+#define SMAASaturate(a) saturate(a)
+#define SMAAMad(a, b, c) mad(a, b, c)
+#define SMAA_FLATTEN
+#define SMAA_BRANCH
+#endif
 #if SMAA_HLSL_3 == 1
 #define SMAATexture2D sampler2D
 #define SMAASampleLevelZero(tex, coord) tex2Dlod(tex, float4(coord, 0.0, 0.0))
