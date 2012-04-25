@@ -493,7 +493,7 @@
 #define SMAASampleOffset(tex, coord, offset) tex2D(tex, coord + offset * SMAA_PIXEL_SIZE)
 #define SMAALerp(a, b, t) lerp(a, b, t)
 #define SMAASaturate(a) saturate(a)
-#define SMAAMad(a, b, c) mad(a, b, c)
+#define SMAAMad(a, b, c) (a * b) + c
 #define SMAA_FLATTEN
 #define SMAA_BRANCH
 #endif
