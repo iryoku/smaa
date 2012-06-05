@@ -489,8 +489,8 @@
 #define SMAASampleLevelZeroPoint(tex, coord) tex2Dlod(tex, float4(coord, 0.0, 0.0))
 #define SMAASample(tex, coord) tex2D(tex, coord)
 #define SMAASamplePoint(tex, coord) tex2D(tex, coord)
-#define SMAASampleLevelZeroOffset(tex, coord, offset) tex2Dlod(tex, float4(coord + offset * SMAA_PIXEL_SIZE, 0.0, 0.0))
-#define SMAASampleOffset(tex, coord, offset) tex2D(tex, coord + offset * SMAA_PIXEL_SIZE)
+#define SMAASampleLevelZeroOffset(tex, coord, offset, pixelSize) tex2Dlod(tex, float4(coord + offset * pixelSize, 0.0, 0.0))
+#define SMAASampleOffset(tex, coord, offset, pixelSize) tex2D(tex, coord + offset * pixelSize)
 #define SMAALerp(a, b, t) lerp(a, b, t)
 #define SMAASaturate(a) saturate(a)
 #define SMAAMad(a, b, c) (a * b) + c
@@ -503,8 +503,8 @@
 #define SMAASampleLevelZeroPoint(tex, coord) tex2Dlod(tex, float4(coord, 0.0, 0.0))
 #define SMAASample(tex, coord) tex2D(tex, coord)
 #define SMAASamplePoint(tex, coord) tex2D(tex, coord)
-#define SMAASampleLevelZeroOffset(tex, coord, offset) tex2Dlod(tex, float4(coord + offset * SMAA_PIXEL_SIZE, 0.0, 0.0))
-#define SMAASampleOffset(tex, coord, offset) tex2D(tex, coord + offset * SMAA_PIXEL_SIZE)
+#define SMAASampleLevelZeroOffset(tex, coord, offset, pixelSize) tex2Dlod(tex, float4(coord + offset * pixelSize, 0.0, 0.0))
+#define SMAASampleOffset(tex, coord, offset, pixelSize) tex2D(tex, coord + offset * pixelSize)
 #define SMAALerp(a, b, t) lerp(a, b, t)
 #define SMAASaturate(a) saturate(a)
 #define SMAAMad(a, b, c) mad(a, b, c)
@@ -519,8 +519,8 @@ SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; Addres
 #define SMAASampleLevelZeroPoint(tex, coord) tex.SampleLevel(PointSampler, coord, 0)
 #define SMAASample(tex, coord) SMAASampleLevelZero(tex, coord)
 #define SMAASamplePoint(tex, coord) SMAASampleLevelZeroPoint(tex, coord)
-#define SMAASampleLevelZeroOffset(tex, coord, offset) tex.SampleLevel(LinearSampler, coord, 0, offset)
-#define SMAASampleOffset(tex, coord, offset) SMAASampleLevelZeroOffset(tex, coord, offset)
+#define SMAASampleLevelZeroOffset(tex, coord, offset, pixelSize) tex.SampleLevel(LinearSampler, coord, 0, offset)
+#define SMAASampleOffset(tex, coord, offset, pixelSize) SMAASampleLevelZeroOffset(tex, coord, offset)
 #define SMAALerp(a, b, t) lerp(a, b, t)
 #define SMAASaturate(a) saturate(a)
 #define SMAAMad(a, b, c) mad(a, b, c)
@@ -538,8 +538,8 @@ SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; Addres
 #define SMAASampleLevelZeroPoint(tex, coord) textureLod(tex, coord, 0.0)
 #define SMAASample(tex, coord) texture(tex, coord)
 #define SMAASamplePoint(tex, coord) texture(tex, coord)
-#define SMAASampleLevelZeroOffset(tex, coord, offset) textureLodOffset(tex, coord, 0.0, offset)
-#define SMAASampleOffset(tex, coord, offset) texture(tex, coord, offset)
+#define SMAASampleLevelZeroOffset(tex, coord, offset, pixelSize) textureLodOffset(tex, coord, 0.0, offset)
+#define SMAASampleOffset(tex, coord, offset, pixelSize) texture(tex, coord, offset)
 #define SMAALerp(a, b, t) mix(a, b, t)
 #define SMAASaturate(a) clamp(a, 0.0, 1.0)
 #define SMAA_FLATTEN
@@ -853,7 +853,7 @@ float SMAASearchDiag2(SMAATexture2D edgesTex, float2 texcoord, float2 dir, float
     float i;
     for (i = 0.0; i < float(SMAA_MAX_SEARCH_STEPS_DIAG); i++) {
         e.g = SMAASampleLevelZero(edgesTex, texcoord).g;
-        e.r = SMAASampleLevelZeroOffset(edgesTex, texcoord, int2(1, 0)).r;
+        e.r = SMAASampleLevelZeroOffset(edgesTex, texcoord, int2(1, 0), pixelSize).r;
         SMAA_FLATTEN if (dot(e, float2(1.0, 1.0)) < 1.9) break;
         texcoord += dir * pixelSize;
     }
@@ -899,10 +899,10 @@ float2 SMAACalculateDiagWeights(SMAATexture2D edgesTex, SMAATexture2D areaTex, f
         float4 coords = SMAAMad(float4(-d.r, d.r, d.g, -d.g), pixelSize.xyxy, texcoord.xyxy);
 
         float4 c;
-        c.x = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-1,  0)).g;
-        c.y = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 0,  0)).r;
-        c.z = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1,  0)).g;
-        c.w = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1, -1)).r;
+        c.x = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-1,  0), pixelSize).g;
+        c.y = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 0,  0), pixelSize).r;
+        c.z = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1,  0), pixelSize).g;
+        c.w = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1, -1), pixelSize).r;
         float2 e = 2.0 * c.xz + c.yw;
         float t = float(SMAA_MAX_SEARCH_STEPS_DIAG) - 1.0;
         e *= step(d.rg, float2(t, t));
@@ -911,7 +911,7 @@ float2 SMAACalculateDiagWeights(SMAATexture2D edgesTex, SMAATexture2D areaTex, f
     }
 
     d.x = SMAASearchDiag2(edgesTex, texcoord, float2(-1.0, -1.0), 0.0, pixelSize);
-    float right = SMAASampleLevelZeroOffset(edgesTex, texcoord, int2(1, 0)).r;
+    float right = SMAASampleLevelZeroOffset(edgesTex, texcoord, int2(1, 0), pixelSize).r;
     d.y = right > 0.0? SMAASearchDiag2(edgesTex, texcoord, float2(1.0, 1.0), 1.0, pixelSize) : 0.0;
 
     SMAA_BRANCH
@@ -919,9 +919,9 @@ float2 SMAACalculateDiagWeights(SMAATexture2D edgesTex, SMAATexture2D areaTex, f
         float4 coords = SMAAMad(float4(-d.r, -d.r, d.g, d.g), pixelSize.xyxy, texcoord.xyxy);
 
         float4 c;
-        c.x  = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-1,  0)).g;
-        c.y  = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 0, -1)).r;
-        c.zw = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1,  0)).gr;
+        c.x  = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-1,  0), pixelSize).g;
+        c.y  = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 0, -1), pixelSize).r;
+        c.zw = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1,  0), pixelSize).gr;
         float2 e = 2.0 * c.xz + c.yw;
         float t = float(SMAA_MAX_SEARCH_STEPS_DIAG) - 1.0;
         e *= step(d.rg, float2(t, t));
@@ -1061,13 +1061,13 @@ void SMAADetectHorizontalCornerPattern(SMAATexture2D edgesTex, inout float2 weig
     float4 coords = SMAAMad(float4(d.x, 0.0, d.y, 0.0),
                             pixelSize.xyxy, texcoord.xyxy);
     float2 e;
-    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(0.0,  1.0)).r;
+    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(0.0,  1.0), pixelSize).r;
     bool left = abs(d.x) < abs(d.y);
-    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(0.0, -2.0)).r;
+    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(0.0, -2.0), pixelSize).r;
     if (left) weights *= SMAASaturate(float(SMAA_CORNER_ROUNDING) / 100.0 + 1.0 - e);
 
-    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(1.0,  1.0)).r;
-    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(1.0, -2.0)).r;
+    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(1.0,  1.0), pixelSize).r;
+    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(1.0, -2.0), pixelSize).r;
     if (!left) weights *= SMAASaturate(float(SMAA_CORNER_ROUNDING) / 100.0 + 1.0 - e);
     #endif
 }
@@ -1077,13 +1077,13 @@ void SMAADetectVerticalCornerPattern(SMAATexture2D edgesTex, inout float2 weight
     float4 coords = SMAAMad(float4(0.0, d.x, 0.0, d.y),
                             pixelSize.xyxy, texcoord.xyxy);
     float2 e;
-    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 1.0, 0.0)).g;
+    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 1.0, 0.0), pixelSize).g;
     bool left = abs(d.x) < abs(d.y);
-    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-2.0, 0.0)).g;
+    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-2.0, 0.0), pixelSize).g;
     if (left) weights *= SMAASaturate(float(SMAA_CORNER_ROUNDING) / 100.0 + 1.0 - e);
 
-    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1.0, 1.0)).g;
-    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(-2.0, 1.0)).g;
+    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1.0, 1.0), pixelSize).g;
+    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(-2.0, 1.0), pixelSize).g;
     if (!left) weights *= SMAASaturate(float(SMAA_CORNER_ROUNDING) / 100.0 + 1.0 - e);
     #endif
 }
@@ -1142,7 +1142,7 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
         float2 sqrt_d = sqrt(abs(d));
 
         // Fetch the right crossing edges:
-        float e2 = SMAASampleLevelZeroOffset(edgesTex, coords, int2(1, 0)).r;
+        float e2 = SMAASampleLevelZeroOffset(edgesTex, coords, int2(1, 0), pixelSize).r;
 
         // Ok, we know how this pattern looks like, now it is time for getting
         // the actual area:
@@ -1182,7 +1182,7 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
         float2 sqrt_d = sqrt(abs(d));
 
         // Fetch the bottom crossing edges:
-        float e2 = SMAASampleLevelZeroOffset(edgesTex, coords, int2(0, 1)).g;
+        float e2 = SMAASampleLevelZeroOffset(edgesTex, coords, int2(0, 1), pixelSize).g;
 
         // Get the area for this direction:
         weights.ba = SMAAArea(areaTex, sqrt_d, e1, e2, float(subsampleIndices.x));
