@@ -92,16 +92,32 @@ class SMAA {
                 Input input);
 
         /**
-         * Maximum length to search for patterns. Each step is two pixels wide.
+         * Threshold for the edge detection. Only has effect if PRESET_CUSTOM
+         * is selected.
+         */
+        float getThreshold() const { return threshold; }
+        void setThreshold(float threshold) { this->threshold = threshold; }
+
+        /**
+         * Maximum length to search for horizontal/vertical patterns. Each step
+         * is two pixels wide. Only has effect if PRESET_CUSTOM is selected.
          */
         int getMaxSearchSteps() const { return maxSearchSteps; }
         void setMaxSearchSteps(int maxSearchSteps) { this->maxSearchSteps = maxSearchSteps; }
 
         /**
-         * Threshold for the edge detection.
+         * Maximum length to search for diagonal patterns. Only has effect if
+         * PRESET_CUSTOM is selected.
          */
-        float getThreshold() const { return threshold; }
-        void setThreshold(float threshold) { this->threshold = threshold; }
+        int getMaxSearchStepsDiag() const { return maxSearchStepsDiag; }
+        void setMaxSearchStepsDiag(int maxSearchStepsDiag) { this->maxSearchStepsDiag = maxSearchStepsDiag; }
+
+        /**
+         * Desired corner rounding, from 0.0 (no rounding) to 100.0 (full
+         * rounding). Only has effect if PRESET_CUSTOM is selected.
+         */
+        float getCornerRounding() const { return cornerRounding; }
+        void setCornerRounding(float cornerRounding) { this->cornerRounding = cornerRounding; }
 
         /**
          * This class allows to pass spare storage buffers to the SMAA class.
@@ -144,7 +160,10 @@ class SMAA {
         IDirect3DTexture9 *areaTex;
         IDirect3DTexture9 *searchTex;
 
-        D3DXHANDLE thresholdHandle, maxSearchStepsHandle;
+        // Custom Settings.
+        D3DXHANDLE thresholdHandle;
+        D3DXHANDLE maxSearchStepsHandle, maxSearchStepsDiagHandle;
+        D3DXHANDLE CornerRoundingHandle;
         D3DXHANDLE areaTexHandle, searchTexHandle;
         D3DXHANDLE colorTexHandle, depthTexHandle;
         D3DXHANDLE edgesTexHandle, blendTexHandle;
@@ -152,6 +171,8 @@ class SMAA {
                    blendWeightCalculationHandle, neighborhoodBlendingHandle;
         
         int maxSearchSteps;
+        int maxSearchStepsDiag;
+        float cornerRounding;
         float threshold;
         int width, height;
 };
