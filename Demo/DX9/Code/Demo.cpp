@@ -106,7 +106,6 @@ HRESULT CALLBACK onResetDevice(IDirect3DDevice9 *device, const D3DSURFACE_DESC *
     
     timer = new Timer(device);
     timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
-    timer->setRepetitionsCount(100);
 
     SMAA::Preset preset = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
     smaa = new SMAA(device, desc->Width, desc->Height, preset);
@@ -229,21 +228,19 @@ void CALLBACK onFrameRender(IDirect3DDevice9 *device, double time, float elapsed
         // Run SMAA
         if (hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked()) {
             SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTION_MODE)->GetSelectedData()));
-            int n = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? timer->getRepetitionsCount() : 1;
 
-            timer->start();
-            for (int i = 0; i < n; i++) { // This loop is just for profiling.
-                switch (input) {
-                    case SMAA::INPUT_LUMA:
-                    case SMAA::INPUT_COLOR:
-                        smaa->go(finalbufferColorTex, finalbufferColorTex, backbufferSurface, input);
-                        break;
-                    case SMAA::INPUT_DEPTH:
-                        smaa->go(finalbufferDepthTex, finalbufferColorTex, backbufferSurface, input);
-                        break;
-                }
+            timer->start(L"SMAA");
+            switch (input) {
+                case SMAA::INPUT_LUMA:
+                case SMAA::INPUT_COLOR:
+                    smaa->go(finalbufferColorTex, finalbufferColorTex, backbufferSurface, input);
+                    break;
+                case SMAA::INPUT_DEPTH:
+                    smaa->go(finalbufferDepthTex, finalbufferColorTex, backbufferSurface, input);
+                    break;
             }
-            timer->clock(L"SMAA");
+            timer->end(L"SMAA");
+            timer->endFrame();
         } else {
             copy(device);
         }

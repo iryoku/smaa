@@ -277,6 +277,7 @@ HRESULT WINAPI DXUTKillTimer( UINT nIDEvent );
 void    WINAPI DXUTResetFrameworkState();
 void    WINAPI DXUTShutdown( int nExitCode = 0 );
 void    WINAPI DXUTSetIsInGammaCorrectMode( bool bGammaCorrect );
+void    WINAPI DXUTSetSyncInterval( UINT nInterval );
 
 
 //--------------------------------------------------------------------------------------

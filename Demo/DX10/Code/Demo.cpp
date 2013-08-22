@@ -55,8 +55,7 @@ CDXUTDialogResourceManager dialogResourceManager;
 CD3DSettingsDlg settingsDialog;
 CDXUTDialog hud;
 
-Timer *profileTimer = NULL;
-Timer *framerateLockTimer = NULL;
+Timer *timer = NULL;
 ID3DX10Font *font = NULL;
 ID3DX10Sprite *sprite = NULL;
 CDXUTTextHelper *txtHelper = NULL;
@@ -120,9 +119,6 @@ struct {
     wstring src;
     wstring dst;
 } commandlineOptions = {0.1f, 16, 8, 25.0f, L"", L""};
-
-
-enum FramerateLock { FPS_UNLOCK, FPS_LOCK_TO_15=66, FPS_LOCK_TO_30=33, FPS_LOCK_TO_60=16 };
 
 
 #define IDC_TOGGLE_FULLSCREEN            1
@@ -379,11 +375,8 @@ HRESULT CALLBACK onCreateDevice(ID3D10Device *device, const DXGI_SURFACE_DESC *d
     V_RETURN(D3DX10CreateSprite(device, 512, &sprite));
     txtHelper = new CDXUTTextHelper(NULL, NULL, font, sprite, 15);
 
-    profileTimer = new Timer(device);
-    profileTimer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
-    profileTimer->setRepetitionsCount(100);
-
-    framerateLockTimer = new Timer(device);
+    timer = new Timer(device);
+    timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
 
     Copy::init(device);
     V_RETURN(initSimpleEffect(device));
@@ -412,8 +405,7 @@ void CALLBACK onDestroyDevice(void *context) {
     SAFE_RELEASE(sprite);
     SAFE_DELETE(txtHelper);
 
-    SAFE_DELETE(profileTimer);
-    SAFE_DELETE(framerateLockTimer);
+    SAFE_DELETE(timer);
 
     Copy::release();
     SAFE_RELEASE(simpleEffect);
@@ -636,39 +628,32 @@ void runSMAA(ID3D10Device *device, SMAA::Mode mode) {
     bool smaaEnabled = hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked() &&
                        hud.GetCheckBox(IDC_ANTIALIASING)->GetEnabled();
     SMAA::Input input = SMAA::Input(int(hud.GetComboBox(IDC_DETECTION_MODE)->GetSelectedData()));
-    int repetitionsCount = hud.GetCheckBox(IDC_PROFILE)->GetChecked()? profileTimer->getRepetitionsCount() : 1;
 
     // Run SMAA:
     if (smaaEnabled) {
-        profileTimer->start();
+        timer->start(L"SMAA");
         switch (mode) {
             case SMAA::MODE_SMAA_1X:
-                for (int i = 0; i < repetitionsCount; i++) // This loop is for profiling.
-                    smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode);
+                smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode);
                 break;
             case SMAA::MODE_SMAA_T2X:
-                for (int i = 0; i < repetitionsCount; i++) {
-                    smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, subpixelIndex);
-                    smaa->reproject(*finalRT[currentIndex], *finalRT[previousIndex], *velocityRT, *backbufferRT);
-                }
+                smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, subpixelIndex);
+                smaa->reproject(*finalRT[currentIndex], *finalRT[previousIndex], *velocityRT, *backbufferRT);
                 break;
             case SMAA::MODE_SMAA_S2X:
-                for (int i = 0; i < repetitionsCount; i++) {
-                    smaa->separate(*tmpRT, *tmp1xRT[0], *tmp1xRT[1]);
-                    smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode, smaa->msaaReorder(0), 1.0);
-                    smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode, smaa->msaaReorder(1), 0.5);
-                }
+                smaa->separate(*tmpRT, *tmp1xRT[0], *tmp1xRT[1]);
+                smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode, smaa->msaaReorder(0), 1.0);
+                smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode, smaa->msaaReorder(1), 0.5);
                 break;
             case SMAA::MODE_SMAA_4X:
-                for (int i = 0; i < repetitionsCount; i++) {
-                    smaa->separate(*tmpRT, *tmp1xRT[0], *tmp1xRT[1]);
-                    smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 2 * subpixelIndex + smaa->msaaReorder(0), 1.0);
-                    smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 2 * subpixelIndex + smaa->msaaReorder(1), 0.5);
-                    smaa->reproject(*finalRT[currentIndex], *finalRT[previousIndex], *velocity1xRT, *backbufferRT);
-                }
+                smaa->separate(*tmpRT, *tmp1xRT[0], *tmp1xRT[1]);
+                smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 2 * subpixelIndex + smaa->msaaReorder(0), 1.0);
+                smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 2 * subpixelIndex + smaa->msaaReorder(1), 0.5);
+                smaa->reproject(*finalRT[currentIndex], *finalRT[previousIndex], *velocity1xRT, *backbufferRT);
                 break;
         }
-        profileTimer->clock(L"SMAA");
+        timer->end(L"SMAA");
+        timer->endFrame();
     } else {
         if (mode == SMAA::MODE_SMAA_1X)
             Copy::go(*tmpRT_SRGB, *backbufferRT);
@@ -691,14 +676,14 @@ void saveBackbuffer(ID3D10Device *device) {
 
 
 void runBenchmark() {
-    benchmarkFile << profileTimer->getSection(L"SMAA") << endl;
+    benchmarkFile << timer << endl;
 
     int next = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() + 1;
     int n = hud.GetComboBox(IDC_INPUT)->GetNumItems();
     hud.GetComboBox(IDC_INPUT)->SetSelectedByIndex(next < n? next : n);
     loadImage();
 
-    profileTimer->reset();
+    timer->reset();
 
     if (next == n) {
         benchmark = false;
@@ -737,10 +722,10 @@ void drawHud(float elapsedTime) {
         txtHelper->DrawTextLine(L"Press 'tab' to toogle the HUD, 'a' and 'd' to quickly cycle through the images");
 
         txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 0.5f, 0.0f, 1.0f));
-        if (profileTimer->isEnabled()) {
+        if (timer->isEnabled()) {
             wstringstream s;
             s << setprecision(2) << std::fixed;
-            s << *profileTimer;
+            s << *timer;
             txtHelper->DrawTextLine(s.str().c_str());
         }
 
@@ -760,8 +745,6 @@ void drawHud(float elapsedTime) {
 
 
 void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime, void *context) {
-    framerateLockTimer->start();
-
     // Render the settings dialog:
     if (settingsDialog.IsActive()) {
         settingsDialog.OnRender(elapsedTime);
@@ -805,11 +788,6 @@ void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime
     // Draw the HUD:
     drawTextures(device);
     drawHud(elapsedTime);
-
-    // Lock the frame rate:
-    FramerateLock framerateLock = FramerateLock(int(hud.GetComboBox(IDC_LOCK_FRAMERATE)->GetSelectedData()));
-    if (framerateLock != FPS_UNLOCK)
-        framerateLockTimer->sleep(int(framerateLock) / 1000.0f);
 }
 
 
@@ -905,7 +883,7 @@ void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context
         }
         case 'P':
             hud.GetCheckBox(IDC_PROFILE)->SetChecked(true);
-            profileTimer->setEnabled(true);
+            timer->setEnabled(true);
             benchmark = true;
             benchmarkFile.open("Benchmark.txt",  ios_base::out);
             hud.GetComboBox(IDC_INPUT)->SetSelectedByIndex(1);
@@ -1049,7 +1027,7 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
         }
         case IDC_INPUT:
             if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
-                profileTimer->reset();
+                timer->reset();
                 V(loadInput());
                 resizeWindow();
                 onReleasingSwapChain(NULL);
@@ -1086,7 +1064,7 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
             break;
         case IDC_ANTIALIASING:
             if (event == EVENT_CHECKBOX_CHANGED) {
-                profileTimer->reset();
+                timer->reset();
                 hud.GetComboBox(IDC_VIEW_MODE)->SetSelectedByIndex(0);
 
                 // Refill the temporal buffer:
@@ -1102,9 +1080,12 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
             break;
         case IDC_PROFILE:
             if (event == EVENT_CHECKBOX_CHANGED) {
-                profileTimer->reset();
-                profileTimer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
+                timer->reset();
+                timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
             }
+            break;
+        case IDC_LOCK_FRAMERATE:
+            DXUTSetSyncInterval(int(hud.GetComboBox(IDC_LOCK_FRAMERATE)->GetSelectedData()));
             break;
         case IDC_THRESHOLD:
             if (event == EVENT_SLIDER_VALUE_CHANGED) {
@@ -1215,11 +1196,12 @@ void initApp() {
     iY += 24;
 
     hud.AddComboBox(IDC_LOCK_FRAMERATE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
-    hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Unlock Framerate", (LPVOID) FPS_UNLOCK);
-    hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Lock to 15fps", (LPVOID) FPS_LOCK_TO_15);
-    hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Lock to 30fps", (LPVOID) FPS_LOCK_TO_30);
-    hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Lock to 60fps", (LPVOID) FPS_LOCK_TO_60);
-    hud.GetComboBox(IDC_LOCK_FRAMERATE)->SetSelectedByData((LPVOID) FPS_LOCK_TO_30);
+    hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Unlock Framerate", (LPVOID) 0);
+    hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Lock to 60fps", (LPVOID) 1);
+    hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Lock to 30fps", (LPVOID) 2);
+    hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Lock to 20fps", (LPVOID) 3);
+    hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Lock to 15fps", (LPVOID) 4);
+    hud.GetComboBox(IDC_LOCK_FRAMERATE)->SetSelectedByData((LPVOID) 0);
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, HUD_WIDTH, 22, false, 'X');
     hud.AddCheckBox(IDC_SHADING, L"Shading", 35, iY += 24, HUD_WIDTH, 22, false, 'S');
 

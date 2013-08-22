@@ -6498,3 +6498,7 @@ void WINAPI DXUTSetIsInGammaCorrectMode( bool bGammaCorrect )
     GetDXUTState().SetIsInGammaCorrectMode( bGammaCorrect );
 }
 
+void WINAPI DXUTSetSyncInterval( UINT nInterval )
+{
+    GetDXUTState().GetCurrentDeviceSettings()->d3d10.SyncInterval = nInterval;
+}
