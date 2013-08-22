@@ -420,6 +420,11 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
     if (FAILED(DXUTCreateDevice(true, 1280, 720)))
         return -1;
 
+    /**
+     * See <WINDOW_FIX> in DXUT.h
+     */
+    ShowWindow(DXUTGetHWND(), SW_SHOW);
+
     DXUTMainLoop();
 
     return DXUTGetExitCode();

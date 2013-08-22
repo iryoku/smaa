@@ -57,7 +57,7 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\DXUT\Core;..\DXUT\Optional;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32;_DEBUG;DEBUG;PROFILE;_WINDOWS;D3DXFX_LARGEADDRESS_HANDLE;TIMER_DIRECTX_9;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
@@ -99,7 +99,7 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\DXUT\Core;..\DXUT\Optional;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;D3DXFX_LARGEADDRESS_HANDLE;TIMER_DIRECTX_9;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
@@ -134,31 +134,29 @@
     <ClInclude Include="..\..\SMAA.h" />
     <ClInclude Include="..\..\Textures\AreaTex.h" />
     <ClInclude Include="..\..\Textures\SearchTex.h" />
+    <ClInclude Include="..\DXUT\Core\DXUT.h" />
+    <ClInclude Include="..\DXUT\Core\DXUTenum.h" />
+    <ClInclude Include="..\DXUT\Core\DXUTmisc.h" />
+    <ClInclude Include="..\DXUT\Optional\DXUTcamera.h" />
+    <ClInclude Include="..\DXUT\Optional\DXUTgui.h" />
+    <ClInclude Include="..\DXUT\Optional\DXUTres.h" />
+    <ClInclude Include="..\DXUT\Optional\DXUTsettingsdlg.h" />
+    <ClInclude Include="..\DXUT\Optional\SDKmesh.h" />
+    <ClInclude Include="..\DXUT\Optional\SDKmisc.h" />
     <ClInclude Include="..\Support\Timer.h" />
     <ClInclude Include="Code\SMAA.h" />
-    <ClInclude Include="DXUT\Core\DXUT.h" />
-    <ClInclude Include="DXUT\Core\DXUTenum.h" />
-    <ClInclude Include="DXUT\Core\DXUTmisc.h" />
+    <ClCompile Include="..\DXUT\Core\DXUT.cpp" />
+    <ClCompile Include="..\DXUT\Core\DXUTenum.cpp" />
+    <ClCompile Include="..\DXUT\Core\DXUTmisc.cpp" />
+    <ClCompile Include="..\DXUT\Optional\DXUTcamera.cpp" />
+    <ClCompile Include="..\DXUT\Optional\DXUTgui.cpp" />
+    <ClCompile Include="..\DXUT\Optional\DXUTres.cpp" />
+    <ClCompile Include="..\DXUT\Optional\DXUTsettingsdlg.cpp" />
+    <ClCompile Include="..\DXUT\Optional\SDKmesh.cpp" />
+    <ClCompile Include="..\DXUT\Optional\SDKmisc.cpp" />
     <ClCompile Include="..\Support\Timer.cpp" />
     <ClCompile Include="Code\Demo.cpp" />
     <ClCompile Include="Code\SMAA.cpp" />
-    <ClCompile Include="DXUT\Core\DXUT.cpp">
-      <PrecompiledHeader>Create</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="DXUT\Core\DXUTenum.cpp" />
-    <ClCompile Include="DXUT\Core\DXUTmisc.cpp" />
-    <ClInclude Include="DXUT\Optional\DXUTcamera.h" />
-    <ClInclude Include="DXUT\Optional\DXUTgui.h" />
-    <ClInclude Include="DXUT\Optional\DXUTres.h" />
-    <ClInclude Include="DXUT\Optional\DXUTsettingsdlg.h" />
-    <ClInclude Include="DXUT\Optional\SDKmesh.h" />
-    <ClInclude Include="DXUT\Optional\SDKmisc.h" />
-    <ClCompile Include="DXUT\Optional\DXUTcamera.cpp" />
-    <ClCompile Include="DXUT\Optional\DXUTgui.cpp" />
-    <ClCompile Include="DXUT\Optional\DXUTres.cpp" />
-    <ClCompile Include="DXUT\Optional\DXUTsettingsdlg.cpp" />
-    <ClCompile Include="DXUT\Optional\SDKmesh.cpp" />
-    <ClCompile Include="DXUT\Optional\SDKmisc.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Shaders\SMAA.fx">

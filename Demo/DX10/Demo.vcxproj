@@ -57,7 +57,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\DXUT\Core;..\DXUT\Optional;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;DEBUG;PROFILE;_WINDOWS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -82,7 +82,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\DXUT\Core;..\DXUT\Optional;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
@@ -109,20 +109,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\DXUT\Core\DXUT.cpp" />
+    <ClCompile Include="..\DXUT\Core\DXUTenum.cpp" />
+    <ClCompile Include="..\DXUT\Core\DXUTmisc.cpp" />
+    <ClCompile Include="..\DXUT\Optional\DXUTcamera.cpp" />
+    <ClCompile Include="..\DXUT\Optional\DXUTgui.cpp" />
+    <ClCompile Include="..\DXUT\Optional\DXUTres.cpp" />
+    <ClCompile Include="..\DXUT\Optional\DXUTsettingsdlg.cpp" />
+    <ClCompile Include="..\DXUT\Optional\SDKmesh.cpp" />
+    <ClCompile Include="..\DXUT\Optional\SDKmisc.cpp" />
     <ClCompile Include="..\Support\Camera.cpp" />
     <ClCompile Include="..\Support\Copy.cpp" />
-    <ClCompile Include="DXUT\Core\DXUT.cpp">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="DXUT\Optional\DXUTcamera.cpp" />
-    <ClCompile Include="DXUT\Core\DXUTenum.cpp" />
-    <ClCompile Include="DXUT\Optional\DXUTgui.cpp" />
-    <ClCompile Include="DXUT\Core\DXUTmisc.cpp" />
-    <ClCompile Include="DXUT\Optional\DXUTres.cpp" />
-    <ClCompile Include="DXUT\Optional\DXUTsettingsdlg.cpp" />
-    <ClCompile Include="DXUT\Optional\SDKmesh.cpp" />
-    <ClCompile Include="DXUT\Optional\SDKmisc.cpp" />
     <ClCompile Include="Code\SMAA.cpp" />
     <ClCompile Include="Code\Demo.cpp" />
     <ClCompile Include="..\Support\RenderTarget.cpp" />
@@ -132,17 +129,17 @@
     <ClInclude Include="..\..\SMAA.h" />
     <ClInclude Include="..\..\Textures\AreaTex.h" />
     <ClInclude Include="..\..\Textures\SearchTex.h" />
+    <ClInclude Include="..\DXUT\Core\DXUT.h" />
+    <ClInclude Include="..\DXUT\Core\DXUTenum.h" />
+    <ClInclude Include="..\DXUT\Core\DXUTmisc.h" />
+    <ClInclude Include="..\DXUT\Optional\DXUTcamera.h" />
+    <ClInclude Include="..\DXUT\Optional\DXUTgui.h" />
+    <ClInclude Include="..\DXUT\Optional\DXUTres.h" />
+    <ClInclude Include="..\DXUT\Optional\DXUTsettingsdlg.h" />
+    <ClInclude Include="..\DXUT\Optional\SDKmesh.h" />
+    <ClInclude Include="..\DXUT\Optional\SDKmisc.h" />
     <ClInclude Include="..\Support\Camera.h" />
     <ClInclude Include="..\Support\Copy.h" />
-    <ClInclude Include="DXUT\Core\DXUT.h" />
-    <ClInclude Include="DXUT\Optional\DXUTcamera.h" />
-    <ClInclude Include="DXUT\Core\DXUTenum.h" />
-    <ClInclude Include="DXUT\Optional\DXUTgui.h" />
-    <ClInclude Include="DXUT\Core\DXUTmisc.h" />
-    <ClInclude Include="DXUT\Optional\DXUTres.h" />
-    <ClInclude Include="DXUT\Optional\DXUTsettingsdlg.h" />
-    <ClInclude Include="DXUT\Optional\SDKmesh.h" />
-    <ClInclude Include="DXUT\Optional\SDKmisc.h" />
     <ClInclude Include="Code\SMAA.h" />
     <ClInclude Include="..\Support\RenderTarget.h" />
     <ClInclude Include="..\Support\Timer.h" />

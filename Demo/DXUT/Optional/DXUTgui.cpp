@@ -563,6 +563,7 @@ HRESULT CDXUTDialogResourceManager::OnD3D10CreateDevice( ID3D10Device* pd3dDevic
     V_RETURN( m_pTechRenderUI10->GetPassByIndex( 0 )->GetDesc( &PassDesc ) );
     V_RETURN( pd3dDevice->CreateInputLayout( layout, 3, PassDesc.pIAInputSignature,
                                              PassDesc.IAInputSignatureSize, &m_pInputLayout10 ) );
+    DXUT_SetDebugName( m_pInputLayout10, "CDXUTDialogResourceManager" );
 
     // Create a vertex buffer quad for rendering later
     D3D10_BUFFER_DESC BufDesc;
@@ -572,6 +573,7 @@ HRESULT CDXUTDialogResourceManager::OnD3D10CreateDevice( ID3D10Device* pd3dDevic
     BufDesc.CPUAccessFlags = D3D10_CPU_ACCESS_WRITE;
     BufDesc.MiscFlags = 0;
     V_RETURN( pd3dDevice->CreateBuffer( &BufDesc, NULL, &m_pVBScreenQuad10 ) );
+    DXUT_SetDebugName( m_pVBScreenQuad10, "CDXUTDialogResourceManager" );
 
     return S_OK;
 }
@@ -1394,7 +1396,7 @@ bool CDXUTDialog::MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
                     return false;
 
                 POINT mousePoint = { short( LOWORD( lParam ) ), short( HIWORD( lParam ) ) };
-                if (uMsg == WM_MOUSEWHEEL) // <IRYOKU>: this fixes the mouse wheel events
+                if (uMsg == WM_MOUSEWHEEL) // [IRYOKU] [WHEEL_FIX]: this fixes the mouse wheel events
                     ScreenToClient(DXUTGetHWND(), &mousePoint);
                 mousePoint.x -= m_x;
                 mousePoint.y -= m_y;
@@ -2623,6 +2625,7 @@ HRESULT CDXUTDialogResourceManager::CreateTexture9( UINT iTexture )
             hr = DXUTCreateGUITextureFromInternalArray9( m_pd3d9Device, &pTextureNode->pTexture9, &info );
             if( FAILED( hr ) )
                 return DXTRACE_ERR( L"D3DXCreateTextureFromFileInMemoryEx", hr );
+            DXUT_SetDebugName( pTextureNode->pTexture9, "DXUT GUI Texture" );
         }
         else
         {
@@ -2678,6 +2681,7 @@ HRESULT CDXUTDialogResourceManager::CreateTexture10( UINT iTexture )
             hr = DXUTCreateGUITextureFromInternalArray10( m_pd3d10Device, &pTextureNode->pTexture10, NULL );
             if( FAILED( hr ) )
                 return DXTRACE_ERR( L"D3DX10CreateResourceFromFileInMemory", hr );
+            DXUT_SetDebugName( pTextureNode->pTexture10, "DXUT GUI Texture" );
         }
         else
         {
@@ -2708,6 +2712,7 @@ HRESULT CDXUTDialogResourceManager::CreateTexture10( UINT iTexture )
                                                   NULL, &pRes, NULL );
             if( FAILED( hr ) )
                 return DXTRACE_ERR( L"D3DX10CreateResourceFromResource", hr );
+            DXUT_SetDebugName( pRes, "DXUT GUI Texture" );
             hr = pRes->QueryInterface( __uuidof( ID3D10Texture2D ), ( LPVOID* )&pTextureNode->pTexture10 );
             SAFE_RELEASE( pRes );
             if( FAILED( hr ) )
@@ -2744,6 +2749,7 @@ HRESULT CDXUTDialogResourceManager::CreateTexture10( UINT iTexture )
         {
             return DXTRACE_ERR( L"D3DX10CreateResourceFromFileEx", hr );
         }
+        DXUT_SetDebugName( pRes, "DXUT GUI Texture" );
         hr = pRes->QueryInterface( __uuidof( ID3D10Texture2D ), ( LPVOID* )&pTextureNode->pTexture10 );
         SAFE_RELEASE( pRes );
         if( FAILED( hr ) )
@@ -2763,6 +2769,7 @@ HRESULT CDXUTDialogResourceManager::CreateTexture10( UINT iTexture )
     SRVDesc.Texture2D.MipLevels = 1;
     SRVDesc.Texture2D.MostDetailedMip = 0;
     hr = m_pd3d10Device->CreateShaderResourceView( pTextureNode->pTexture10, &SRVDesc, &pTextureNode->pTexResView );
+    DXUT_SetDebugName( pTextureNode->pTexResView, "DXUT GUI Texture" );
 
     return hr;
 }
@@ -3209,7 +3216,8 @@ void CDXUTStatic::Render( float fElapsedTime )
 
 
 //--------------------------------------------------------------------------------------
-HRESULT CDXUTStatic::GetTextCopy( LPWSTR strDest, UINT bufferCount )
+HRESULT CDXUTStatic::GetTextCopy( __out_ecount(bufferCount) LPWSTR strDest, 
+                                  UINT bufferCount )
 {
     // Validate incoming parameters
     if( strDest == NULL || bufferCount == 0 )
@@ -3374,7 +3382,6 @@ void CDXUTButton::Render( float fElapsedTime )
     }
 
     // Background fill layer
-    //TODO: remove magic numbers
     CDXUTElement* pElement = m_Elements.GetAt( 0 );
 
     float fBlendRate = ( iState == DXUT_STATE_PRESSED ) ? 0.0f : 0.8f;
@@ -4171,7 +4178,6 @@ void CDXUTComboBox::Render( float fElapsedTime )
         iState = DXUT_STATE_PRESSED;
 
     // Main text box
-    //TODO: remove magic numbers
     pElement = m_Elements.GetAt( 0 );
 
     // Blend current color
@@ -4638,7 +4644,6 @@ void CDXUTSlider::Render( float fElapsedTime )
     pElement->TextureColor.Blend( iState, fElapsedTime, fBlendRate );
     m_pDialog->DrawSprite( pElement, &m_rcBoundingBox, DXUT_FAR_BUTTON_DEPTH );
 
-    //TODO: remove magic numbers
     pElement = m_Elements.GetAt( 1 );
 
     // Blend current color
@@ -4797,7 +4802,7 @@ bool CDXUTScrollBar::HandleMouse( UINT uMsg, POINT pt, WPARAM wParam, LPARAM lPa
                 if( PtInRect( &m_rcDownButton, pt ) )
                 {
                     SetCapture( DXUTGetHWND() );
-                    if( m_nPosition + m_nPageSize < m_nEnd )
+                    if( m_nPosition + m_nPageSize <= m_nEnd )
                         ++m_nPosition;
                     UpdateThumbRect();
                     m_Arrow = CLICKED_DOWN;
@@ -4860,7 +4865,7 @@ bool CDXUTScrollBar::HandleMouse( UINT uMsg, POINT pt, WPARAM wParam, LPARAM lPa
 
                 // Compute first item index based on thumb position
 
-                int nMaxFirstItem = m_nEnd - m_nStart - m_nPageSize;  // Largest possible index for first item
+                int nMaxFirstItem = m_nEnd - m_nStart - m_nPageSize + 1;  // Largest possible index for first item
                 int nMaxThumb = RectHeight( m_rcTrack ) - RectHeight( m_rcThumb );  // Largest possible thumb position from the top
 
                 m_nPosition = m_nStart +
@@ -5010,7 +5015,7 @@ void CDXUTScrollBar::Cap()  // Clips position at boundaries. Ensures it stays wi
         m_nPosition = m_nStart;
     }
     else if( m_nPosition + m_nPageSize > m_nEnd )
-        m_nPosition = m_nEnd - m_nPageSize;
+        m_nPosition = m_nEnd - m_nPageSize + 1;
 }
 
 //--------------------------------------------------------------------------------------
@@ -5134,9 +5139,7 @@ void CDXUTListBox::RemoveItem( int nIndex )
 
 
 //--------------------------------------------------------------------------------------
-void CDXUTListBox::RemoveItemByText( WCHAR* wszText )
-{
-}
+
 
 
 //--------------------------------------------------------------------------------------
@@ -5795,7 +5798,8 @@ void CDXUTEditBox::SetText( LPCWSTR wszText, bool bSelected )
 
 
 //--------------------------------------------------------------------------------------
-HRESULT CDXUTEditBox::GetTextCopy( LPWSTR strDest, UINT bufferCount )
+HRESULT CDXUTEditBox::GetTextCopy( __out_ecount(bufferCount) LPWSTR strDest, 
+                                   UINT bufferCount )
 {
     assert( strDest );
 

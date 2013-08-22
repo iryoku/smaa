@@ -65,9 +65,9 @@ Copyright and License
 
 Copyright &copy; 2011 Jorge Jimenez (jorge@iryoku.com)
 
-Copyright &copy; 2011 Belen Masia (bmasia@unizar.es) 
-
 Copyright &copy; 2011 Jose I. Echevarria (joseignacioechevarria@gmail.com) 
+
+Copyright &copy; 2011 Belen Masia (bmasia@unizar.es) 
 
 Copyright &copy; 2011 Fernando Navarro (fernandn@microsoft.com) 
 
@@ -86,7 +86,7 @@ modification, are permitted provided that the following conditions are met:
       distribution:
 
       "Uses SMAA. Copyright (C) 2011 by Jorge Jimenez, Jose I. Echevarria,
-       Belen Masia, Fernando Navarro and Diego Gutierrez."
+       Tiago Sousa, Belen Masia, Fernando Navarro and Diego Gutierrez."
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS 
 IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 

@@ -31,6 +31,7 @@
 #define INVALID_SUBSET ((UINT)-1)
 #define INVALID_ANIMATION_DATA ((UINT)-1)
 #define ERROR_RESOURCE_VALUE 1
+#define INVALID_SAMPLER_SLOT ((UINT)-1)
 
 template<typename TYPE> BOOL IsErrorResource( TYPE data )
 {
@@ -402,6 +403,22 @@ protected:
                                                  ID3D10EffectVectorVariable* pvDiffuse,
                                                  ID3D10EffectVectorVariable* pvSpecular );
 
+    void                                RenderFrame( UINT iFrame,
+                                                bool bAdjacent,
+                                                ID3D10Device* pd3dDevice,
+                                                UINT iDiffuseSlot,
+                                                UINT iNormalSlot,
+                                                UINT iSpecularSlot );
+
+    void                                RenderMesh( UINT iMesh,
+                                               bool bAdjacent,
+                                               ID3D10Device* pd3dDevice,
+                                               UINT iDiffuseSlot,
+                                               UINT iNormalSlot,
+                                               UINT iSpecularSlot );
+//--------------------------------------------------------------------------------------
+
+
     //Direct3D 9 rendering helpers
     void                            RenderMesh( UINT iMesh,
                                                 LPDIRECT3DDEVICE9 pd3dDevice,
@@ -444,6 +461,12 @@ public:
                                                             BYTE* pBufferData );
 
     //Direct3D 10 Rendering
+//--------------------------------------------------------------------------------------
+    void Render( ID3D10Device* pd3dDevice,
+                           UINT iDiffuseSlot,
+                           UINT iNormalSlot,
+                           UINT iSpecularSlot );
+    
     virtual void                    Render( ID3D10Device* pd3dDevice,
                                             ID3D10EffectTechnique* pTechnique,
                                             ID3D10EffectShaderResourceVariable* ptxDiffuse = NULL,
@@ -473,6 +496,7 @@ public:
     ID3D10Buffer* GetVB10( UINT iMesh, UINT iVB );
     ID3D10Buffer* GetIB10( UINT iMesh );
     ID3D10Buffer* GetAdjIB10( UINT iMesh );
+    SDKMESH_INDEX_TYPE GetIndexType( UINT iMesh );
 
     //Helpers (D3D9 specific)
     static D3DPRIMITIVETYPE         GetPrimitiveType9( SDKMESH_PRIMITIVE_TYPE PrimType );

@@ -1322,7 +1322,6 @@ INT WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
     resizeWindow();
 
     /**
-     * A note to myself: we hacked DXUT to not show the window by default.
      * See <WINDOW_FIX> in DXUT.h
      */
     if (commandlineOptions.dst == L"")

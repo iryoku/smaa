@@ -1,7 +1,7 @@
 /**
  * Copyright (C) 2011 Jorge Jimenez (jorge@iryoku.com)
- * Copyright (C) 2011 Belen Masia (bmasia@unizar.es) 
  * Copyright (C) 2011 Jose I. Echevarria (joseignacioechevarria@gmail.com) 
+ * Copyright (C) 2011 Belen Masia (bmasia@unizar.es) 
  * Copyright (C) 2011 Fernando Navarro (fernandn@microsoft.com) 
  * Copyright (C) 2011 Diego Gutierrez (diegog@unizar.es)
  * All rights reserved.
@@ -16,8 +16,8 @@
  *       in the documentation and/or other materials provided with the 
  *       distribution:
  * 
- *      "Uses Jimenez's MLAA. Copyright (C) 2011 by Jorge Jimenez, Belen Masia,
- *       Jose I. Echevarria, Fernando Navarro and Diego Gutierrez."
+ *      "Uses SMAA. Copyright (C) 2011 by Jorge Jimenez, Jose I. Echevarria,
+ *       Tiago Sousa, Belen Masia, Fernando Navarro and Diego Gutierrez."
  * 
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS 
  * IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 

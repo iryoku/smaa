@@ -196,6 +196,7 @@ HRESULT CDXUTSDKMesh::CreateVertexBuffer( ID3D10Device* pd3dDevice, SDKMESH_VERT
         D3D10_SUBRESOURCE_DATA InitData;
         InitData.pSysMem = pVertices;
         hr = pd3dDevice->CreateBuffer( &bufferDesc, &InitData, &pHeader->pVB10 );
+        DXUT_SetDebugName( pHeader->pVB10, "CDXUTSDKMesh" );
     }
 
     return hr;
@@ -225,6 +226,7 @@ HRESULT CDXUTSDKMesh::CreateIndexBuffer( ID3D10Device* pd3dDevice, SDKMESH_INDEX
         D3D10_SUBRESOURCE_DATA InitData;
         InitData.pSysMem = pIndices;
         hr = pd3dDevice->CreateBuffer( &bufferDesc, &InitData, &pHeader->pIB10 );
+        DXUT_SetDebugName( pHeader->pIB10, "CDXUTSDKMesh" );
     }
 
     return hr;
@@ -383,7 +385,8 @@ HRESULT CDXUTSDKMesh::CreateFromMemory( ID3D10Device* pDev10,
                                         SDKMESH_CALLBACKS9* pLoaderCallbacks9 )
 {
     HRESULT hr = E_FAIL;
-
+    D3DXVECTOR3 lower; 
+    D3DXVECTOR3 upper; 
     m_pDev9 = pDev9;
     m_pDev10 = pDev10;
 
@@ -491,6 +494,99 @@ HRESULT CDXUTSDKMesh::CreateFromMemory( ID3D10Device* pDev10,
         goto Error;
 
     hr = S_OK;
+
+    SDKMESH_SUBSET* pSubset = NULL;
+    D3D10_PRIMITIVE_TOPOLOGY PrimType;
+
+    // update bounding volume 
+    SDKMESH_MESH* currentMesh = &m_pMeshArray[0];
+    int tris = 0;
+    for (UINT meshi=0; meshi < m_pMeshHeader->NumMeshes; ++meshi) {
+        lower.x = FLT_MAX; lower.y = FLT_MAX; lower.z = FLT_MAX;
+        upper.x = -FLT_MAX; upper.y = -FLT_MAX; upper.z = -FLT_MAX;
+        currentMesh = GetMesh( meshi );
+        INT indsize;
+        if (m_pIndexBufferArray[currentMesh->IndexBuffer].IndexType == IT_16BIT ) {
+            indsize = 2;
+        }else {
+            indsize = 4;        
+        }
+
+        for( UINT subset = 0; subset < currentMesh->NumSubsets; subset++ )
+        {
+            pSubset = GetSubset( meshi, subset ); //&m_pSubsetArray[ currentMesh->pSubsets[subset] ];
+
+            PrimType = GetPrimitiveType10( ( SDKMESH_PRIMITIVE_TYPE )pSubset->PrimitiveType );
+            assert( PrimType == D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST );// only triangle lists are handled.
+
+            UINT IndexCount = ( UINT )pSubset->IndexCount;
+            UINT IndexStart = ( UINT )pSubset->IndexStart;
+
+            /*if( bAdjacent )
+            {
+                IndexCount *= 2;
+                IndexStart *= 2;
+            }*/
+     
+        //BYTE* pIndices = NULL;
+            //m_ppIndices[i]
+            UINT *ind = ( UINT * )m_ppIndices[currentMesh->IndexBuffer];
+            FLOAT *verts =  ( FLOAT* )m_ppVertices[currentMesh->VertexBuffers[0]];
+            UINT stride = (UINT)m_pVertexBufferArray[currentMesh->VertexBuffers[0]].StrideBytes;
+            assert (stride % 4 == 0);
+            stride /=4;
+            for (UINT vertind = IndexStart; vertind < IndexStart + IndexCount; ++vertind) {
+                UINT current_ind=0;
+                if (indsize == 2) {
+                    UINT ind_div2 = vertind / 2;
+                    current_ind = ind[ind_div2];
+                    if (vertind %2 ==0) {
+                        current_ind = current_ind << 16;
+                        current_ind = current_ind >> 16;
+                    }else {
+                        current_ind = current_ind >> 16;
+                    }
+                }else {
+                    current_ind = ind[vertind];
+                }
+                tris++;
+                D3DXVECTOR3 *pt = (D3DXVECTOR3*)&(verts[stride * current_ind]);
+                if (pt->x < lower.x) {
+                    lower.x = pt->x;
+                }
+                if (pt->y < lower.y) {
+                    lower.y = pt->y;
+                }
+                if (pt->z < lower.z) {
+                    lower.z = pt->z;
+                }
+                if (pt->x > upper.x) {
+                    upper.x = pt->x;
+                }
+                if (pt->y > upper.y) {
+                    upper.y = pt->y;
+                }
+                if (pt->z > upper.z) {
+                    upper.z = pt->z;
+                }
+                //BYTE** m_ppVertices;
+                //BYTE** m_ppIndices;
+            }
+            //pd3dDeviceContext->DrawIndexed( IndexCount, IndexStart, VertexStart );
+        }
+
+        D3DXVECTOR3 half = upper - lower;
+        half *=0.5f;
+
+        currentMesh->BoundingBoxCenter = lower + half;
+        currentMesh->BoundingBoxExtents = half;
+
+    }
+    // Update 
+        
+
+
+
 Error:
 
     if( !pLoaderCallbacks10 && !pLoaderCallbacks9 )
@@ -625,6 +721,107 @@ void CDXUTSDKMesh::TransformFrameAbsolute( UINT iFrame, double fTime )
 
 //--------------------------------------------------------------------------------------
 #define MAX_D3D10_VERTEX_STREAMS D3D10_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT
+
+
+void CDXUTSDKMesh::RenderMesh( UINT iMesh,
+                               bool bAdjacent,
+                               ID3D10Device* pd3dDevice,
+                               UINT iDiffuseSlot,
+                               UINT iNormalSlot,
+                               UINT iSpecularSlot )
+{
+    if( 0 < GetOutstandingBufferResources() )
+        return;
+
+    SDKMESH_MESH* pMesh = &m_pMeshArray[iMesh];
+
+    UINT Strides[MAX_D3D10_VERTEX_STREAMS];
+    UINT Offsets[MAX_D3D10_VERTEX_STREAMS];
+    ID3D10Buffer* pVB[MAX_D3D10_VERTEX_STREAMS];
+
+    if( pMesh->NumVertexBuffers > MAX_D3D10_VERTEX_STREAMS )
+        return;
+
+    for( UINT64 i = 0; i < pMesh->NumVertexBuffers; i++ )
+    {
+        pVB[i] = m_pVertexBufferArray[ pMesh->VertexBuffers[i] ].pVB10;
+        Strides[i] = ( UINT )m_pVertexBufferArray[ pMesh->VertexBuffers[i] ].StrideBytes;
+        Offsets[i] = 0;
+    }
+
+    SDKMESH_INDEX_BUFFER_HEADER* pIndexBufferArray;
+    if( bAdjacent )
+        pIndexBufferArray = m_pAdjacencyIndexBufferArray;
+    else
+        pIndexBufferArray = m_pIndexBufferArray;
+
+    ID3D10Buffer* pIB = pIndexBufferArray[ pMesh->IndexBuffer ].pIB10;
+    DXGI_FORMAT ibFormat = DXGI_FORMAT_R16_UINT;
+    switch( pIndexBufferArray[ pMesh->IndexBuffer ].IndexType )
+    {
+    case IT_16BIT:
+        ibFormat = DXGI_FORMAT_R16_UINT;
+        break;
+    case IT_32BIT:
+        ibFormat = DXGI_FORMAT_R32_UINT;
+        break;
+    };
+
+    pd3dDevice->IASetVertexBuffers( 0, pMesh->NumVertexBuffers, pVB, Strides, Offsets );
+    pd3dDevice->IASetIndexBuffer( pIB, ibFormat, 0 );
+
+    SDKMESH_SUBSET* pSubset = NULL;
+    SDKMESH_MATERIAL* pMat = NULL;
+    D3D10_PRIMITIVE_TOPOLOGY PrimType;
+
+    for( UINT subset = 0; subset < pMesh->NumSubsets; subset++ )
+    {
+        pSubset = &m_pSubsetArray[ pMesh->pSubsets[subset] ];
+
+        PrimType = GetPrimitiveType10( ( SDKMESH_PRIMITIVE_TYPE )pSubset->PrimitiveType );
+        if( bAdjacent )
+        {
+            switch( PrimType )
+            {
+            case D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST:
+                PrimType = D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST_ADJ;
+                break;
+            case D3D10_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP:
+                PrimType = D3D10_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP_ADJ;
+                break;
+            case D3D10_PRIMITIVE_TOPOLOGY_LINELIST:
+                PrimType = D3D10_PRIMITIVE_TOPOLOGY_LINELIST_ADJ;
+                break;
+            case D3D10_PRIMITIVE_TOPOLOGY_LINESTRIP:
+                PrimType = D3D10_PRIMITIVE_TOPOLOGY_LINESTRIP_ADJ;
+                break;
+            }
+        }
+
+        pd3dDevice->IASetPrimitiveTopology( PrimType );
+
+        pMat = &m_pMaterialArray[ pSubset->MaterialID ];
+        if( iDiffuseSlot != INVALID_SAMPLER_SLOT && !IsErrorResource( pMat->pDiffuseRV10 ) )
+            pd3dDevice->PSSetShaderResources( iDiffuseSlot, 1, &pMat->pDiffuseRV10 );
+        if( iNormalSlot != INVALID_SAMPLER_SLOT && !IsErrorResource( pMat->pNormalRV10 ) )
+            pd3dDevice->PSSetShaderResources( iNormalSlot, 1, &pMat->pNormalRV10 );
+        if( iSpecularSlot != INVALID_SAMPLER_SLOT && !IsErrorResource( pMat->pSpecularRV10 ) )
+            pd3dDevice->PSSetShaderResources( iSpecularSlot, 1, &pMat->pSpecularRV10 );
+
+        UINT IndexCount = ( UINT )pSubset->IndexCount;
+        UINT IndexStart = ( UINT )pSubset->IndexStart;
+        UINT VertexStart = ( UINT )pSubset->VertexStart;
+        if( bAdjacent )
+        {
+            IndexCount *= 2;
+            IndexStart *= 2;
+        }
+
+        pd3dDevice->DrawIndexed( IndexCount, IndexStart, VertexStart );
+    }
+}
+
+
 void CDXUTSDKMesh::RenderMesh( UINT iMesh,
                                bool bAdjacent,
                                ID3D10Device* pd3dDevice,
@@ -735,6 +932,38 @@ void CDXUTSDKMesh::RenderMesh( UINT iMesh,
             pd3dDevice->DrawIndexed( IndexCount, IndexStart, VertexStart );
         }
     }
+}
+
+//--------------------------------------------------------------------------------------
+void CDXUTSDKMesh::RenderFrame( UINT iFrame,
+                                bool bAdjacent,
+                                ID3D10Device* pd3dDevice,
+                                UINT iDiffuseSlot,
+                                UINT iNormalSlot,
+                                UINT iSpecularSlot )
+{
+    if( !m_pStaticMeshData || !m_pFrameArray )
+        return;
+
+    if( m_pFrameArray[iFrame].Mesh != INVALID_MESH )
+    {
+        RenderMesh( m_pFrameArray[iFrame].Mesh,
+                    bAdjacent,
+                    pd3dDevice,
+                    iDiffuseSlot,
+                    iNormalSlot,
+                    iSpecularSlot );
+    }
+
+    // Render our children
+    if( m_pFrameArray[iFrame].ChildFrame != INVALID_FRAME )
+        RenderFrame( m_pFrameArray[iFrame].ChildFrame, bAdjacent, pd3dDevice, iDiffuseSlot, 
+                     iNormalSlot, iSpecularSlot );
+
+    // Render our siblings
+    if( m_pFrameArray[iFrame].SiblingFrame != INVALID_FRAME )
+        RenderFrame( m_pFrameArray[iFrame].SiblingFrame, bAdjacent, pd3dDevice, iDiffuseSlot, 
+                     iNormalSlot, iSpecularSlot );
 }
 
 //--------------------------------------------------------------------------------------
@@ -1224,6 +1453,7 @@ HRESULT CDXUTSDKMesh::CreateAdjacencyIndices( ID3D10Device* pd3dDevice, float fE
         D3D10_SUBRESOURCE_DATA InitData;
         InitData.pSysMem = pAdjIndices;
         V_RETURN( pd3dDevice->CreateBuffer( &bufferDesc, &InitData, &m_pAdjacencyIndexBufferArray[IBIndex].pIB10 ) );
+        DXUT_SetDebugName( m_pAdjacencyIndexBufferArray[IBIndex].pIB10, "CDXUTSDKMesh" );
 
         //cleanup
         pIndexBuffer->Unmap();
@@ -1234,6 +1464,16 @@ HRESULT CDXUTSDKMesh::CreateAdjacencyIndices( ID3D10Device* pd3dDevice, float fE
     }
 
     return hr;
+}
+
+
+//--------------------------------------------------------------------------------------
+void CDXUTSDKMesh::Render( ID3D10Device* pd3dDevice,
+                           UINT iDiffuseSlot,
+                           UINT iNormalSlot,
+                           UINT iSpecularSlot )
+{
+    RenderFrame( 0, false, pd3dDevice, iDiffuseSlot, iNormalSlot, iSpecularSlot );
 }
 
 //--------------------------------------------------------------------------------------
@@ -1333,6 +1573,11 @@ ID3D10Buffer* CDXUTSDKMesh::GetVB10( UINT iMesh, UINT iVB )
 ID3D10Buffer* CDXUTSDKMesh::GetIB10( UINT iMesh )
 {
     return m_pIndexBufferArray[ m_pMeshArray[ iMesh ].IndexBuffer ].pIB10;
+}
+
+SDKMESH_INDEX_TYPE CDXUTSDKMesh::GetIndexType( UINT iMesh ) 
+{
+    return ( SDKMESH_INDEX_TYPE ) m_pIndexBufferArray[m_pMeshArray[ iMesh ].IndexBuffer].IndexType;
 }
 
 //--------------------------------------------------------------------------------------
