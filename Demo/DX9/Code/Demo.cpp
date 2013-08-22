@@ -43,6 +43,7 @@
 
 using namespace std;
 
+const int HUD_WIDTH = 125;
 
 CDXUTDialogResourceManager dialogResourceManager;
 CDXUTDialog hud;
@@ -69,7 +70,24 @@ bool showHud = true;
 #define IDC_DETECTION_MODE    3
 #define IDC_ANTIALIASING      4
 #define IDC_PROFILE           5
+#define IDC_THRESHOLD_LABEL             15
+#define IDC_THRESHOLD                   16
+#define IDC_MAX_SEARCH_STEPS_LABEL      17
+#define IDC_MAX_SEARCH_STEPS            18
+#define IDC_MAX_SEARCH_STEPS_DIAG_LABEL 19
+#define IDC_MAX_SEARCH_STEPS_DIAG       20
+#define IDC_CORNER_ROUNDING_LABEL       21
+#define IDC_CORNER_ROUNDING             22
+#define IDC_ENABLE_CORNER_ROUNDING      23
 
+struct {
+    float threshold;
+    int searchSteps;
+    int diagSearchSteps;
+    float cornerRounding;
+    wstring src;
+    wstring dst;
+} commandlineOptions = {0.1f, 16, 8, 25.0f, L"", L""};
 
 bool CALLBACK isDeviceAcceptable(D3DCAPS9 *caps, D3DFORMAT adapterFormat, D3DFORMAT backBufferFormat, bool windowed, void *userContext) {
     if (caps->PixelShaderVersion < D3DPS_VERSION(3, 0) || caps->VertexShaderVersion < D3DVS_VERSION(3, 0))
@@ -78,6 +96,9 @@ bool CALLBACK isDeviceAcceptable(D3DCAPS9 *caps, D3DFORMAT adapterFormat, D3DFOR
         return true;
 }
 
+float round(float n) {
+    return floor(n + 0.5f);
+}
 
 HRESULT CALLBACK onCreateDevice(IDirect3DDevice9 *device, const D3DSURFACE_DESC *desc, void *userContext) {
     HRESULT hr;
@@ -89,6 +110,17 @@ HRESULT CALLBACK onCreateDevice(IDirect3DDevice9 *device, const D3DSURFACE_DESC 
     return S_OK;
 }
 
+
+void setVisibleCustomControls(bool visible) {
+    hud.GetStatic(IDC_THRESHOLD_LABEL)->SetVisible(visible);
+    hud.GetSlider(IDC_THRESHOLD)->SetVisible(visible);
+    hud.GetStatic(IDC_MAX_SEARCH_STEPS_LABEL)->SetVisible(visible);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS)->SetVisible(visible);
+    hud.GetStatic(IDC_MAX_SEARCH_STEPS_DIAG_LABEL)->SetVisible(visible);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG)->SetVisible(visible);
+    hud.GetStatic(IDC_CORNER_ROUNDING_LABEL)->SetVisible(visible);
+    hud.GetSlider(IDC_CORNER_ROUNDING)->SetVisible(visible);
+}
 
 void CALLBACK onDestroyDevice(void* pUserContext) {
     dialogResourceManager.OnD3D9DestroyDevice();
@@ -108,6 +140,12 @@ HRESULT CALLBACK onResetDevice(IDirect3DDevice9 *device, const D3DSURFACE_DESC *
     timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
 
     SMAA::Preset preset = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
+	if(int(preset) == 4)
+	{
+		setVisibleCustomControls( true);
+	} else {
+		setVisibleCustomControls(false);
+	}
     smaa = new SMAA(device, desc->Width, desc->Height, preset);
 
     V(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbufferSurface));
@@ -357,6 +395,62 @@ void CALLBACK onGUIEvent(UINT event, int controlId, CDXUTControl* control, void 
                 timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
             }
             break;
+        case IDC_THRESHOLD:
+            if (event == EVENT_SLIDER_VALUE_CHANGED) {
+                CDXUTSlider *slider = 	hud.GetSlider(IDC_THRESHOLD);
+                int min, max;
+                slider->GetRange(min, max);
+
+                float scale = float(slider->GetValue()) / (max - min);
+                smaa->setThreshold(scale * 0.5f);
+            
+                wstringstream s;
+                s << L"Threshold: " << scale * 0.5f;
+                hud.GetStatic(IDC_THRESHOLD_LABEL)->SetText(s.str().c_str());
+            }
+            break;
+        case IDC_MAX_SEARCH_STEPS:
+            if (event == EVENT_SLIDER_VALUE_CHANGED) {
+                CDXUTSlider *slider = 	hud.GetSlider(IDC_MAX_SEARCH_STEPS);
+                int min, max;
+                slider->GetRange(min, max);
+
+                float scale = float(slider->GetValue()) / (max - min);
+                smaa->setMaxSearchSteps(int(round(scale * 98.0f)));
+
+                wstringstream s;
+                s << L"Max Search Steps: " << int(round(scale * 98.0f));
+                hud.GetStatic(IDC_MAX_SEARCH_STEPS_LABEL)->SetText(s.str().c_str());
+            }
+            break;
+        case IDC_MAX_SEARCH_STEPS_DIAG:
+            if (event == EVENT_SLIDER_VALUE_CHANGED) {
+                CDXUTSlider *slider = 	hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG);
+                int min, max;
+                slider->GetRange(min, max);
+
+                float scale = float(slider->GetValue()) / (max - min);
+                smaa->setMaxSearchStepsDiag(int(round(scale * 20.0f)));
+
+                wstringstream s;
+                s << L"Max Diag. Search Steps: " << int(round(scale * 20.0f));
+                hud.GetStatic(IDC_MAX_SEARCH_STEPS_DIAG_LABEL)->SetText(s.str().c_str());
+            }
+            break;
+        case IDC_CORNER_ROUNDING:
+            if (event == EVENT_SLIDER_VALUE_CHANGED) {
+                CDXUTSlider *slider = 	hud.GetSlider(IDC_CORNER_ROUNDING);
+                int min, max;
+                slider->GetRange(min, max);
+
+                float scale = float(slider->GetValue()) / (max - min);
+                smaa->setCornerRounding(scale * 100.0f);
+
+                wstringstream s;
+                s << L"Corner Rounding: " << scale * 100.0f;
+                hud.GetStatic(IDC_CORNER_ROUNDING_LABEL)->SetText(s.str().c_str());
+            }
+            break;
     }
 }
 
@@ -365,11 +459,11 @@ void initApp() {
     hud.Init(&dialogResourceManager);
 
     hud.SetCallback(onGUIEvent); int iY = 10;
-    hud.AddButton(IDC_TOGGLE_FULLSCREEN, L"Toggle full screen", 35, iY, 125, 22);
+    hud.AddButton(IDC_TOGGLE_FULLSCREEN, L"Toggle full screen", 35, iY, HUD_WIDTH, 22);
 
     iY += 24;
 
-    hud.AddComboBox(IDC_PRESET, 35, iY += 24, 125, 22, 0, false);
+    hud.AddComboBox(IDC_PRESET, 35, iY += 24, HUD_WIDTH, 22, 0, false);
     hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Low", (LPVOID) 0);
     hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Medium", (LPVOID) 1);
     hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA High", (LPVOID) 2);
@@ -377,13 +471,41 @@ void initApp() {
     hud.GetComboBox(IDC_PRESET)->AddItem(L"SMAA Custom", (LPVOID) 4);
     hud.GetComboBox(IDC_PRESET)->SetSelectedByData((LPVOID) 2);
 
-    hud.AddComboBox(IDC_DETECTION_MODE, 35, iY += 24, 125, 22, 0, false);
+    hud.AddComboBox(IDC_DETECTION_MODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
     hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Luma edge det.", (LPVOID) 0);
     hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Color edge det.", (LPVOID) 1);
     hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
 
-    hud.AddCheckBox(IDC_ANTIALIASING, L"SMAA Anti-Aliasing", 35, iY += 24, 125, 22, true);
+    hud.AddCheckBox(IDC_ANTIALIASING, L"SMAA Anti-Aliasing", 35, iY += 24, HUD_WIDTH, 22, true);
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, 125, 22, false);
+    wstringstream s;
+    s << L"Threshold: " << commandlineOptions.threshold;
+    hud.AddStatic(IDC_THRESHOLD_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
+    hud.AddSlider(IDC_THRESHOLD, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.threshold / 0.5f));
+    hud.GetStatic(IDC_THRESHOLD_LABEL)->SetVisible(false);
+    hud.GetSlider(IDC_THRESHOLD)->SetVisible(false);
+
+    s = wstringstream();
+    s << L"Max Search Steps: " << commandlineOptions.searchSteps;
+    hud.AddStatic(IDC_MAX_SEARCH_STEPS_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
+    hud.AddSlider(IDC_MAX_SEARCH_STEPS, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.searchSteps / 98.0f));
+    hud.GetStatic(IDC_MAX_SEARCH_STEPS_LABEL)->SetVisible(false);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS)->SetVisible(false);
+
+    s = wstringstream();
+    s << L"Max Diag. Search Steps: " << commandlineOptions.diagSearchSteps;
+    hud.AddStatic(IDC_MAX_SEARCH_STEPS_DIAG_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
+    hud.AddSlider(IDC_MAX_SEARCH_STEPS_DIAG, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.diagSearchSteps / 20.0f));
+    hud.GetStatic(IDC_MAX_SEARCH_STEPS_DIAG_LABEL)->SetVisible(false);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG)->SetVisible(false);
+
+    s = wstringstream();
+    s << L"Corner Rounding: " << commandlineOptions.cornerRounding;
+    hud.AddStatic(IDC_CORNER_ROUNDING_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
+    hud.AddSlider(IDC_CORNER_ROUNDING, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.cornerRounding / 100.0f));
+    hud.GetStatic(IDC_CORNER_ROUNDING_LABEL)->SetVisible(false);
+    hud.GetSlider(IDC_CORNER_ROUNDING)->SetVisible(false);
+	
 }
 
 
