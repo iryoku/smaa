@@ -65,11 +65,11 @@ CDXUTTextHelper *txtHelper = NULL;
 bool showHud = true;
 
 
-#define IDC_TOGGLE_FULLSCREEN 1
-#define IDC_PRESET            2
-#define IDC_DETECTION_MODE    3
-#define IDC_ANTIALIASING      4
-#define IDC_PROFILE           5
+#define IDC_TOGGLE_FULLSCREEN            1
+#define IDC_PRESET                       2
+#define IDC_DETECTION_MODE               3
+#define IDC_ANTIALIASING                 4
+#define IDC_PROFILE                      5
 #define IDC_THRESHOLD_LABEL             15
 #define IDC_THRESHOLD                   16
 #define IDC_MAX_SEARCH_STEPS_LABEL      17
@@ -78,7 +78,6 @@ bool showHud = true;
 #define IDC_MAX_SEARCH_STEPS_DIAG       20
 #define IDC_CORNER_ROUNDING_LABEL       21
 #define IDC_CORNER_ROUNDING             22
-#define IDC_ENABLE_CORNER_ROUNDING      23
 
 struct {
     float threshold;
@@ -140,13 +139,8 @@ HRESULT CALLBACK onResetDevice(IDirect3DDevice9 *device, const D3DSURFACE_DESC *
     timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
 
     SMAA::Preset preset = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
-	if(int(preset) == 4)
-	{
-		setVisibleCustomControls( true);
-	} else {
-		setVisibleCustomControls(false);
-	}
     smaa = new SMAA(device, desc->Width, desc->Height, preset);
+    setVisibleCustomControls(preset == SMAA::PRESET_CUSTOM);
 
     V(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbufferSurface));
 
@@ -397,7 +391,7 @@ void CALLBACK onGUIEvent(UINT event, int controlId, CDXUTControl* control, void 
             break;
         case IDC_THRESHOLD:
             if (event == EVENT_SLIDER_VALUE_CHANGED) {
-                CDXUTSlider *slider = 	hud.GetSlider(IDC_THRESHOLD);
+                CDXUTSlider *slider = (CDXUTSlider *) control;
                 int min, max;
                 slider->GetRange(min, max);
 
@@ -411,7 +405,7 @@ void CALLBACK onGUIEvent(UINT event, int controlId, CDXUTControl* control, void 
             break;
         case IDC_MAX_SEARCH_STEPS:
             if (event == EVENT_SLIDER_VALUE_CHANGED) {
-                CDXUTSlider *slider = 	hud.GetSlider(IDC_MAX_SEARCH_STEPS);
+                CDXUTSlider *slider = (CDXUTSlider *) control;
                 int min, max;
                 slider->GetRange(min, max);
 
@@ -425,7 +419,7 @@ void CALLBACK onGUIEvent(UINT event, int controlId, CDXUTControl* control, void 
             break;
         case IDC_MAX_SEARCH_STEPS_DIAG:
             if (event == EVENT_SLIDER_VALUE_CHANGED) {
-                CDXUTSlider *slider = 	hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG);
+                CDXUTSlider *slider = (CDXUTSlider *) control;
                 int min, max;
                 slider->GetRange(min, max);
 
@@ -439,7 +433,7 @@ void CALLBACK onGUIEvent(UINT event, int controlId, CDXUTControl* control, void 
             break;
         case IDC_CORNER_ROUNDING:
             if (event == EVENT_SLIDER_VALUE_CHANGED) {
-                CDXUTSlider *slider = 	hud.GetSlider(IDC_CORNER_ROUNDING);
+                CDXUTSlider *slider = (CDXUTSlider *) control;
                 int min, max;
                 slider->GetRange(min, max);
 
@@ -476,8 +470,8 @@ void initApp() {
     hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Color edge det.", (LPVOID) 1);
     hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Depth edge det.", (LPVOID) 2);
 
-    hud.AddCheckBox(IDC_ANTIALIASING, L"SMAA Anti-Aliasing", 35, iY += 24, HUD_WIDTH, 22, true);
-    hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, 125, 22, false);
+    hud.AddCheckBox(IDC_ANTIALIASING, L"SMAA", 35, iY += 24, HUD_WIDTH, 22, true);
+    hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, HUD_WIDTH, 22, false);
     wstringstream s;
     s << L"Threshold: " << commandlineOptions.threshold;
     hud.AddStatic(IDC_THRESHOLD_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
@@ -505,7 +499,6 @@ void initApp() {
     hud.AddSlider(IDC_CORNER_ROUNDING, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.cornerRounding / 100.0f));
     hud.GetStatic(IDC_CORNER_ROUNDING_LABEL)->SetVisible(false);
     hud.GetSlider(IDC_CORNER_ROUNDING)->SetVisible(false);
-	
 }
 
 

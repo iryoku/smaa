@@ -3,7 +3,7 @@ SMAA: Subpixel Morphological Antialiasing
 
 SMAA is a very efficient GPU-based MLAA implementation, capable of handling subpixel features seamlessly, and featuring an advanced pattern detection & handling mechanism.
 
-Checkout the [technical paper](http://www.iryoku.com/smaa/) for more info!
+Checkout the [paper](http://www.iryoku.com/smaa/) for more info!
 
 
 Thanks To

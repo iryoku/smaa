@@ -419,11 +419,24 @@ void CALLBACK onDestroyDevice(void *context) {
 }
 
 
+void setVisibleCustomControls(bool visible) {
+    hud.GetStatic(IDC_THRESHOLD_LABEL)->SetVisible(visible);
+    hud.GetSlider(IDC_THRESHOLD)->SetVisible(visible);
+    hud.GetStatic(IDC_MAX_SEARCH_STEPS_LABEL)->SetVisible(visible);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS)->SetVisible(visible);
+    hud.GetStatic(IDC_MAX_SEARCH_STEPS_DIAG_LABEL)->SetVisible(visible);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG)->SetVisible(visible);
+    hud.GetStatic(IDC_CORNER_ROUNDING_LABEL)->SetVisible(visible);
+    hud.GetSlider(IDC_CORNER_ROUNDING)->SetVisible(visible);
+}
+
+
 void initSMAA(ID3D10Device *device, const DXGI_SURFACE_DESC *desc) {
     SMAA::Preset preset = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
     bool predication = hud.GetCheckBox(IDC_PREDICATION)->GetEnabled() && hud.GetCheckBox(IDC_PREDICATION)->GetChecked();
     bool reprojection = hud.GetCheckBox(IDC_REPROJECTION)->GetEnabled() && hud.GetCheckBox(IDC_REPROJECTION)->GetChecked();
     smaa = new SMAA(device, desc->Width, desc->Height, preset, predication, reprojection);
+    setVisibleCustomControls(preset == SMAA::PRESET_CUSTOM);
 
     int min, max;
     float scale;
@@ -835,18 +848,6 @@ LRESULT CALLBACK msgProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, bool
 }
 
 
-void setVisibleCustomControls(bool visible) {
-    hud.GetStatic(IDC_THRESHOLD_LABEL)->SetVisible(visible);
-    hud.GetSlider(IDC_THRESHOLD)->SetVisible(visible);
-    hud.GetStatic(IDC_MAX_SEARCH_STEPS_LABEL)->SetVisible(visible);
-    hud.GetSlider(IDC_MAX_SEARCH_STEPS)->SetVisible(visible);
-    hud.GetStatic(IDC_MAX_SEARCH_STEPS_DIAG_LABEL)->SetVisible(visible);
-    hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG)->SetVisible(visible);
-    hud.GetStatic(IDC_CORNER_ROUNDING_LABEL)->SetVisible(visible);
-    hud.GetSlider(IDC_CORNER_ROUNDING)->SetVisible(visible);
-}
-
-
 void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context) {
     HRESULT hr;
 
@@ -860,14 +861,11 @@ void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context
         case '2':
         case '3':
         case '4':
-        case '5': {
+        case '5':
             hud.GetComboBox(IDC_PRESET)->SetSelectedByIndex(nchar - '1');
-            SMAA::Preset selected = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
-            setVisibleCustomControls(selected == SMAA::PRESET_CUSTOM);
             onReleasingSwapChain(NULL);
             onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
             break;
-        }
         case 'A': {
             int previous = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() - 1;
             hud.GetComboBox(IDC_INPUT)->SetSelectedByIndex(previous > 0? previous : 0);
@@ -1055,9 +1053,6 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
         }
         case IDC_PRESET:
             if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
-                SMAA::Preset selected = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
-                setVisibleCustomControls(selected == SMAA::PRESET_CUSTOM);
-
                 SAFE_DELETE(smaa);
                 initSMAA(DXUTGetD3D10Device(), DXUTGetDXGIBackBufferSurfaceDesc());
             }

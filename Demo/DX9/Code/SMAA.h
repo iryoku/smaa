@@ -160,10 +160,9 @@ class SMAA {
         IDirect3DTexture9 *areaTex;
         IDirect3DTexture9 *searchTex;
 
-        // Custom Settings.
         D3DXHANDLE thresholdHandle;
         D3DXHANDLE maxSearchStepsHandle, maxSearchStepsDiagHandle;
-        D3DXHANDLE CornerRoundingHandle;
+        D3DXHANDLE cornerRoundingHandle;
         D3DXHANDLE areaTexHandle, searchTexHandle;
         D3DXHANDLE colorTexHandle, depthTexHandle;
         D3DXHANDLE edgesTexHandle, blendTexHandle;

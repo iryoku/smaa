@@ -48,17 +48,18 @@
  * This can be ignored; its purpose is to support interactive custom parameter
  * tweaking.
  */
-float custom_threshold=0.1;
-float custom_maxSearchSteps=16;
-float custom_maxSearchStepsDiag=8;
-float custom_CornerRounding=0.25; 
+float threshld;
+float maxSearchSteps;
+float maxSearchStepsDiag;
+float cornerRounding;
 
 #ifdef SMAA_PRESET_CUSTOM
-#define SMAA_THRESHOLD custom_threshold
-#define SMAA_MAX_SEARCH_STEPS custom_maxSearchSteps
-#define SMAA_MAX_SEARCH_STEPS_DIAG custom_maxSearchStepsDiag
-#define SMAA_CORNER_ROUNDING custom_CornerRounding
-#define SMAA_FORCE_DIAGONALS 1
+#define SMAA_THRESHOLD threshld
+#define SMAA_MAX_SEARCH_STEPS maxSearchSteps
+#define SMAA_MAX_SEARCH_STEPS_DIAG maxSearchStepsDiag
+#define SMAA_CORNER_ROUNDING cornerRounding
+#define SMAA_FORCE_DIAGONAL_DETECTION 1
+#define SMAA_FORCE_CORNER_DETECTION 1
 #endif
 
 // Set the HLSL version:
