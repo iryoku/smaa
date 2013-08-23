@@ -567,8 +567,8 @@ void renderMesh(ID3D10Device *device) {
             D3DXMATRIX prevWorldViewProj = world * prevViewProj;
 
             if (smaaEnabled) {
-                currWorldViewProj = smaa->JitteredMatrix(currWorldViewProj, tmpRT_SRGB->getWidth(), tmpRT_SRGB->getHeight(), mode);
-                prevWorldViewProj = smaa->JitteredMatrix(prevWorldViewProj, tmpRT_SRGB->getWidth(), tmpRT_SRGB->getHeight(), mode);
+                currWorldViewProj = smaa->JitteredMatrix(currWorldViewProj, mode);
+                prevWorldViewProj = smaa->JitteredMatrix(prevWorldViewProj, mode);
             }
 
             V(simpleEffect->GetVariableByName("currWorldViewProj")->AsMatrix()->SetMatrix((float *) currWorldViewProj));
@@ -838,8 +838,8 @@ void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context
         case '4':
         case '5':
             hud.GetComboBox(IDC_PRESET)->SetSelectedByIndex(nchar - '1');
-            onReleasingSwapChain(nullptr);
-            onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), nullptr);
+            SAFE_DELETE(smaa);
+            initSMAA(DXUTGetD3D10Device(), DXUTGetDXGIBackBufferSurfaceDesc());
             break;
         case 'A': {
             int previous = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() - 1;

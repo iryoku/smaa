@@ -38,23 +38,21 @@
 
 
 /**
- * Setup mandatory defines. Use a real macro here for maximum performance!
+ * This should be set to float4(1.0 / width, 1.0 / height, width, height)
  */
-#ifndef SMAA_PIXEL_SIZE // It's actually set on runtime, this is for compilation time syntax checking.
-#define SMAA_PIXEL_SIZE float2(1.0 / 1280.0, 1.0 / 720.0)
-#endif
+float4 renderTargetMetrics;
 
 /**
  * This is only required for temporal modes (SMAA T2x).
  */
-int4 subsampleIndices;
+float4 subsampleIndices;
 
 /**
  * This is required for blending the results of previous subsample with the
  * output render target; it's used in SMAA S2x and 4x, for other modes just use
  * 1.0 (no blending).
  */
-float blendFactor = 1.0;
+float blendFactor;
 
 /**
  * This can be ignored; its purpose is to support interactive custom parameter
@@ -65,6 +63,15 @@ float maxSearchSteps;
 float maxSearchStepsDiag;
 float cornerRounding;
 
+// Set the render target metrics:
+#define SMAA_RT_METRICS renderTargetMetrics
+
+// Set the HLSL version:
+#ifndef SMAA_HLSL_4_1
+#define SMAA_HLSL_4 1
+#endif
+
+// Set preset defines:
 #define SMAA_PRESET_CUSTOM
 #ifdef SMAA_PRESET_CUSTOM
 #define SMAA_THRESHOLD threshld
@@ -73,11 +80,6 @@ float cornerRounding;
 #define SMAA_CORNER_ROUNDING cornerRounding
 #define SMAA_FORCE_DIAGONAL_DETECTION 1
 #define SMAA_FORCE_CORNER_DETECTION 1
-#endif
-
-// Set the HLSL version:
-#ifndef SMAA_HLSL_4_1
-#define SMAA_HLSL_4 1
 #endif
 
 // And include our header!

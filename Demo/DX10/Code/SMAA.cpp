@@ -103,6 +103,8 @@ class ID3D10IncludeResource : public ID3D10Include {
 
 SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool predication, bool reprojection, const ExternalStorage &storage)
         : device(device),
+          width(width),
+          height(height),
           preset(preset),
           threshold(0.1f),
           cornerRounding(0.25f),
@@ -122,12 +124,6 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     // Setup the defines for compiling the effect:
     vector<D3D10_SHADER_MACRO> defines;
     stringstream s;
-
-    // Setup the pixel size macro:
-    s << "float2(1.0 / " << width << ", 1.0 / " << height << ")";
-    string pixelSizeText = s.str();
-    D3D10_SHADER_MACRO pixelSizeMacro = { "SMAA_PIXEL_SIZE", pixelSizeText.c_str() };
-    defines.push_back(pixelSizeMacro);
 
     // Setup the preset macro:
     D3D10_SHADER_MACRO presetMacros[] = {
@@ -178,7 +174,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     if (storage.edgesRTV != nullptr && storage.edgesSRV != nullptr)
         edgesRT = new RenderTarget(device, storage.edgesRTV, storage.edgesSRV);
     else
-        edgesRT = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
+        edgesRT = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8_UNORM);
 
     // Same for blending weights:
     if (storage.weightsRTV != nullptr && storage.weightsSRV != nullptr)
@@ -191,6 +187,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     loadSearchTex();
 
     // Create some handles for variables:
+    renderTargetMetricsVariable = effect->GetVariableByName("renderTargetMetrics")->AsVector();
     thresholdVariable = effect->GetVariableByName("threshld")->AsScalar();
     cornerRoundingVariable = effect->GetVariableByName("cornerRounding")->AsScalar();
     maxSearchStepsVariable = effect->GetVariableByName("maxSearchSteps")->AsScalar();
@@ -272,6 +269,8 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
     int subsampleIndex = getSubsampleIndex(mode, pass);
 
     // Setup variables:
+    float renderTargetMetrics[] = { 1.0f / float(width), 1.0f / float(height), float(width), float(height) };
+    renderTargetMetricsVariable->SetFloatVector(renderTargetMetrics);
     if (preset == PRESET_CUSTOM) {
         V(thresholdVariable->SetFloat(threshold));
         V(cornerRoundingVariable->SetFloat(cornerRounding));
@@ -480,8 +479,8 @@ void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv, Mode mode
 
     switch (mode) {
         case MODE_SMAA_1X: {
-            int indices[4] = { 0, 0, 0, 0 };
-            V(subsampleIndicesVariable->SetIntVector(indices));
+            float indices[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+            V(subsampleIndicesVariable->SetFloatVector(indices));
             break;
         }
         case MODE_SMAA_T2X:
@@ -493,13 +492,13 @@ void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv, Mode mode
              *  |       |  S1: -0.25     0.25
              *  |____S0_|
              */
-              int indices[][4] = {
-                { 1, 1, 1, 0 }, // S0
-                { 2, 2, 2, 0 }  // S1
+              float indices[][4] = {
+                { 1.0f, 1.0f, 1.0f, 0.0f }, // S0
+                { 2.0f, 2.0f, 2.0f, 0.0f }  // S1
                 // (it's 1 for the horizontal slot of S0 because horizontal
                 //  blending is reversed: positive numbers point to the right)
             };
-            V(subsampleIndicesVariable->SetIntVector(indices[subsampleIndex]));
+            V(subsampleIndicesVariable->SetFloatVector(indices[subsampleIndex]));
             break;
         }
         case MODE_SMAA_4X: {
@@ -511,13 +510,13 @@ void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv, Mode mode
              *  |S3      |  S2:  0.1250   -0.3750
              *  |____S2__|  S3: -0.3750    0.1250
              */
-            int indices[][4] = {
-                { 5, 3, 1, 3 }, // S0
-                { 4, 6, 2, 3 }, // S1
-                { 3, 5, 1, 4 }, // S2
-                { 6, 4, 2, 4 }  // S3
+            float indices[][4] = {
+                { 5.0f, 3.0f, 1.0f, 3.0f }, // S0
+                { 4.0f, 6.0f, 2.0f, 3.0f }, // S1
+                { 3.0f, 5.0f, 1.0f, 4.0f }, // S2
+                { 6.0f, 4.0f, 2.0f, 4.0f }  // S3
             };
-            V(subsampleIndicesVariable->SetIntVector(indices[subsampleIndex]));
+            V(subsampleIndicesVariable->SetFloatVector(indices[subsampleIndex]));
             break;
         }
     }
@@ -547,7 +546,7 @@ void SMAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthS
 }
 
 
-D3DXMATRIX SMAA::JitteredMatrix(const D3DXMATRIX &worldViewProjection, int width, int height, Mode mode) const {
+D3DXMATRIX SMAA::JitteredMatrix(const D3DXMATRIX &worldViewProjection, Mode mode) const {
     D3DXVECTOR2 jitter = getJitter(mode);
     D3DXMATRIX translationMatrix;
     D3DXMatrixTranslation(&translationMatrix, 2.0f * jitter.x / float(width), 2.0f * jitter.y / float(height), 0.0f);

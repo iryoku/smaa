@@ -128,6 +128,12 @@ class SMAA {
         int msaaReorder(int sample) const { return msaaOrderMap[sample]; }
 
         /**
+         * Gets the render target size the object operates on.
+         */
+        int getWidth() const { return width; }
+        int getHeight() const { return height; }
+
+        /**
          * Threshold for the edge detection. Only has effect if PRESET_CUSTOM
          * is selected.
          */
@@ -164,7 +170,7 @@ class SMAA {
         /**
          * Jitters the transformations matrix.
          */
-        D3DXMATRIX JitteredMatrix(const D3DXMATRIX &worldViewProjection, int width, int height, Mode mode) const;
+        D3DXMATRIX JitteredMatrix(const D3DXMATRIX &worldViewProjection, Mode mode) const;
 
         /**
          * Increases the subpixel counter.
@@ -218,6 +224,7 @@ class SMAA {
         void neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthStencilView *dsv);
 
         ID3D10Device *device;
+        int width, height;
         Preset preset;
         ID3D10Effect *effect;
         Quad *quad;
@@ -233,7 +240,7 @@ class SMAA {
         ID3D10EffectScalarVariable *thresholdVariable, *cornerRoundingVariable,
                                    *maxSearchStepsVariable, *maxSearchStepsDiagVariable,
                                    *blendFactorVariable;
-        ID3D10EffectVectorVariable *subsampleIndicesVariable;
+        ID3D10EffectVectorVariable *renderTargetMetricsVariable, *subsampleIndicesVariable;
         ID3D10EffectShaderResourceVariable *areaTexVariable, *searchTexVariable,
                                            *colorTexVariable, *colorTexGammaVariable, *colorTexPrevVariable, *colorMSTexVariable,
                                            *depthTexVariable, *velocityTexVariable,
