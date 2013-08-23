@@ -5,20 +5,20 @@
  * Copyright (C) 2011 Fernando Navarro (fernandn@microsoft.com) 
  * Copyright (C) 2011 Diego Gutierrez (diegog@unizar.es)
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  *    1. Redistributions of source code must retain the above copyright notice,
  *       this list of conditions and the following disclaimer.
- * 
+ *
  *    2. Redistributions in binary form must reproduce the following disclaimer
  *       in the documentation and/or other materials provided with the 
  *       distribution:
- * 
+ *
  *      "Uses SMAA. Copyright (C) 2011 by Jorge Jimenez, Jose I. Echevarria,
  *       Tiago Sousa, Belen Masia, Fernando Navarro and Diego Gutierrez."
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS 
  * IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR 
@@ -30,7 +30,7 @@
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  * POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  * The views and conclusions contained in the software and documentation are 
  * those of the authors and should not be interpreted as representing official
  * policies, either expressed or implied, of the copyright holders.
@@ -74,9 +74,9 @@ class SMAA {
          * Mandatory input textures varies depending on 'input':
          *    INPUT_LUMA:
          *    INPUT_COLOR:
-         *        go(srcGammaSRV, srcSRV, NULL,     depthSRV, dsv)
+         *        go(srcGammaSRV, srcSRV, nullptr,  depthSRV, dsv)
          *    INPUT_DEPTH:
-         *        go(NULL,        srcSRV, depthSRV, depthSRV, dsv)
+         *        go(nullptr,     srcSRV, depthSRV, depthSRV, dsv)
          *
          * You can safely pass everything (do not use NULLs) if you want, the
          * extra paramters will be ignored accordingly. See descriptions below.
@@ -185,10 +185,10 @@ class SMAA {
          */
         class ExternalStorage {
             public:
-                ExternalStorage(ID3D10ShaderResourceView *edgesSRV=NULL,
-                                ID3D10RenderTargetView *edgesRTV=NULL,
-                                ID3D10ShaderResourceView *weightsSRV=NULL,
-                                ID3D10RenderTargetView *weightsRTV=NULL)
+                ExternalStorage(ID3D10ShaderResourceView *edgesSRV=nullptr,
+                                ID3D10RenderTargetView *edgesRTV=nullptr,
+                                ID3D10ShaderResourceView *weightsSRV=nullptr,
+                                ID3D10RenderTargetView *weightsRTV=nullptr)
                     : edgesSRV(edgesSRV),
                       edgesRTV(edgesRTV), 
                       weightsSRV(weightsSRV),

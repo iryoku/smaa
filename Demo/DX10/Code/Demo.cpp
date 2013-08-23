@@ -32,57 +32,82 @@
 #include "DXUT.h"
 #include "DXUTgui.h"
 #include "DXUTsettingsDlg.h"
-#include "SDKmisc.h"
 #include "SDKmesh.h"
+#include "SDKmisc.h"
 
-#include <sstream>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
-#include <cmath>
+#include <sstream>
 
-#include "Timer.h"
-#include "RenderTarget.h"
 #include "Camera.h"
 #include "Copy.h"
+#include "RenderTarget.h"
 #include "SMAA.h"
+#include "Timer.h"
 
 using namespace std;
 
 
 const int HUD_WIDTH = 140;
 
+enum IDC {
+    IDC_TOGGLE_FULLSCREEN,
+    IDC_CHANGE_DEVICE,
+    IDC_LOAD_IMAGE,
+    IDC_INPUT,
+    IDC_VIEW_MODE,
+    IDC_AA_MODE,
+    IDC_PRESET,
+    IDC_DETECTION_MODE,
+    IDC_ANTIALIASING,
+    IDC_PREDICATION,
+    IDC_REPROJECTION,
+    IDC_LOCK_FRAMERATE,
+    IDC_PROFILE,
+    IDC_SHADING,
+    IDC_THRESHOLD_LABEL,
+    IDC_THRESHOLD,
+    IDC_MAX_SEARCH_STEPS_LABEL,
+    IDC_MAX_SEARCH_STEPS,
+    IDC_MAX_SEARCH_STEPS_DIAG_LABEL,
+    IDC_MAX_SEARCH_STEPS_DIAG,
+    IDC_CORNER_ROUNDING_LABEL,
+    IDC_CORNER_ROUNDING
+};
+
 CDXUTDialogResourceManager dialogResourceManager;
 CD3DSettingsDlg settingsDialog;
 CDXUTDialog hud;
 
-Timer *timer = NULL;
-ID3DX10Font *font = NULL;
-ID3DX10Sprite *sprite = NULL;
-CDXUTTextHelper *txtHelper = NULL;
+Timer *timer = nullptr;
+ID3DX10Font *font = nullptr;
+ID3DX10Sprite *sprite = nullptr;
+CDXUTTextHelper *txtHelper = nullptr;
 
-SMAA *smaa = NULL;
+SMAA *smaa = nullptr;
 
-DepthStencil *depthStencil = NULL;
-DepthStencil *depthStencil1x = NULL;
+DepthStencil *depthStencil = nullptr;
+DepthStencil *depthStencil1x = nullptr;
 
-RenderTarget *tmpRT_SRGB = NULL;
-RenderTarget *tmpRT = NULL;
-RenderTarget *tmp1xRT[2] = { NULL, NULL };
-RenderTarget *tmp1xRT_SRGB[2] = { NULL, NULL };
-RenderTarget *depthBufferRT = NULL;
-RenderTarget *velocityRT = NULL;
-RenderTarget *velocity1xRT = NULL;
-RenderTarget *finalRT[2] = { NULL, NULL };
-BackbufferRenderTarget *backbufferRT = NULL;
+RenderTarget *tmpRT_SRGB = nullptr;
+RenderTarget *tmpRT = nullptr;
+RenderTarget *tmp1xRT[2] = { nullptr, nullptr };
+RenderTarget *tmp1xRT_SRGB[2] = { nullptr, nullptr };
+RenderTarget *depthBufferRT = nullptr;
+RenderTarget *velocityRT = nullptr;
+RenderTarget *velocity1xRT = nullptr;
+RenderTarget *finalRT[2] = { nullptr, nullptr };
+BackbufferRenderTarget *backbufferRT = nullptr;
 
-ID3D10ShaderResourceView *inputColorSRV = NULL;
-ID3D10ShaderResourceView *inputDepthSRV = NULL;
+ID3D10ShaderResourceView *inputColorSRV = nullptr;
+ID3D10ShaderResourceView *inputDepthSRV = nullptr;
 
 Camera camera;
 CDXUTSDKMesh mesh;
-ID3D10InputLayout *vertexLayout = NULL;
-ID3D10Effect *simpleEffect = NULL;
-ID3D10ShaderResourceView *envTexSRV = NULL;
+ID3D10InputLayout *vertexLayout = nullptr;
+ID3D10Effect *simpleEffect = nullptr;
+ID3D10ShaderResourceView *envTexSRV = nullptr;
 
 bool showHud = true;
 
@@ -120,30 +145,6 @@ struct {
 } commandlineOptions = {0.1f, 16, 8, 25.0f, L"", L""};
 
 
-#define IDC_TOGGLE_FULLSCREEN            1
-#define IDC_CHANGE_DEVICE                2
-#define IDC_LOAD_IMAGE                   3
-#define IDC_INPUT                        4
-#define IDC_VIEW_MODE                    5
-#define IDC_AA_MODE                      6
-#define IDC_PRESET                       7
-#define IDC_DETECTION_MODE               8
-#define IDC_ANTIALIASING                 9
-#define IDC_PREDICATION                 10
-#define IDC_REPROJECTION                11
-#define IDC_LOCK_FRAMERATE              12
-#define IDC_PROFILE                     13
-#define IDC_SHADING                     14
-#define IDC_THRESHOLD_LABEL             15
-#define IDC_THRESHOLD                   16
-#define IDC_MAX_SEARCH_STEPS_LABEL      17
-#define IDC_MAX_SEARCH_STEPS            18
-#define IDC_MAX_SEARCH_STEPS_DIAG_LABEL 19
-#define IDC_MAX_SEARCH_STEPS_DIAG       20
-#define IDC_CORNER_ROUNDING_LABEL       21
-#define IDC_CORNER_ROUNDING             22
-
-
 float round(float n) {
     return floor(n + 0.5f);
 }
@@ -168,19 +169,19 @@ HRESULT loadImage() {
         SAFE_RELEASE(inputDepthSRV);
 
         // Load color
-        V_RETURN(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), text, &loadInfo, NULL, &inputColorSRV, NULL));
+        V_RETURN(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(nullptr), text, &loadInfo, nullptr, &inputColorSRV, nullptr));
 
         // Try to load depth
         loadInfo.Format = DXGI_FORMAT_R32_FLOAT;
         loadInfo.Filter = D3DX10_FILTER_POINT;
 
         wstring path = wstring(text).substr(0, wstring(text).find_last_of('.')) + L".dds";
-        if (FindResource(GetModuleHandle(NULL), path.c_str(), RT_RCDATA) != NULL)
-            V_RETURN(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(NULL), path.c_str(), &loadInfo, NULL, &inputDepthSRV, NULL));
+        if (FindResource(GetModuleHandle(nullptr), path.c_str(), RT_RCDATA) != nullptr)
+            V_RETURN(D3DX10CreateShaderResourceViewFromResource(DXUTGetD3D10Device(), GetModuleHandle(nullptr), path.c_str(), &loadInfo, nullptr, &inputDepthSRV, nullptr));
     } else { // ... search for it in the file system
-        ID3D10ShaderResourceView *colorSRV= NULL;
-        if (FAILED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), text, &loadInfo, NULL, &colorSRV, NULL))) {
-            MessageBox(NULL, L"Unable to open selected file", L"ERROR", MB_OK | MB_SETFOREGROUND | MB_TOPMOST);
+        ID3D10ShaderResourceView *colorSRV= nullptr;
+        if (FAILED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), text, &loadInfo, nullptr, &colorSRV, nullptr))) {
+            MessageBox(nullptr, L"Unable to open selected file", L"ERROR", MB_OK | MB_SETFOREGROUND | MB_TOPMOST);
             hud.GetComboBox(IDC_INPUT)->RemoveItem(hud.GetComboBox(IDC_INPUT)->FindItem(text));
             if (commandlineOptions.src != L"") {
                 exit(1);
@@ -195,7 +196,7 @@ HRESULT loadImage() {
 
             ID3D10ShaderResourceView *depthSRV;
             wstring path = wstring(text).substr(0, wstring(text).find_last_of('.')) + L".dds";
-            if (SUCCEEDED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), path.c_str(), &loadInfo, NULL, &depthSRV, NULL)))
+            if (SUCCEEDED(D3DX10CreateShaderResourceViewFromFile(DXUTGetD3D10Device(), path.c_str(), &loadInfo, nullptr, &depthSRV, nullptr)))
                 inputDepthSRV = depthSRV;
         }
     }
@@ -215,7 +216,7 @@ void CALLBACK createTextureFromFile(ID3D10Device* device, char *filename, ID3D10
         s << filename;
 
         D3DX10_IMAGE_INFO info;
-        V(D3DX10GetImageInfoFromResource(GetModuleHandle(NULL), s.str().c_str(), NULL, &info, NULL));
+        V(D3DX10GetImageInfoFromResource(GetModuleHandle(nullptr), s.str().c_str(), nullptr, &info, nullptr));
 
         D3DX10_IMAGE_LOAD_INFO loadInfo = D3DX10_IMAGE_LOAD_INFO();
         loadInfo.pSrcInfo = &info;
@@ -223,7 +224,7 @@ void CALLBACK createTextureFromFile(ID3D10Device* device, char *filename, ID3D10
             loadInfo.Filter = D3DX10_FILTER_POINT | D3DX10_FILTER_SRGB_IN;
             loadInfo.Format = MAKE_SRGB(info.Format);
         }
-        V(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(NULL), s.str().c_str(), &loadInfo, NULL, shaderResourceView, NULL));
+        V(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(nullptr), s.str().c_str(), &loadInfo, nullptr, shaderResourceView, nullptr));
     }
 }
 
@@ -231,9 +232,9 @@ void CALLBACK createTextureFromFile(ID3D10Device* device, char *filename, ID3D10
 HRESULT loadMesh(CDXUTSDKMesh &mesh, const wstring &name, const wstring &path) {
     HRESULT hr;
 
-    HRSRC src = FindResource(GetModuleHandle(NULL), name.c_str(), RT_RCDATA);
-    HGLOBAL res = LoadResource(GetModuleHandle(NULL), src);
-    UINT size = SizeofResource(GetModuleHandle(NULL), src);
+    HRSRC src = FindResource(GetModuleHandle(nullptr), name.c_str(), RT_RCDATA);
+    HGLOBAL res = LoadResource(GetModuleHandle(nullptr), src);
+    UINT size = SizeofResource(GetModuleHandle(nullptr), src);
     LPBYTE data = (LPBYTE) LockResource(res);
 
     SDKMESH_CALLBACKS10 callbacks;
@@ -256,7 +257,7 @@ void setModeControls() {
     hud.GetComboBox(IDC_PRESET)->SetEnabled(!isMsaa);
     hud.GetComboBox(IDC_DETECTION_MODE)->SetEnabled(!isMsaa);
     hud.GetCheckBox(IDC_ANTIALIASING)->SetEnabled(!isMsaa);
-    hud.GetCheckBox(IDC_PREDICATION)->SetEnabled(!isMsaa && inputDepthSRV != NULL);
+    hud.GetCheckBox(IDC_PREDICATION)->SetEnabled(!isMsaa && inputDepthSRV != nullptr);
     hud.GetCheckBox(IDC_REPROJECTION)->SetEnabled(!isMsaa && isTemporalMode);
     hud.GetComboBox(IDC_LOCK_FRAMERATE)->SetEnabled(!isMsaa);
     hud.GetCheckBox(IDC_PROFILE)->SetEnabled(!isMsaa);
@@ -292,7 +293,7 @@ HRESULT loadInput() {
     hud.GetComboBox(IDC_DETECTION_MODE)->RemoveAllItems();
     hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Luma edge det.", (LPVOID) SMAA::INPUT_LUMA);
     hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Color edge det.", (LPVOID) SMAA::INPUT_COLOR);
-    if (inputDepthSRV != NULL)
+    if (inputDepthSRV != nullptr)
         hud.GetComboBox(IDC_DETECTION_MODE)->AddItem(L"Depth edge det.", (LPVOID) SMAA::INPUT_DEPTH);
     hud.GetComboBox(IDC_DETECTION_MODE)->SetSelectedByIndex(selectedIndex);
 
@@ -320,7 +321,7 @@ void resizeWindow() {
 HRESULT initSimpleEffect(ID3D10Device *device) {
     HRESULT hr;
 
-    V(D3DX10CreateEffectFromResource(GetModuleHandle(NULL), L"Simple.fx", NULL, NULL, NULL, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, NULL, NULL, &simpleEffect, NULL, NULL));
+    V(D3DX10CreateEffectFromResource(GetModuleHandle(nullptr), L"Simple.fx", nullptr, nullptr, nullptr, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, nullptr, nullptr, &simpleEffect, nullptr, nullptr));
 
     const D3D10_INPUT_ELEMENT_DESC inputDesc[] = {
         { "POSITION",  0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
@@ -372,7 +373,7 @@ HRESULT CALLBACK onCreateDevice(ID3D10Device *device, const DXGI_SURFACE_DESC *d
                               OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
                               L"Arial", &font));
     V_RETURN(D3DX10CreateSprite(device, 512, &sprite));
-    txtHelper = new CDXUTTextHelper(NULL, NULL, font, sprite, 15);
+    txtHelper = new CDXUTTextHelper(nullptr, nullptr, font, sprite, 15);
 
     timer = new Timer(device);
     timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
@@ -387,7 +388,7 @@ HRESULT CALLBACK onCreateDevice(ID3D10Device *device, const DXGI_SURFACE_DESC *d
 
     D3DX10_IMAGE_LOAD_INFO loadInfo = D3DX10_IMAGE_LOAD_INFO();
     loadInfo.Filter = D3DX10_FILTER_POINT | D3DX10_FILTER_SRGB_IN;
-    V_RETURN(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(NULL), L"EnvMap.dds", &loadInfo, NULL, &envTexSRV, NULL));
+    V_RETURN(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(nullptr), L"EnvMap.dds", &loadInfo, nullptr, &envTexSRV, nullptr));
 
     buildModesComboBox();
 
@@ -836,8 +837,8 @@ void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context
         case '4':
         case '5':
             hud.GetComboBox(IDC_PRESET)->SetSelectedByIndex(nchar - '1');
-            onReleasingSwapChain(NULL);
-            onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
+            onReleasingSwapChain(nullptr);
+            onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), nullptr);
             break;
         case 'A': {
             int previous = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() - 1;
@@ -895,7 +896,7 @@ void setAdapter(DXUTDeviceSettings *settings) {
     V(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**) &factory));
 
     // Search for a PerfHUD adapter.
-    IDXGIAdapter *adapter = NULL;
+    IDXGIAdapter *adapter = nullptr;
     int i = 0;
     while (factory->EnumAdapters(i, &adapter) != DXGI_ERROR_NOT_FOUND) {
         if (adapter) {
@@ -932,13 +933,13 @@ bool CALLBACK modifyDeviceSettings(DXUTDeviceSettings *settings, void *context) 
 void buildInputComboBox() {
     hud.GetComboBox(IDC_INPUT)->RemoveAllItems();
 
-    hud.GetComboBox(IDC_INPUT)->AddItem(L"Fence", NULL);
+    hud.GetComboBox(IDC_INPUT)->AddItem(L"Fence", nullptr);
 
     for (int i = 0; i < 7; i++) {
         wstringstream s;
         s.fill('0');
         s << L"Unigine" << setw(2) << i + 1 << ".png";
-        hud.GetComboBox(IDC_INPUT)->AddItem(s.str().c_str(), NULL);
+        hud.GetComboBox(IDC_INPUT)->AddItem(s.str().c_str(), nullptr);
     }
 
     WIN32_FIND_DATA data;
@@ -992,8 +993,8 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
 
                 V(loadInput());
                 resizeWindow();
-                onReleasingSwapChain(NULL);
-                onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
+                onReleasingSwapChain(nullptr);
+                onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), nullptr);
             }
         }
         case IDC_INPUT:
@@ -1001,8 +1002,8 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 timer->reset();
                 V(loadInput());
                 resizeWindow();
-                onReleasingSwapChain(NULL);
-                onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
+                onReleasingSwapChain(nullptr);
+                onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), nullptr);
             }
             break;
         case IDC_VIEW_MODE:
@@ -1016,11 +1017,11 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
             if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
                 setModeControls();
 
-                onReleasingSwapChain(NULL);
-                onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), NULL);
+                onReleasingSwapChain(nullptr);
+                onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), nullptr);
 
                 // Refill the temporal buffer:
-                onFrameRender(DXUTGetD3D10Device(), DXUTGetTime(), DXUTGetElapsedTime(), NULL);
+                onFrameRender(DXUTGetD3D10Device(), DXUTGetTime(), DXUTGetElapsedTime(), nullptr);
             }
             break;
         }
@@ -1036,7 +1037,7 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 hud.GetComboBox(IDC_VIEW_MODE)->SetSelectedByIndex(0);
 
                 // Refill the temporal buffer:
-                onFrameRender(DXUTGetD3D10Device(), DXUTGetTime(), DXUTGetElapsedTime(), NULL);
+                onFrameRender(DXUTGetD3D10Device(), DXUTGetTime(), DXUTGetElapsedTime(), nullptr);
             }
             break;
         case IDC_PREDICATION:

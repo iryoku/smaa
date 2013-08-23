@@ -5,20 +5,20 @@
  * Copyright (C) 2011 Fernando Navarro (fernandn@microsoft.com) 
  * Copyright (C) 2011 Diego Gutierrez (diegog@unizar.es)
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  *    1. Redistributions of source code must retain the above copyright notice,
  *       this list of conditions and the following disclaimer.
- * 
+ *
  *    2. Redistributions in binary form must reproduce the following disclaimer
  *       in the documentation and/or other materials provided with the 
  *       distribution:
- * 
+ *
  *      "Uses SMAA. Copyright (C) 2011 by Jorge Jimenez, Jose I. Echevarria,
  *       Tiago Sousa, Belen Masia, Fernando Navarro and Diego Gutierrez."
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS 
  * IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR 
@@ -30,18 +30,18 @@
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  * POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  * The views and conclusions contained in the software and documentation are 
  * those of the authors and should not be interpreted as representing official
  * policies, either expressed or implied, of the copyright holders.
  */
 
 
-#include <vector>
 #include <sstream>
-#include "SMAA.h"
-#include "SearchTex.h"
+#include <vector>
 #include "AreaTex.h"
+#include "SearchTex.h"
+#include "SMAA.h"
 using namespace std;
 
 
@@ -67,13 +67,13 @@ using namespace std;
 #endif
 
 #ifndef SAFE_DELETE
-#define SAFE_DELETE(p) { if (p) { delete (p); (p) = NULL; } }
+#define SAFE_DELETE(p) { if (p) { delete (p); (p) = nullptr; } }
 #endif
 #ifndef SAFE_DELETE_ARRAY
-#define SAFE_DELETE_ARRAY(p) { if (p) { delete[] (p); (p) = NULL; } }
+#define SAFE_DELETE_ARRAY(p) { if (p) { delete[] (p); (p) = nullptr; } }
 #endif
 #ifndef SAFE_RELEASE
-#define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = NULL; } }
+#define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = nullptr; } }
 #endif
 #pragma endregion
 
@@ -83,10 +83,10 @@ class ID3D10IncludeResource : public ID3DXInclude {
         STDMETHOD(Open)(THIS_ D3DXINCLUDE_TYPE, LPCSTR pFileName, LPCVOID, LPCVOID *ppData, UINT *pBytes)  {
             wstringstream s;
             s << pFileName;
-            HRSRC src = FindResource(GetModuleHandle(NULL), s.str().c_str(), RT_RCDATA);
-            HGLOBAL res = LoadResource(GetModuleHandle(NULL), src);
+            HRSRC src = FindResource(GetModuleHandle(nullptr), s.str().c_str(), RT_RCDATA);
+            HGLOBAL res = LoadResource(GetModuleHandle(nullptr), src);
 
-            *pBytes = SizeofResource(GetModuleHandle(NULL), src);
+            *pBytes = SizeofResource(GetModuleHandle(nullptr), src);
             *ppData = (LPCVOID) LockResource(res);
 
             return S_OK;
@@ -128,7 +128,7 @@ SMAA::SMAA(IDirect3DDevice9 *device, int width, int height, Preset preset, const
     };
     defines.push_back(presetMacros[int(preset)]);
 
-    D3DXMACRO null = { NULL, NULL };
+    D3DXMACRO null = { nullptr, nullptr };
     defines.push_back(null);
 
     // Setup the flags for the effect.
@@ -143,7 +143,7 @@ SMAA::SMAA(IDirect3DDevice9 *device, int width, int height, Preset preset, const
      * In case you want it to be loaded from other place change this line accordingly.
      */
     ID3D10IncludeResource includeResource;
-    V(D3DXCreateEffectFromResource(device, NULL, L"SMAA.fx", &defines.front(), &includeResource, flags, NULL, &effect, NULL));
+    V(D3DXCreateEffectFromResource(device, nullptr, L"SMAA.fx", &defines.front(), &includeResource, flags, nullptr, &effect, nullptr));
 
     // Vertex declaration for rendering the typical fullscreen quad later on.
     const D3DVERTEXELEMENT9 vertexElements[3] = {
@@ -154,23 +154,23 @@ SMAA::SMAA(IDirect3DDevice9 *device, int width, int height, Preset preset, const
     V(device->CreateVertexDeclaration(vertexElements , &vertexDeclaration));
 
     // If storage for the edges is not specified we will create it.
-    if (storage.edgeTex != NULL && storage.edgeSurface != NULL) {
+    if (storage.edgeTex != nullptr && storage.edgeSurface != nullptr) {
         edgeTex = storage.edgeTex;
         edgeSurface = storage.edgeSurface;
         releaseEdgeResources = false;
     } else {
-        V(device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &edgeTex, NULL));
+        V(device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &edgeTex, nullptr));
         V(edgeTex->GetSurfaceLevel(0, &edgeSurface));
         releaseEdgeResources = true;
     }
 
     // Same for blending weights.
-    if (storage.blendTex != NULL && storage.blendSurface != NULL) {
+    if (storage.blendTex != nullptr && storage.blendSurface != nullptr) {
         blendTex = storage.blendTex;
         blendSurface = storage.blendSurface;
         releaseBlendResources = false;
     } else {
-        V(device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &blendTex, NULL));
+        V(device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &blendTex, nullptr));
         V(blendTex->GetSurfaceLevel(0, &blendSurface));
         releaseBlendResources = true;
     }
@@ -236,9 +236,9 @@ void SMAA::go(IDirect3DTexture9 *edges,
 void SMAA::loadAreaTex() {
     #ifndef SMAA_TEST_DDS_FILES
     HRESULT hr;
-    V(device->CreateTexture(AREATEX_WIDTH, AREATEX_HEIGHT, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8L8, D3DPOOL_DEFAULT, &areaTex, NULL));
+    V(device->CreateTexture(AREATEX_WIDTH, AREATEX_HEIGHT, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8L8, D3DPOOL_DEFAULT, &areaTex, nullptr));
     D3DLOCKED_RECT rect;
-    V(areaTex->LockRect(0, &rect, NULL, D3DLOCK_DISCARD));
+    V(areaTex->LockRect(0, &rect, nullptr, D3DLOCK_DISCARD));
     for (int i = 0; i < AREATEX_HEIGHT; i++)
         CopyMemory(((char *) rect.pBits) + i * rect.Pitch, areaTexBytes + i * AREATEX_PITCH, AREATEX_PITCH);
     V(areaTex->UnlockRect(0));
@@ -246,7 +246,7 @@ void SMAA::loadAreaTex() {
     HRESULT hr;
     D3DXIMAGE_INFO info;
     V(D3DXGetImageInfoFromFile(L"../../Textures/AreaTexDX9.dds", &info));
-    V(D3DXCreateTextureFromFileEx(device, L"../../Textures/AreaTexDX9.dds", info.Width, info.Height, 1, 0, D3DFMT_A8L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &areaTex));
+    V(D3DXCreateTextureFromFileEx(device, L"../../Textures/AreaTexDX9.dds", info.Width, info.Height, 1, 0, D3DFMT_A8L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, nullptr, &areaTex));
     #endif
 }
 
@@ -254,9 +254,9 @@ void SMAA::loadAreaTex() {
 void SMAA::loadSearchTex() {
     #ifndef SMAA_TEST_DDS_FILES
     HRESULT hr;
-    V(device->CreateTexture(SEARCHTEX_WIDTH, SEARCHTEX_HEIGHT, 1, D3DUSAGE_DYNAMIC, D3DFMT_L8, D3DPOOL_DEFAULT, &searchTex, NULL));
+    V(device->CreateTexture(SEARCHTEX_WIDTH, SEARCHTEX_HEIGHT, 1, D3DUSAGE_DYNAMIC, D3DFMT_L8, D3DPOOL_DEFAULT, &searchTex, nullptr));
     D3DLOCKED_RECT rect;
-    V(searchTex->LockRect(0, &rect, NULL, D3DLOCK_DISCARD));
+    V(searchTex->LockRect(0, &rect, nullptr, D3DLOCK_DISCARD));
     for (int i = 0; i < SEARCHTEX_HEIGHT; i++)
         CopyMemory(((char *) rect.pBits) + i * rect.Pitch, searchTexBytes + i * SEARCHTEX_PITCH, SEARCHTEX_PITCH);
     V(searchTex->UnlockRect(0));
@@ -264,7 +264,7 @@ void SMAA::loadSearchTex() {
     HRESULT hr;
     D3DXIMAGE_INFO info;
     V(D3DXGetImageInfoFromFile(L"../../Textures/SearchTex.dds", &info));
-    V(D3DXCreateTextureFromFileEx(device, L"../../Textures/SearchTex.dds", info.Width, info.Height, 1, 0, D3DFMT_L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &searchTex));
+    V(D3DXCreateTextureFromFileEx(device, L"../../Textures/SearchTex.dds", info.Width, info.Height, 1, 0, D3DFMT_L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, nullptr, &searchTex));
     #endif
 }
 
@@ -275,7 +275,7 @@ void SMAA::edgesDetectionPass(IDirect3DTexture9 *edges, Input input) {
 
     // Set the render target and clear both the color and the stencil buffers.
     V(device->SetRenderTarget(0, edgeSurface));
-    V(device->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0));
+    V(device->Clear(0, nullptr, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0));
 
     // Setup variables.
     V(effect->SetFloat(thresholdHandle, threshold));
@@ -319,7 +319,7 @@ void SMAA::blendingWeightsCalculationPass() {
 
     // Set the render target and clear it.
     V(device->SetRenderTarget(0, blendSurface));
-    V(device->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0));
+    V(device->Clear(0, nullptr, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0));
 
     // Setup the variables and the technique (yet again).
     V(effect->SetTexture(edgesTexHandle, edgeTex));

@@ -52,13 +52,13 @@ using namespace std;
 #endif
 
 #ifndef SAFE_DELETE
-#define SAFE_DELETE(p) { if (p) { delete (p); (p) = NULL; } }
+#define SAFE_DELETE(p) { if (p) { delete (p); (p) = nullptr; } }
 #endif
 #ifndef SAFE_DELETE_ARRAY
-#define SAFE_DELETE_ARRAY(p) { if (p) { delete[] (p); (p) = NULL; } }
+#define SAFE_DELETE_ARRAY(p) { if (p) { delete[] (p); (p) = nullptr; } }
 #endif
 #ifndef SAFE_RELEASE
-#define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = NULL; } }
+#define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = nullptr; } }
 #endif
 #pragma endregion
 
@@ -77,7 +77,7 @@ RenderTarget::RenderTarget(ID3D10Device *device, int width, int height, DXGI_FOR
     desc.SampleDesc = sampleDesc;
     desc.Usage = D3D10_USAGE_DEFAULT;
     desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
-    V(device->CreateTexture2D(&desc, NULL, &texture2D));
+    V(device->CreateTexture2D(&desc, nullptr, &texture2D));
     
     createViews(device, desc, format);
 }
@@ -207,7 +207,7 @@ DepthStencil::DepthStencil(ID3D10Device *device, int width, int height, DXGI_FOR
     } else {
         desc.BindFlags = D3D10_BIND_DEPTH_STENCIL;
     }
-    V(device->CreateTexture2D(&desc, NULL, &texture2D));
+    V(device->CreateTexture2D(&desc, nullptr, &texture2D));
 
     D3D10_DEPTH_STENCIL_VIEW_DESC dsdesc;
     dsdesc.Format = depthStencilViewFormat;
@@ -227,7 +227,7 @@ DepthStencil::DepthStencil(ID3D10Device *device, int width, int height, DXGI_FOR
         srdesc.Texture2D.MipLevels = 1;
         V(device->CreateShaderResourceView(texture2D, &srdesc, &shaderResourceView));
     } else {
-        shaderResourceView = NULL;
+        shaderResourceView = nullptr;
     }
 }
 
@@ -345,7 +345,7 @@ void Quad::draw() {
 
 
 SaveViewportsScope::SaveViewportsScope(ID3D10Device *device) : device(device), numViewports(0) {
-    device->RSGetViewports(&numViewports, NULL);
+    device->RSGetViewports(&numViewports, nullptr);
     if (numViewports > 0) {
         viewports.resize(numViewports);
         device->RSGetViewports(&numViewports, &viewports.front());
@@ -417,7 +417,7 @@ ID3D10Texture2D *Utils::createStagingTexture(ID3D10Device *device, ID3D10Texture
     texdesc.CPUAccessFlags = D3D10_CPU_ACCESS_READ;
 
     ID3D10Texture2D *stagingTexture;
-    V(device->CreateTexture2D(&texdesc, NULL, &stagingTexture));
+    V(device->CreateTexture2D(&texdesc, nullptr, &stagingTexture));
     return stagingTexture;
 }
 

@@ -33,10 +33,10 @@
 #define CAMERA_H
 
 #include <iostream>
-#include <dxgi.h>
 #include <d3d10.h>
 #include <d3dx10.h>
 #include <dxerr.h>
+#include <dxgi.h>
 
 class Camera {
     public:
@@ -94,7 +94,7 @@ class Camera {
         D3DXVECTOR2 panPosition;
         D3DXVECTOR2 angle, angularVelocity;
         D3DXVECTOR2 viewportSize;
-        
+
         D3DXMATRIX view, projection;
         D3DXVECTOR3 lookAtPosition;
         D3DXVECTOR3 eyePosition;

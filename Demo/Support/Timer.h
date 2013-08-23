@@ -54,9 +54,8 @@ class Timer {
         ~Timer() { reset(); }
 
         void reset() {
-            for (std::map<std::wstring, Timer::Section*>::iterator iter = sections.begin(); iter != sections.end(); iter++) {
-                if (iter->second != NULL) delete iter->second;
-            }
+            for (auto iter = sections.begin(); iter != sections.end(); iter++)
+                if (iter->second != nullptr) delete iter->second;
             sections.clear();
         }
 

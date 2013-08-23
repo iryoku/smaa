@@ -5,20 +5,20 @@
  * Copyright (C) 2011 Fernando Navarro (fernandn@microsoft.com) 
  * Copyright (C) 2011 Diego Gutierrez (diegog@unizar.es)
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  *    1. Redistributions of source code must retain the above copyright notice,
  *       this list of conditions and the following disclaimer.
- * 
+ *
  *    2. Redistributions in binary form must reproduce the following disclaimer
  *       in the documentation and/or other materials provided with the 
  *       distribution:
- * 
+ *
  *      "Uses SMAA. Copyright (C) 2011 by Jorge Jimenez, Jose I. Echevarria,
  *       Tiago Sousa, Belen Masia, Fernando Navarro and Diego Gutierrez."
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS 
  * IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR 
@@ -30,7 +30,7 @@
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  * POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  * The views and conclusions contained in the software and documentation are 
  * those of the authors and should not be interpreted as representing official
  * policies, either expressed or implied, of the copyright holders.
@@ -42,15 +42,14 @@
 #include <stdexcept>
 #include <d3d10_1.h>
 #include <d3d9.h>
-#include "SMAA.h"
-#include "SearchTex.h"
 #include "AreaTex.h"
+#include "SearchTex.h"
+#include "SMAA.h"
 using namespace std;
 
 
 // This define is for testing the precomputed textures files:
 // #define SMAA_TEST_DDS_FILES
-
 
 #pragma region Useful Macros from DXUT (copy-pasted here as we prefer this to be as self-contained as possible)
 #if defined(DEBUG) || defined(_DEBUG)
@@ -70,13 +69,13 @@ using namespace std;
 #endif
 
 #ifndef SAFE_DELETE
-#define SAFE_DELETE(p) { if (p) { delete (p); (p) = NULL; } }
+#define SAFE_DELETE(p) { if (p) { delete (p); (p) = nullptr; } }
 #endif
 #ifndef SAFE_DELETE_ARRAY
-#define SAFE_DELETE_ARRAY(p) { if (p) { delete[] (p); (p) = NULL; } }
+#define SAFE_DELETE_ARRAY(p) { if (p) { delete[] (p); (p) = nullptr; } }
 #endif
 #ifndef SAFE_RELEASE
-#define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = NULL; } }
+#define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = nullptr; } }
 #endif
 #pragma endregion
 
@@ -86,10 +85,10 @@ class ID3D10IncludeResource : public ID3D10Include {
         STDMETHOD(Open)(THIS_ D3D_INCLUDE_TYPE, LPCSTR pFileName, LPCVOID, LPCVOID *ppData, UINT *pBytes)  {
             wstringstream s;
             s << pFileName;
-            HRSRC src = FindResource(GetModuleHandle(NULL), s.str().c_str(), RT_RCDATA);
-            HGLOBAL res = LoadResource(GetModuleHandle(NULL), src);
+            HRSRC src = FindResource(GetModuleHandle(nullptr), s.str().c_str(), RT_RCDATA);
+            HGLOBAL res = LoadResource(GetModuleHandle(nullptr), src);
 
-            *pBytes = SizeofResource(GetModuleHandle(NULL), src);
+            *pBytes = SizeofResource(GetModuleHandle(nullptr), src);
             *ppData = (LPCVOID) LockResource(res);
 
             return S_OK;
@@ -158,7 +157,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
         defines.push_back(dx101Macro);
     }
 
-    D3D10_SHADER_MACRO null = { NULL, NULL };
+    D3D10_SHADER_MACRO null = { nullptr, nullptr };
     defines.push_back(null);
 
     /**
@@ -168,7 +167,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
      */
     ID3D10IncludeResource includeResource;
     string profile = dx10_1? "fx_4_1" : "fx_4_0";
-    V(D3DX10CreateEffectFromResource(GetModuleHandle(NULL), L"SMAA.fx", NULL, &defines.front(), &includeResource, profile.c_str(), D3D10_SHADER_ENABLE_STRICTNESS, 0, device, NULL, NULL, &effect, NULL, NULL));
+    V(D3DX10CreateEffectFromResource(GetModuleHandle(nullptr), L"SMAA.fx", nullptr, &defines.front(), &includeResource, profile.c_str(), D3D10_SHADER_ENABLE_STRICTNESS, 0, device, nullptr, nullptr, &effect, nullptr, nullptr));
 
     // This is for rendering the typical fullscreen quad later on:
     D3D10_PASS_DESC desc;
@@ -176,13 +175,13 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     quad = new Quad(device, desc);
     
     // If storage for the edges is not specified we will create it:
-    if (storage.edgesRTV != NULL && storage.edgesSRV != NULL)
+    if (storage.edgesRTV != nullptr && storage.edgesSRV != nullptr)
         edgesRT = new RenderTarget(device, storage.edgesRTV, storage.edgesSRV);
     else
         edgesRT = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     // Same for blending weights:
-    if (storage.weightsRTV != NULL && storage.weightsSRV != NULL)
+    if (storage.weightsRTV != nullptr && storage.weightsSRV != nullptr)
         blendRT = new RenderTarget(device, storage.weightsRTV, storage.weightsSRV);
     else
         blendRT = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
@@ -256,7 +255,7 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
     SaveDepthStencilScope saveDepthStencil(device);
 
     // Reset the render target:
-    device->OMSetRenderTargets(0, NULL, NULL);
+    device->OMSetRenderTargets(0, nullptr, nullptr);
 
     // Setup the viewport and the vertex layout:
     edgesRT->setViewport();
@@ -320,9 +319,9 @@ void SMAA::reproject(ID3D10ShaderResourceView *currentSRV,
     V(resolveTechnique->GetPassByIndex(0)->Apply(0));
 
     // Do it!
-    device->OMSetRenderTargets(1, &dstRTV, NULL);
+    device->OMSetRenderTargets(1, &dstRTV, nullptr);
     quad->draw();
-    device->OMSetRenderTargets(0, NULL, NULL);
+    device->OMSetRenderTargets(0, nullptr, nullptr);
 
     D3DPERF_EndEvent();
 }
@@ -353,9 +352,9 @@ void SMAA::separate(ID3D10ShaderResourceView *srcSRV,
 
     // Do it!
     ID3D10RenderTargetView *dst[] = { dst1RTV, dst2RTV };
-    device->OMSetRenderTargets(2, dst, NULL);
+    device->OMSetRenderTargets(2, dst, nullptr);
     quad->draw();
-    device->OMSetRenderTargets(0, NULL, NULL);
+    device->OMSetRenderTargets(0, nullptr, nullptr);
 
     D3DPERF_EndEvent();
 }
@@ -390,12 +389,12 @@ void SMAA::loadAreaTex() {
     descSRV.Texture2D.MipLevels = 1;
     V(device->CreateShaderResourceView(areaTex, &descSRV, &areaTexSRV));
     #else
-    areaTex = NULL;
+    areaTex = nullptr;
     HRESULT hr;
     D3DX10_IMAGE_LOAD_INFO info = D3DX10_IMAGE_LOAD_INFO();
     info.MipLevels = 1;
     info.Format = DXGI_FORMAT_R8G8_UNORM;
-    V(D3DX10CreateShaderResourceViewFromFile(device, L"../../Textures/AreaTexDX10.dds", &info, NULL, &areaTexSRV, NULL));
+    V(D3DX10CreateShaderResourceViewFromFile(device, L"../../Textures/AreaTexDX10.dds", &info, nullptr, &areaTexSRV, nullptr));
     #endif
 }
 
@@ -429,12 +428,12 @@ void SMAA::loadSearchTex() {
     descSRV.Texture2D.MipLevels = 1;
     V(device->CreateShaderResourceView(searchTex, &descSRV, &searchTexSRV));
     #else
-    searchTex = NULL;
+    searchTex = nullptr;
     HRESULT hr;
     D3DX10_IMAGE_LOAD_INFO info = D3DX10_IMAGE_LOAD_INFO();
     info.MipLevels = 1;
     info.Format = DXGI_FORMAT_R8_UNORM;
-    V(D3DX10CreateShaderResourceViewFromFile(device, L"../../Textures/SearchTex.dds", &info, NULL, &searchTexSRV, NULL));
+    V(D3DX10CreateShaderResourceViewFromFile(device, L"../../Textures/SearchTex.dds", &info, nullptr, &searchTexSRV, nullptr));
     #endif
 }
 
@@ -449,7 +448,7 @@ void SMAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
     // Do it!
     device->OMSetRenderTargets(1, *edgesRT, dsv);
     quad->draw();
-    device->OMSetRenderTargets(0, NULL, NULL);
+    device->OMSetRenderTargets(0, nullptr, nullptr);
 
     D3DPERF_EndEvent();
 }
@@ -529,7 +528,7 @@ void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv, Mode mode
     // And here we go!
     device->OMSetRenderTargets(1, *blendRT, dsv);
     quad->draw();
-    device->OMSetRenderTargets(0, NULL, NULL);
+    device->OMSetRenderTargets(0, nullptr, nullptr);
 
     D3DPERF_EndEvent();
 }
@@ -545,7 +544,7 @@ void SMAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthS
     // Do the final pass!
     device->OMSetRenderTargets(1, &dstRTV, dsv);
     quad->draw();
-    device->OMSetRenderTargets(0, NULL, NULL);
+    device->OMSetRenderTargets(0, nullptr, nullptr);
 
     D3DPERF_EndEvent();
 }
@@ -586,7 +585,7 @@ void SMAA::detectMSAAOrder() {
                "SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);"
                "}}";
     ID3D10Effect *effect;
-    V(D3DX10CreateEffectFromMemory(s.c_str(), s.length(), NULL, NULL, NULL, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, NULL, NULL, &effect, NULL, NULL));
+    V(D3DX10CreateEffectFromMemory(s.c_str(), s.length(), nullptr, nullptr, nullptr, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, nullptr, nullptr, &effect, nullptr, nullptr));
 
     // Create the buffers:
     DXGI_SAMPLE_DESC sampleDesc = { 2, 0 };
@@ -610,16 +609,16 @@ void SMAA::detectMSAAOrder() {
 
     // Render a quad that fills the left half of a 1x1 buffer:
     V(effect->GetTechniqueByName("Render")->GetPassByIndex(0)->Apply(0));
-    device->OMSetRenderTargets(1, *renderTargetMS, NULL);
+    device->OMSetRenderTargets(1, *renderTargetMS, nullptr);
     quad->draw();
-    device->OMSetRenderTargets(0, NULL, NULL);
+    device->OMSetRenderTargets(0, nullptr, nullptr);
 
     // Load the sample 0 from previous 1x1 buffer:
     V(effect->GetVariableByName("texMS")->AsShaderResource()->SetResource(*renderTargetMS));
     V(effect->GetTechniqueByName("Load")->GetPassByIndex(0)->Apply(0));
-    device->OMSetRenderTargets(1, *renderTarget, NULL);
+    device->OMSetRenderTargets(1, *renderTarget, nullptr);
     quad->draw();
-    device->OMSetRenderTargets(0, NULL, NULL);
+    device->OMSetRenderTargets(0, nullptr, nullptr);
 
     // Copy the sample #0 into CPU memory:
     device->CopyResource(stagingTexture, *renderTarget);

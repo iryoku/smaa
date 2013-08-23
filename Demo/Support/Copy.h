@@ -39,7 +39,7 @@ class Copy {
         static void init(ID3D10Device *device);
         static void release();
 
-        static void go(ID3D10ShaderResourceView *srcSRV, ID3D10RenderTargetView *dstRTV, D3D10_VIEWPORT *viewport=NULL);
+        static void go(ID3D10ShaderResourceView *srcSRV, ID3D10RenderTargetView *dstRTV, D3D10_VIEWPORT *viewport=nullptr);
 
     private:
         static ID3D10Device *device;

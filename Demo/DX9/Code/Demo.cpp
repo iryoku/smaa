@@ -48,36 +48,37 @@ const int HUD_WIDTH = 125;
 CDXUTDialogResourceManager dialogResourceManager;
 CDXUTDialog hud;
 
-ID3DXFont *font = NULL;
+ID3DXFont *font = nullptr;
 
-Timer *timer = NULL;
-SMAA *smaa = NULL;
-IDirect3DSurface9 *backbufferSurface = NULL;
-IDirect3DTexture9 *finalbufferColorTex = NULL;
-IDirect3DSurface9 *finalbufferColorSurface = NULL;
-IDirect3DTexture9 *finalbufferDepthTex = NULL;
-IDirect3DSurface9 *finalbufferDepthSurface = NULL;
-IDirect3DTexture9 *colorTex = NULL;
-IDirect3DTexture9 *depthTex = NULL;
-ID3DXSprite *sprite = NULL;
-CDXUTTextHelper *txtHelper = NULL;
+Timer *timer = nullptr;
+SMAA *smaa = nullptr;
+IDirect3DSurface9 *backbufferSurface = nullptr;
+IDirect3DTexture9 *finalbufferColorTex = nullptr;
+IDirect3DSurface9 *finalbufferColorSurface = nullptr;
+IDirect3DTexture9 *finalbufferDepthTex = nullptr;
+IDirect3DSurface9 *finalbufferDepthSurface = nullptr;
+IDirect3DTexture9 *colorTex = nullptr;
+IDirect3DTexture9 *depthTex = nullptr;
+ID3DXSprite *sprite = nullptr;
+CDXUTTextHelper *txtHelper = nullptr;
 
 bool showHud = true;
 
-
-#define IDC_TOGGLE_FULLSCREEN            1
-#define IDC_PRESET                       2
-#define IDC_DETECTION_MODE               3
-#define IDC_ANTIALIASING                 4
-#define IDC_PROFILE                      5
-#define IDC_THRESHOLD_LABEL             15
-#define IDC_THRESHOLD                   16
-#define IDC_MAX_SEARCH_STEPS_LABEL      17
-#define IDC_MAX_SEARCH_STEPS            18
-#define IDC_MAX_SEARCH_STEPS_DIAG_LABEL 19
-#define IDC_MAX_SEARCH_STEPS_DIAG       20
-#define IDC_CORNER_ROUNDING_LABEL       21
-#define IDC_CORNER_ROUNDING             22
+enum IDC {
+    IDC_TOGGLE_FULLSCREEN,
+    IDC_PRESET,
+    IDC_DETECTION_MODE,
+    IDC_ANTIALIASING,
+    IDC_PROFILE,
+    IDC_THRESHOLD_LABEL,
+    IDC_THRESHOLD,
+    IDC_MAX_SEARCH_STEPS_LABEL,
+    IDC_MAX_SEARCH_STEPS,
+    IDC_MAX_SEARCH_STEPS_DIAG_LABEL,
+    IDC_MAX_SEARCH_STEPS_DIAG,
+    IDC_CORNER_ROUNDING_LABEL,
+    IDC_CORNER_ROUNDING,
+};
 
 struct {
     float threshold;
@@ -144,20 +145,20 @@ HRESULT CALLBACK onResetDevice(IDirect3DDevice9 *device, const D3DSURFACE_DESC *
 
     V(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbufferSurface));
 
-    V(device->CreateTexture(desc->Width, desc->Height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &finalbufferColorTex, NULL));
+    V(device->CreateTexture(desc->Width, desc->Height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &finalbufferColorTex, nullptr));
     V(finalbufferColorTex->GetSurfaceLevel(0, &finalbufferColorSurface));
 
-    V(device->CreateTexture(desc->Width, desc->Height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_R32F, D3DPOOL_DEFAULT, &finalbufferDepthTex, NULL));
+    V(device->CreateTexture(desc->Width, desc->Height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_R32F, D3DPOOL_DEFAULT, &finalbufferDepthTex, nullptr));
     V(finalbufferDepthTex->GetSurfaceLevel(0, &finalbufferDepthSurface));
 
     D3DXIMAGE_INFO info;
-    V(D3DXGetImageInfoFromResource(NULL, L"Unigine02.png", &info));
-    V(D3DXCreateTextureFromResourceEx(device, NULL, L"Unigine02.png", info.Width, info.Height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &colorTex));
-    V(D3DXGetImageInfoFromResource(NULL, L"Unigine02.dds", &info));
-    V(D3DXCreateTextureFromResourceEx(device, NULL, L"Unigine02.dds", info.Width, info.Height, 1, 0, D3DFMT_R32F, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, NULL, &depthTex));
+    V(D3DXGetImageInfoFromResource(nullptr, L"Unigine02.png", &info));
+    V(D3DXCreateTextureFromResourceEx(device, nullptr, L"Unigine02.png", info.Width, info.Height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, nullptr, &colorTex));
+    V(D3DXGetImageInfoFromResource(nullptr, L"Unigine02.dds", &info));
+    V(D3DXCreateTextureFromResourceEx(device, nullptr, L"Unigine02.dds", info.Width, info.Height, 1, 0, D3DFMT_R32F, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, nullptr, &depthTex));
 
     V_RETURN(D3DXCreateSprite(device, &sprite));
-    txtHelper = new CDXUTTextHelper(font, sprite, NULL, NULL, 15);
+    txtHelper = new CDXUTTextHelper(font, sprite, nullptr, nullptr, 15);
 
     hud.SetLocation(desc->Width - 170, 0);
     hud.SetSize(170, 170);
@@ -215,7 +216,7 @@ void mainPass(IDirect3DDevice9 *device) {
     HRESULT hr;
 
     // A dummy copy over here.
-    IDirect3DSurface9 *colorSurface = NULL;
+    IDirect3DSurface9 *colorSurface = nullptr;
     V(colorTex->GetSurfaceLevel(0, &colorSurface));
     D3DSURFACE_DESC desc;
     colorSurface->GetDesc(&desc);
@@ -225,7 +226,7 @@ void mainPass(IDirect3DDevice9 *device) {
     SAFE_RELEASE(colorSurface);
 
     // And another one over here.
-    IDirect3DSurface9 *depthSurface = NULL;
+    IDirect3DSurface9 *depthSurface = nullptr;
     V(depthTex->GetSurfaceLevel(0, &depthSurface));
     V(device->StretchRect(depthSurface, &rect, finalbufferDepthSurface, &rect, D3DTEXF_POINT));
     SAFE_RELEASE(depthSurface);
@@ -236,7 +237,7 @@ void copy(IDirect3DDevice9 *device) {
     HRESULT hr;
 
     // A dummy copy over here.
-    IDirect3DSurface9 *colorSurface = NULL;
+    IDirect3DSurface9 *colorSurface = nullptr;
     V(colorTex->GetSurfaceLevel(0, &colorSurface));
     D3DSURFACE_DESC desc;
     colorSurface->GetDesc(&desc);
@@ -251,7 +252,7 @@ void CALLBACK onFrameRender(IDirect3DDevice9 *device, double time, float elapsed
     HRESULT hr;
 
     // IMPORTANT: stencil must be cleared to zero before executing 'smaa->go'
-    V(device->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0));
+    V(device->Clear(0, nullptr, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0));
 
     V(device->BeginScene());
         // This emulates main pass.
@@ -310,8 +311,8 @@ void CALLBACK onKeyboard(UINT nchar, bool keyDown, bool altDown, void *userConte
         case '4':
         case '5': {
             hud.GetComboBox(IDC_PRESET)->SetSelectedByIndex(nchar - '1');
-            onLostDevice(NULL);
-            onResetDevice(DXUTGetD3D9Device(), DXUTGetD3D9BackBufferSurfaceDesc(), NULL);
+            onLostDevice(nullptr);
+            onResetDevice(DXUTGetD3D9Device(), DXUTGetD3D9BackBufferSurfaceDesc(), nullptr);
             break;
         }
         case 'X':
@@ -375,8 +376,8 @@ void CALLBACK onGUIEvent(UINT event, int controlId, CDXUTControl* control, void 
             if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
                 SMAA::Preset selected;
                 selected = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
-                onLostDevice(NULL);
-                onResetDevice(DXUTGetD3D9Device(), DXUTGetD3D9BackBufferSurfaceDesc(), NULL);
+                onLostDevice(nullptr);
+                onResetDevice(DXUTGetD3D9Device(), DXUTGetD3D9BackBufferSurfaceDesc(), nullptr);
             }
             break;
         case IDC_ANTIALIASING:

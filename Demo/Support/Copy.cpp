@@ -29,11 +29,39 @@
  */
 
 
-#include <DXUT.h>
 #include <string>
 #include <d3d9.h>
 #include "Copy.h"
 using namespace std;
+
+
+#pragma region Useful Macros from DXUT (copy-pasted here as we prefer this to be as self-contained as possible)
+#if defined(DEBUG) || defined(_DEBUG)
+#ifndef V
+#define V(x) { hr = (x); if (FAILED(hr)) { DXTrace(__FILE__, (DWORD)__LINE__, hr, L#x, true); } }
+#endif
+#ifndef V_RETURN
+#define V_RETURN(x) { hr = (x); if (FAILED(hr)) { return DXTrace(__FILE__, (DWORD)__LINE__, hr, L#x, true); } }
+#endif
+#else
+#ifndef V
+#define V(x) { hr = (x); }
+#endif
+#ifndef V_RETURN
+#define V_RETURN(x) { hr = (x); if( FAILED(hr) ) { return hr; } }
+#endif
+#endif
+
+#ifndef SAFE_DELETE
+#define SAFE_DELETE(p) { if (p) { delete (p); (p) = nullptr; } }
+#endif
+#ifndef SAFE_DELETE_ARRAY
+#define SAFE_DELETE_ARRAY(p) { if (p) { delete[] (p); (p) = nullptr; } }
+#endif
+#ifndef SAFE_RELEASE
+#define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = nullptr; } }
+#endif
+#pragma endregion
 
 
 ID3D10Device *Copy::device;
@@ -57,7 +85,7 @@ void Copy::init(ID3D10Device *device) {
                "}}";
 
     HRESULT hr;
-    V(D3DX10CreateEffectFromMemory(s.c_str(), s.length(), NULL, NULL, NULL, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, NULL, NULL, &effect, NULL, NULL));
+    V(D3DX10CreateEffectFromMemory(s.c_str(), s.length(), nullptr, nullptr, nullptr, "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, device, nullptr, nullptr, &effect, nullptr, nullptr));
 
     D3D10_PASS_DESC desc;
     V(effect->GetTechniqueByName("Copy")->GetPassByIndex(0)->GetDesc(&desc));
@@ -79,16 +107,16 @@ void Copy::go(ID3D10ShaderResourceView *srcSRV, ID3D10RenderTargetView *dstRTV, 
     SaveInputLayoutScope saveInputLayout(device);
 
     D3D10_VIEWPORT dstViewport = Utils::viewportFromView(dstRTV);
-    device->RSSetViewports(1, viewport != NULL? viewport : &dstViewport);
+    device->RSSetViewports(1, viewport != nullptr? viewport : &dstViewport);
 
     quad->setInputLayout();
     
     HRESULT hr;
     V(effect->GetVariableByName("tex")->AsShaderResource()->SetResource(srcSRV));
     V(effect->GetTechniqueByName("Copy")->GetPassByIndex(0)->Apply(0));
-    device->OMSetRenderTargets(1, &dstRTV, NULL);
+    device->OMSetRenderTargets(1, &dstRTV, nullptr);
     quad->draw();
-    device->OMSetRenderTargets(0, NULL, NULL);
+    device->OMSetRenderTargets(0, nullptr, nullptr);
 
     D3DPERF_EndEvent();
 }

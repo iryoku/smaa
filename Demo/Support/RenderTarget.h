@@ -33,10 +33,10 @@
 #define RENDERTARGET_H
 
 #include <vector>
-#include <dxgi.h>
 #include <d3d10.h>
 #include <d3dx10.h>
 #include <dxerr.h>
+#include <dxgi.h>
 
 
 class NoMSAA : public DXGI_SAMPLE_DESC {

@@ -28,11 +28,10 @@
  * policies, either expressed or implied, of the copyright holders.
  */
 
-#include "Timer.h"
 #include <iomanip>
 #include <d3dx9.h>
 #include <dxerr.h>
-
+#include "Timer.h"
 using namespace std;
 
 
@@ -54,13 +53,13 @@ using namespace std;
 #endif
 
 #ifndef SAFE_DELETE
-#define SAFE_DELETE(p) { if (p) { delete (p); (p) = NULL; } }
+#define SAFE_DELETE(p) { if (p) { delete (p); (p) = nullptr; } }
 #endif
 #ifndef SAFE_DELETE_ARRAY
-#define SAFE_DELETE_ARRAY(p) { if (p) { delete[] (p); (p) = NULL; } }
+#define SAFE_DELETE_ARRAY(p) { if (p) { delete[] (p); (p) = nullptr; } }
 #endif
 #ifndef SAFE_RELEASE
-#define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = NULL; } }
+#define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = nullptr; } }
 #endif
 #pragma endregion
 
@@ -147,9 +146,7 @@ void Timer::end(const wstring &name) {
 void Timer::endFrame() {
     windowPos = (windowPos + 1) % WindowSize;
 
-    for (std::map<std::wstring, Timer::Section*>::iterator iter = sections.begin();
-            iter != sections.end();
-            iter++) {
+    for (auto iter = sections.begin(); iter != sections.end(); iter++) {
         Timer::Section *section = iter->second;
 
         if (!section->finished[windowPos])
@@ -186,9 +183,7 @@ void Timer::endFrame() {
 
 wostream &operator<<(wostream &out, Timer &timer) {
     if (timer.enabled) {
-        for (std::map<std::wstring, Timer::Section*>::iterator iter = timer.sections.begin();
-                iter != timer.sections.end();
-                iter++) {
+        for (auto iter = timer.sections.begin(); iter != timer.sections.end(); iter++) {
             const wstring &name = iter->first;
             Timer::Section *section = iter->second;
 
