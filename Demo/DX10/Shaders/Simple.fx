@@ -31,7 +31,6 @@
 // For reprojection:
 matrix currWorldViewProj;
 matrix prevWorldViewProj;
-float2 jitter;
 
 
 // For shading:
@@ -84,22 +83,11 @@ SimpleV2P SimpleVS(float4 position : POSITION,
     output.currPosition = output.svPosition.xyw;
     output.prevPosition = mul(position, prevWorldViewProj).xyw;
 
-    // Covert the jitter from non-homogeneous coordiantes to homogeneous
-    // coordinates and add it:
-    // (note that for providing the jitter in non-homogeneous projection space,
-    //  pixel coordinates (screen space) need to multiplied by two in the C++
-    //  code)
-    output.svPosition.xy -= jitter * output.svPosition.w;
-
     // Positions in projection space are in [-1, 1] range, while texture
     // coordinates are in [0, 1] range. So, we divide by 2 to get velocities in
-    // the scale:
-    output.currPosition.xy /= 2.0;
-    output.prevPosition.xy /= 2.0;
-
-    // Texture coordinates have a top-to-bottom y axis, so flip this axis:
-    output.currPosition.y = -output.currPosition.y;
-    output.prevPosition.y = -output.prevPosition.y;
+    // the scale (and flip the y axis):
+    output.currPosition.xy *= float2(0.5, -0.5);
+    output.prevPosition.xy *= float2(0.5, -0.5);
 
     // Output texture coordinates:
     output.texcoord = texcoord;

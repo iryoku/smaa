@@ -530,14 +530,19 @@ void CALLBACK onReleasingSwapChain(void *context) {
 }
 
 
-void renderMesh(ID3D10Device *device, const D3DXVECTOR2 &jitter) {
+void renderMesh(ID3D10Device *device) {
     D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"Render Scene");
     HRESULT hr;
 
-    // Save the state.
+    // Save the state:
     SaveViewportsScope saveViewport(device);
     SaveRenderTargetsScope saveRenderTargets(device);
     SaveInputLayoutScope saveInputLayout(device);
+
+    // Fetch the SMAA parameters:
+    bool smaaEnabled = hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked() &&
+                       hud.GetCheckBox(IDC_ANTIALIASING)->GetEnabled();
+    SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_AA_MODE)->GetSelectedData()));
 
     // Set the render targets:
     ID3D10RenderTargetView *rt[] = { *tmpRT_SRGB, *velocityRT };
@@ -545,12 +550,6 @@ void renderMesh(ID3D10Device *device, const D3DXVECTOR2 &jitter) {
 
     // Calculate current view-projection matrix:
     currViewProj = camera.getViewMatrix() * camera.getProjectionMatrix();
-
-    // Covert the jitter from screen space to non-homogeneous projection space:
-    const DXGI_SURFACE_DESC *desc = DXUTGetDXGIBackBufferSurfaceDesc();
-    D3DXVECTOR2 jitterProjectionSpace = 2.0f * jitter;
-    jitterProjectionSpace.x /= float(desc->Width); jitterProjectionSpace.y /= float(desc->Height);
-    V(simpleEffect->GetVariableByName("jitter")->AsVector()->SetFloatVector((float *) jitterProjectionSpace));
 
     // Set enviroment map for metal reflections:
     V(simpleEffect->GetVariableByName("envTex")->AsShaderResource()->SetResource(envTexSRV));
@@ -570,6 +569,11 @@ void renderMesh(ID3D10Device *device, const D3DXVECTOR2 &jitter) {
             D3DXMATRIX currWorldViewProj = world * currViewProj;
             D3DXMATRIX prevWorldViewProj = world * prevViewProj;
 
+            if (smaaEnabled) {
+                currWorldViewProj = smaa->JitteredMatrix(currWorldViewProj, tmpRT_SRGB->getWidth(), tmpRT_SRGB->getHeight(), mode, subpixelIndex);
+                prevWorldViewProj = smaa->JitteredMatrix(prevWorldViewProj, tmpRT_SRGB->getWidth(), tmpRT_SRGB->getHeight(), mode, subpixelIndex);
+            }
+
             V(simpleEffect->GetVariableByName("currWorldViewProj")->AsMatrix()->SetMatrix((float *) currWorldViewProj));
             V(simpleEffect->GetVariableByName("prevWorldViewProj")->AsMatrix()->SetMatrix((float *) prevWorldViewProj));
             V(simpleEffect->GetVariableByName("eyePositionW")->AsVector()->SetFloatVector((float *) &camera.getEyePosition()));
@@ -588,44 +592,14 @@ void renderMesh(ID3D10Device *device, const D3DXVECTOR2 &jitter) {
 
 
 void renderScene(ID3D10Device *device) {
-    bool fromImage = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() > 0;
-    bool smaaEnabled = hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked() &&
-                       hud.GetCheckBox(IDC_ANTIALIASING)->GetEnabled();
-    SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_AA_MODE)->GetSelectedData()));
-
     // Copy the image or render the mesh:
+    bool fromImage = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() > 0;
     if (fromImage) {
         D3D10_VIEWPORT viewport = Utils::viewportFromView(inputColorSRV);
         Copy::go(inputColorSRV, *tmpRT_SRGB, &viewport);
         Copy::go(inputDepthSRV, *depthBufferRT, &viewport);
     } else {
-        D3DXVECTOR2 jitter;
-        if (smaaEnabled) {
-            switch (mode) {
-                case SMAA::MODE_SMAA_1X:
-                case SMAA::MODE_SMAA_S2X:
-                    jitter = D3DXVECTOR2(0.0f, 0.0f);
-                    break;
-                case SMAA::MODE_SMAA_T2X: {
-                    D3DXVECTOR2 jitters[] = {
-                        D3DXVECTOR2( 0.25f, -0.25f),
-                        D3DXVECTOR2(-0.25f,  0.25f)
-                    };
-                    jitter = jitters[subpixelIndex];
-                    break;
-                }
-                case SMAA::MODE_SMAA_4X:
-                    D3DXVECTOR2 jitters[] = {
-                        D3DXVECTOR2( 0.125f,  0.125f),
-                        D3DXVECTOR2(-0.125f, -0.125f)
-                    };
-                    jitter = jitters[subpixelIndex];
-                    break;
-            }
-        } else {
-            jitter = D3DXVECTOR2(0.0f, 0.0f);
-        }
-        renderMesh(device, jitter);
+        renderMesh(device);
     }
 
     device->ResolveSubresource(*velocity1xRT, 0, *velocityRT, 0, DXGI_FORMAT_R16G16_FLOAT);

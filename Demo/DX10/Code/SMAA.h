@@ -163,6 +163,11 @@ class SMAA {
         RenderTarget *getBlendRenderTarget() { return blendRT; }
 
         /**
+         * Jitters the transformations matrix.
+         */
+        D3DXMATRIX JitteredMatrix(const D3DXMATRIX &worldViewProjection, int width, int height, Mode mode, int subsampleIndex);
+
+        /**
          * @EXTERNAL_STORAGE
          *
          * If you have one or two spare render targets of the same size as the
@@ -197,6 +202,8 @@ class SMAA {
          * sample order. See related SMAA::msaaReorder.
          */
         void detectMSAAOrder();
+
+        D3DXVECTOR2 getJitter(Mode mode, int subpixelIndex);
 
         void loadAreaTex();
         void loadSearchTex();

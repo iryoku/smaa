@@ -38,6 +38,7 @@
 
 
 #include <sstream>
+#include <stdexcept>
 #include <d3d10_1.h>
 #include <d3d9.h>
 #include "SMAA.h"
@@ -543,6 +544,14 @@ void SMAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthS
 }
 
 
+D3DXMATRIX SMAA::JitteredMatrix(const D3DXMATRIX &worldViewProjection, int width, int height, Mode mode, int subsampleIndex) {
+    D3DXVECTOR2 jitter = getJitter(mode, subsampleIndex);
+    D3DXMATRIX translationMatrix;
+    D3DXMatrixTranslation(&translationMatrix, 2.0f * jitter.x / float(width), 2.0f * jitter.y / float(height), 0.0f);
+    return worldViewProjection * translationMatrix;
+}
+
+
 void SMAA::detectMSAAOrder() {
     HRESULT hr;
 
@@ -617,4 +626,29 @@ void SMAA::detectMSAAOrder() {
     SAFE_DELETE(renderTarget);
     SAFE_RELEASE(stagingTexture);
     SAFE_DELETE(quad);
+}
+
+
+D3DXVECTOR2 SMAA::getJitter(Mode mode, int subsampleIndex) {
+    switch (mode) {
+        case SMAA::MODE_SMAA_1X:
+        case SMAA::MODE_SMAA_S2X:
+            return D3DXVECTOR2(0.0f, 0.0f);
+        case SMAA::MODE_SMAA_T2X: {
+            D3DXVECTOR2 jitters[] = {
+                D3DXVECTOR2(-0.25f,  0.25f),
+                D3DXVECTOR2( 0.25f, -0.25f)
+            };
+            return jitters[subsampleIndex];
+        }
+        case SMAA::MODE_SMAA_4X: {
+            D3DXVECTOR2 jitters[] = {
+                D3DXVECTOR2(-0.125f, -0.125f),
+                D3DXVECTOR2( 0.125f,  0.125f)
+            };
+            return jitters[subsampleIndex];
+        }
+        default:
+            throw logic_error("unexpected problem");
+    }
 }
