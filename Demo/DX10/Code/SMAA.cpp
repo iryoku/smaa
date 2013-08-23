@@ -37,6 +37,7 @@
  */
 
 
+#include <cassert>
 #include <sstream>
 #include <stdexcept>
 #include <d3d10_1.h>
@@ -107,7 +108,8 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
           threshold(0.1f),
           cornerRounding(0.25f),
           maxSearchSteps(16),
-          maxSearchStepsDiag(8) {
+          maxSearchStepsDiag(8),
+          frameIndex(0) {
     HRESULT hr;
 
     // Check for DirectX 10.1 support:
@@ -240,9 +242,11 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
               ID3D10DepthStencilView *dsv,
               Input input,
               Mode mode,
-              int subsampleIndex,
-              float blendFactor) {
+              int pass) {
     HRESULT hr;
+
+    assert(((mode == MODE_SMAA_1X  || mode == MODE_SMAA_T2X) &&  pass == 0) ||
+           ((mode == MODE_SMAA_S2X || mode == MODE_SMAA_4X)  && (pass == 0  || pass == 1)));
 
     // Save the state:
     SaveViewportsScope saveViewport(device);
@@ -263,6 +267,9 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
     device->ClearRenderTargetView(*edgesRT, clearColor);
     device->ClearRenderTargetView(*blendRT, clearColor);
 
+    // Get the subsample index:
+    int subsampleIndex = getSubsampleIndex(mode, pass);
+
     // Setup variables:
     if (preset == PRESET_CUSTOM) {
         V(thresholdVariable->SetFloat(threshold));
@@ -270,7 +277,7 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
         V(maxSearchStepsVariable->SetFloat(float(maxSearchSteps)));
         V(maxSearchStepsDiagVariable->SetFloat(float(maxSearchStepsDiag)));
     }
-    V(blendFactorVariable->SetFloat(blendFactor));
+    V(blendFactorVariable->SetFloat(pass == 0? 1.0f : 0.5f));
     V(colorTexVariable->SetResource(srcSRV));
     V(edgesTexVariable->SetResource(*edgesRT));
     V(blendTexVariable->SetResource(*blendRT));
@@ -544,11 +551,16 @@ void SMAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthS
 }
 
 
-D3DXMATRIX SMAA::JitteredMatrix(const D3DXMATRIX &worldViewProjection, int width, int height, Mode mode, int subsampleIndex) {
-    D3DXVECTOR2 jitter = getJitter(mode, subsampleIndex);
+D3DXMATRIX SMAA::JitteredMatrix(const D3DXMATRIX &worldViewProjection, int width, int height, Mode mode) const {
+    D3DXVECTOR2 jitter = getJitter(mode);
     D3DXMATRIX translationMatrix;
     D3DXMatrixTranslation(&translationMatrix, 2.0f * jitter.x / float(width), 2.0f * jitter.y / float(height), 0.0f);
     return worldViewProjection * translationMatrix;
+}
+
+
+void SMAA::nextFrame() {
+    frameIndex = (frameIndex + 1) % 2;
 }
 
 
@@ -629,7 +641,7 @@ void SMAA::detectMSAAOrder() {
 }
 
 
-D3DXVECTOR2 SMAA::getJitter(Mode mode, int subsampleIndex) {
+D3DXVECTOR2 SMAA::getJitter(Mode mode) const {
     switch (mode) {
         case SMAA::MODE_SMAA_1X:
         case SMAA::MODE_SMAA_S2X:
@@ -639,15 +651,31 @@ D3DXVECTOR2 SMAA::getJitter(Mode mode, int subsampleIndex) {
                 D3DXVECTOR2(-0.25f,  0.25f),
                 D3DXVECTOR2( 0.25f, -0.25f)
             };
-            return jitters[subsampleIndex];
+            return jitters[frameIndex];
         }
         case SMAA::MODE_SMAA_4X: {
             D3DXVECTOR2 jitters[] = {
                 D3DXVECTOR2(-0.125f, -0.125f),
                 D3DXVECTOR2( 0.125f,  0.125f)
             };
-            return jitters[subsampleIndex];
+            return jitters[frameIndex];
         }
+        default:
+            throw logic_error("unexpected problem");
+    }
+}
+
+
+int SMAA::getSubsampleIndex(Mode mode, int pass) const {
+    switch (mode) {
+        case SMAA::MODE_SMAA_1X:
+            return 0;
+        case SMAA::MODE_SMAA_T2X:
+            return frameIndex;
+        case SMAA::MODE_SMAA_S2X:
+            return msaaReorder(pass);
+        case SMAA::MODE_SMAA_4X:
+            return 2 * frameIndex + msaaReorder(pass);
         default:
             throw logic_error("unexpected problem");
     }

@@ -94,7 +94,6 @@ double recPlayTime = 0.0;
 double recPlayDuration = 0.0;
 
 D3DXMATRIX prevViewProj, currViewProj;
-int subpixelIndex = 0;
 
 struct MSAAMode {
     wstring name;
@@ -570,8 +569,8 @@ void renderMesh(ID3D10Device *device) {
             D3DXMATRIX prevWorldViewProj = world * prevViewProj;
 
             if (smaaEnabled) {
-                currWorldViewProj = smaa->JitteredMatrix(currWorldViewProj, tmpRT_SRGB->getWidth(), tmpRT_SRGB->getHeight(), mode, subpixelIndex);
-                prevWorldViewProj = smaa->JitteredMatrix(prevWorldViewProj, tmpRT_SRGB->getWidth(), tmpRT_SRGB->getHeight(), mode, subpixelIndex);
+                currWorldViewProj = smaa->JitteredMatrix(currWorldViewProj, tmpRT_SRGB->getWidth(), tmpRT_SRGB->getHeight(), mode);
+                prevWorldViewProj = smaa->JitteredMatrix(prevWorldViewProj, tmpRT_SRGB->getWidth(), tmpRT_SRGB->getHeight(), mode);
             }
 
             V(simpleEffect->GetVariableByName("currWorldViewProj")->AsMatrix()->SetMatrix((float *) currWorldViewProj));
@@ -608,8 +607,8 @@ void renderScene(ID3D10Device *device) {
 
 void runSMAA(ID3D10Device *device, SMAA::Mode mode) {
     // Calculate next subpixel index:
-    int previousIndex = subpixelIndex;
-    int currentIndex = (subpixelIndex + 1) % 2;
+    int previousIndex = smaa->getFrameIndex();
+    int currentIndex = (smaa->getFrameIndex() + 1) % 2;
 
     // Fetch configuration parameters:
     bool smaaEnabled = hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked() &&
@@ -624,18 +623,18 @@ void runSMAA(ID3D10Device *device, SMAA::Mode mode) {
                 smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode);
                 break;
             case SMAA::MODE_SMAA_T2X:
-                smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, subpixelIndex);
+                smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode);
                 smaa->reproject(*finalRT[currentIndex], *finalRT[previousIndex], *velocityRT, *backbufferRT);
                 break;
             case SMAA::MODE_SMAA_S2X:
                 smaa->separate(*tmpRT, *tmp1xRT[0], *tmp1xRT[1]);
-                smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode, smaa->msaaReorder(0), 1.0);
-                smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode, smaa->msaaReorder(1), 0.5);
+                smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode, 0);
+                smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode, 1);
                 break;
             case SMAA::MODE_SMAA_4X:
                 smaa->separate(*tmpRT, *tmp1xRT[0], *tmp1xRT[1]);
-                smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 2 * subpixelIndex + smaa->msaaReorder(0), 1.0);
-                smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 2 * subpixelIndex + smaa->msaaReorder(1), 0.5);
+                smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 0);
+                smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 1);
                 smaa->reproject(*finalRT[currentIndex], *finalRT[previousIndex], *velocity1xRT, *backbufferRT);
                 break;
         }
@@ -649,7 +648,7 @@ void runSMAA(ID3D10Device *device, SMAA::Mode mode) {
     }
 
     // Update subpixel index:
-    subpixelIndex = currentIndex;
+    smaa->nextFrame();
 }
 
 

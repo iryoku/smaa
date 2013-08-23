@@ -101,8 +101,7 @@ class SMAA {
                 ID3D10DepthStencilView *dsv, // Depth-stencil buffer for optimizations.
                 Input input, // Selects the input for edge detection.
                 Mode mode=MODE_SMAA_1X, // Selects the SMAA mode.
-                int subsampleIndex=0, // See SMAA.h (in the root directory)
-                float blendFactor=1.0f); // Allows to blend with the output render target.
+                int pass=0); // Selects the S2x or 4x pass (either 0 or 1).
 
         /**
          * This function perform a temporal resolve of two buffers. They must
@@ -165,7 +164,13 @@ class SMAA {
         /**
          * Jitters the transformations matrix.
          */
-        D3DXMATRIX JitteredMatrix(const D3DXMATRIX &worldViewProjection, int width, int height, Mode mode, int subsampleIndex);
+        D3DXMATRIX JitteredMatrix(const D3DXMATRIX &worldViewProjection, int width, int height, Mode mode) const;
+
+        /**
+         * Increases the subpixel counter.
+         */
+        void nextFrame();
+        int getFrameIndex() const { return frameIndex; }
 
         /**
          * @EXTERNAL_STORAGE
@@ -203,7 +208,8 @@ class SMAA {
          */
         void detectMSAAOrder();
 
-        D3DXVECTOR2 getJitter(Mode mode, int subpixelIndex);
+        D3DXVECTOR2 getJitter(Mode mode) const;
+        int getSubsampleIndex(Mode mode, int pass) const;
 
         void loadAreaTex();
         void loadSearchTex();
@@ -242,6 +248,7 @@ class SMAA {
         float threshold, cornerRounding;
         int maxSearchSteps, maxSearchStepsDiag;
 
+        int frameIndex;
         int msaaOrderMap[2];
 };
 
