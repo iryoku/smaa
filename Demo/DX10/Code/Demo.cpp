@@ -260,13 +260,11 @@ void setModeControls() {
     hud.GetCheckBox(IDC_PREDICATION)->SetEnabled(!isMsaa && inputDepthSRV != nullptr);
     hud.GetCheckBox(IDC_REPROJECTION)->SetEnabled(!isMsaa && isTemporalMode);
     hud.GetComboBox(IDC_LOCK_FRAMERATE)->SetEnabled(!isMsaa);
-    hud.GetCheckBox(IDC_PROFILE)->SetEnabled(!isMsaa);
+    hud.GetCheckBox(IDC_PROFILE)->SetEnabled(!isMsaa && hud.GetComboBox(IDC_LOCK_FRAMERATE)->GetSelectedIndex() == 0);
     hud.GetSlider(IDC_THRESHOLD)->SetEnabled(!isMsaa);
     hud.GetSlider(IDC_MAX_SEARCH_STEPS)->SetEnabled(!isMsaa);
     hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG)->SetEnabled(!isMsaa);
     hud.GetSlider(IDC_CORNER_ROUNDING)->SetEnabled(!isMsaa);
-
-    hud.GetCheckBox(IDC_PROFILE)->SetChecked(hud.GetCheckBox(IDC_PROFILE)->GetChecked() && !isMsaa);
 
     hud.GetCheckBox(IDC_SHADING)->SetEnabled(hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() == 0);
 }
@@ -376,7 +374,7 @@ HRESULT CALLBACK onCreateDevice(ID3D10Device *device, const DXGI_SURFACE_DESC *d
     txtHelper = new CDXUTTextHelper(nullptr, nullptr, font, sprite, 15);
 
     timer = new Timer(device);
-    timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
+    timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetEnabled() && hud.GetCheckBox(IDC_PROFILE)->GetChecked());
 
     Copy::init(device);
     V_RETURN(initSimpleEffect(device));
@@ -531,7 +529,6 @@ void CALLBACK onReleasingSwapChain(void *context) {
 
 
 void renderMesh(ID3D10Device *device) {
-    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"Render Scene");
     HRESULT hr;
 
     // Save the state:
@@ -586,12 +583,12 @@ void renderMesh(ID3D10Device *device) {
 
     // Update previous view-projection matrix:
     prevViewProj = currViewProj;
-
-    D3DPERF_EndEvent();
 }
 
 
 void renderScene(ID3D10Device *device) {
+    PerfEventScope perfEventScope(L"Render Scene");
+
     // Copy the image or render the mesh:
     bool fromImage = hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() > 0;
     if (fromImage) {
@@ -696,7 +693,8 @@ void drawTextures(ID3D10Device *device) {
 void drawHud(float elapsedTime) {
     HRESULT hr;
 
-    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"HUD");
+    PerfEventScope perfEventScope(L"HUD");
+
     if (showHud) {
         V(hud.OnRender(elapsedTime));
 
@@ -727,23 +725,26 @@ void drawHud(float elapsedTime) {
 
         txtHelper->End();
     }
-    D3DPERF_EndEvent();
 }
 
 
 void CALLBACK onFrameRender(ID3D10Device *device, double time, float elapsedTime, void *context) {
-    // Render the settings dialog:
-    if (settingsDialog.IsActive()) {
-        settingsDialog.OnRender(elapsedTime);
-        return;
-    }
+    {
+        PerfEventScope perfEvent(L"Preamble");
 
-    // Clear render targets:
-    float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    device->ClearRenderTargetView(*tmpRT_SRGB, clearColor);
-    device->ClearRenderTargetView(*velocityRT, clearColor);
-    device->ClearDepthStencilView(*depthStencil1x, D3D10_CLEAR_STENCIL, 1.0, 0);
-    device->ClearDepthStencilView(*depthStencil, D3D10_CLEAR_DEPTH | D3D10_CLEAR_STENCIL, 1.0, 0);
+        // Render the settings dialog:
+        if (settingsDialog.IsActive()) {
+            settingsDialog.OnRender(elapsedTime);
+            return;
+        }
+
+        // Clear render targets:
+        float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        device->ClearRenderTargetView(*tmpRT_SRGB, clearColor);
+        device->ClearRenderTargetView(*velocityRT, clearColor);
+        device->ClearDepthStencilView(*depthStencil1x, D3D10_CLEAR_STENCIL, 1.0, 0);
+        device->ClearDepthStencilView(*depthStencil, D3D10_CLEAR_DEPTH | D3D10_CLEAR_STENCIL, 1.0, 0);
+    }
 
     // Render the scene:
     renderScene(device);
@@ -1050,11 +1051,16 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
         case IDC_PROFILE:
             if (event == EVENT_CHECKBOX_CHANGED) {
                 timer->reset();
-                timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetChecked());
+                timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetEnabled() && hud.GetCheckBox(IDC_PROFILE)->GetChecked());
             }
             break;
         case IDC_LOCK_FRAMERATE:
-            DXUTSetSyncInterval(int(hud.GetComboBox(IDC_LOCK_FRAMERATE)->GetSelectedData()));
+            if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
+                DXUTSetSyncInterval(int(hud.GetComboBox(IDC_LOCK_FRAMERATE)->GetSelectedData()));
+                setModeControls();
+                timer->reset();
+                timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetEnabled() && hud.GetCheckBox(IDC_PROFILE)->GetChecked());
+            }
             break;
         case IDC_THRESHOLD:
             if (event == EVENT_SLIDER_VALUE_CHANGED) {

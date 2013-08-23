@@ -100,7 +100,7 @@ void Copy::release() {
 
 
 void Copy::go(ID3D10ShaderResourceView *srcSRV, ID3D10RenderTargetView *dstRTV, D3D10_VIEWPORT *viewport) {
-    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"Copy");
+    PerfEventScope perfEvent(L"Copy");
 
     SaveViewportsScope saveViewport(device);
     SaveRenderTargetsScope saveRenderTargets(device);
@@ -117,6 +117,4 @@ void Copy::go(ID3D10ShaderResourceView *srcSRV, ID3D10RenderTargetView *dstRTV, 
     device->OMSetRenderTargets(1, &dstRTV, nullptr);
     quad->draw();
     device->OMSetRenderTargets(0, nullptr, nullptr);
-
-    D3DPERF_EndEvent();
 }

@@ -5,6 +5,7 @@ Demo/DX9/Demo/
 Demo/DX9/Demo DX9.opensdf
 Demo/DX9/Demo DX9.sdf
 Demo/DX9/Demo DX9.suo
+Demo/DX9/Demo DX9.v11.suo
 
 Demo/DX10/Debug/
 Demo/DX10/Release/
@@ -12,6 +13,7 @@ Demo/DX10/ipch/
 Demo/DX10/Demo DX10.opensdf
 Demo/DX10/Demo DX10.sdf
 Demo/DX10/Demo DX10.suo
+Demo/DX10/Demo DX10.v11.suo
 Demo/DX10/Demo.vcxproj.user
 
 Scripts/*.pyc

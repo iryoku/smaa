@@ -35,6 +35,7 @@
 #include <vector>
 #include <d3d10.h>
 #include <d3dx10.h>
+#include <d3d9.h>
 #include <dxerr.h>
 #include <dxgi.h>
 
@@ -208,6 +209,13 @@ class SaveDepthStencilScope {
         ID3D10Device *device;
         ID3D10DepthStencilState *depthStencilState;
         UINT stencilRef;
+};
+
+
+class PerfEventScope {
+    public:
+        PerfEventScope(const std::wstring &eventName) { D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), eventName.c_str()); }
+        ~PerfEventScope() { D3DPERF_EndEvent(); }
 };
 
 

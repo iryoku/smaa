@@ -244,6 +244,8 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
               int pass) {
     HRESULT hr;
 
+    PerfEventScope perfEvent(L"SMAA: Morphological Antialiasing");
+
     assert(((mode == MODE_SMAA_1X  || mode == MODE_SMAA_T2X) &&  pass == 0) ||
            ((mode == MODE_SMAA_S2X || mode == MODE_SMAA_4X)  && (pass == 0  || pass == 1)));
 
@@ -296,8 +298,9 @@ void SMAA::reproject(ID3D10ShaderResourceView *currentSRV,
                      ID3D10ShaderResourceView *previousSRV,
                      ID3D10ShaderResourceView *velocitySRV,
                      ID3D10RenderTargetView *dstRTV) {
-    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: temporal resolve");
     HRESULT hr;
+
+    PerfEventScope perfEvent(L"SMAA: Temporal Antialiasing");
 
     // Save the state:
     SaveViewportsScope saveViewport(device);
@@ -309,7 +312,7 @@ void SMAA::reproject(ID3D10ShaderResourceView *currentSRV,
     // Setup the viewport and the vertex layout:
     edgesRT->setViewport();
     quad->setInputLayout();
-    
+
     // Setup variables:
     V(colorTexVariable->SetResource(currentSRV));
     V(colorTexPrevVariable->SetResource(previousSRV));
@@ -322,16 +325,15 @@ void SMAA::reproject(ID3D10ShaderResourceView *currentSRV,
     device->OMSetRenderTargets(1, &dstRTV, nullptr);
     quad->draw();
     device->OMSetRenderTargets(0, nullptr, nullptr);
-
-    D3DPERF_EndEvent();
 }
 
 
 void SMAA::separate(ID3D10ShaderResourceView *srcSRV,
                     ID3D10RenderTargetView *dst1RTV,
                     ID3D10RenderTargetView *dst2RTV) {
-    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: separate");
     HRESULT hr;
+
+    PerfEventScope perfEvent(L"SMAA: Separate MSAA Samples Pass");
 
     // Save the state:
     SaveViewportsScope saveViewport(device);
@@ -355,8 +357,6 @@ void SMAA::separate(ID3D10ShaderResourceView *srcSRV,
     device->OMSetRenderTargets(2, dst, nullptr);
     quad->draw();
     device->OMSetRenderTargets(0, nullptr, nullptr);
-
-    D3DPERF_EndEvent();
 }
 
 
@@ -439,8 +439,9 @@ void SMAA::loadSearchTex() {
 
 
 void SMAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
-    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: 1st pass");
     HRESULT hr;
+
+    PerfEventScope perfEvent(L"SMAA: Edge Detection Pass");
 
     // Select the technique accordingly:
     V(edgeDetectionTechniques[int(input)]->GetPassByIndex(0)->Apply(0));
@@ -449,14 +450,13 @@ void SMAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
     device->OMSetRenderTargets(1, *edgesRT, dsv);
     quad->draw();
     device->OMSetRenderTargets(0, nullptr, nullptr);
-
-    D3DPERF_EndEvent();
 }
 
 
 void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv, Mode mode, int subsampleIndex) {
-    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: 2nd pass");
     HRESULT hr;
+
+    PerfEventScope perfEvent(L"SMAA: Blending Weights Calculation Pass");
 
     /**
      * Orthogonal indices:
@@ -529,14 +529,13 @@ void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv, Mode mode
     device->OMSetRenderTargets(1, *blendRT, dsv);
     quad->draw();
     device->OMSetRenderTargets(0, nullptr, nullptr);
-
-    D3DPERF_EndEvent();
 }
 
 
 void SMAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthStencilView *dsv) {
-    D3DPERF_BeginEvent(D3DCOLOR_XRGB(0, 0, 0), L"SMAA: 3rd pass");
     HRESULT hr;
+
+    PerfEventScope perfEvent(L"SMAA: Neighborhood Blending Pass");
 
     // Setup the technique (once again):
     V(neighborhoodBlendingTechnique->GetPassByIndex(0)->Apply(0));
@@ -545,8 +544,6 @@ void SMAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthS
     device->OMSetRenderTargets(1, &dstRTV, dsv);
     quad->draw();
     device->OMSetRenderTargets(0, nullptr, nullptr);
-
-    D3DPERF_EndEvent();
 }
 
 

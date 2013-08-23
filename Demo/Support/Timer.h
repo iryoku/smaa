@@ -69,7 +69,7 @@ class Timer {
         friend std::wostream &operator<<(std::wostream &out, Timer &timer);
 
     private:
-        static const int WindowSize = 100;
+        static const int WindowSize = 120;
 
         #if TIMER_DIRECTX_9
         IDirect3DDevice9 *device;

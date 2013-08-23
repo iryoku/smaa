@@ -75,7 +75,7 @@ Timer::Section::Section(IDirect3DDevice9 *device) {
         V(device->CreateQuery(D3DQUERYTYPE_TIMESTAMPFREQ, &timestampFrequencyQuery[i]));
 
         finished[i] = false;
-        time[i] = 0.0f;
+        time[i] = -1.0f;
     }
 }
 #else
@@ -93,7 +93,7 @@ Timer::Section::Section(ID3D10Device *device) {
         V(device->CreateQuery(&desc, &timestampEndQuery[i]));
 
         finished[i] = false;
-        time[i] = 0.0f;
+        time[i] = -1.0f;
     }
 }
 #endif
@@ -176,6 +176,8 @@ void Timer::endFrame() {
         if (!disjoint) {
             UINT64 delta = endTime - startTime;
             section->time[windowPos] = 1000.0f * (delta / frequency);
+        } else {
+            section->time[windowPos] = -1.0f;
         }
     }
 }
@@ -188,11 +190,20 @@ wostream &operator<<(wostream &out, Timer &timer) {
             Timer::Section *section = iter->second;
 
             float mean = 0.0f;
-            for (int i = 0; i < Timer::WindowSize; i++)
-                mean += section->time[i];
-            mean /= float(Timer::WindowSize);
+            int n = 0;
+            for (int i = 0; i < Timer::WindowSize; i++) {
+                if (section->time[i] >= 0.0f) {
+                    mean += section->time[i];
+                    n++;
+                }
+            }
+            mean /= float(n);
 
-            out << setprecision(3) << name << L": " << mean << L"ms" << endl;
+            out << setprecision(3) << name << L": ";
+            if (n > 0)
+                out << mean << L"ms" << endl;
+            else
+                out << "n/a" << endl;
         }
     }
     return out;
