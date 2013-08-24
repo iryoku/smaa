@@ -174,7 +174,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     if (storage.edgesRTV != nullptr && storage.edgesSRV != nullptr)
         edgesRT = new RenderTarget(device, storage.edgesRTV, storage.edgesSRV);
     else
-        edgesRT = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8_UNORM);
+        edgesRT = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
 
     // Same for blending weights:
     if (storage.weightsRTV != nullptr && storage.weightsSRV != nullptr)

@@ -72,8 +72,7 @@ float cornerRounding;
 #endif
 
 // Set preset defines:
-#define SMAA_PRESET_CUSTOM
-#ifdef SMAA_PRESET_CUSTOM
+#if SMAA_PRESET_CUSTOM
 #define SMAA_THRESHOLD threshld
 #define SMAA_MAX_SEARCH_STEPS maxSearchSteps
 #define SMAA_MAX_SEARCH_STEPS_DIAG maxSearchStepsDiag
