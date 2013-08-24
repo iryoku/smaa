@@ -823,7 +823,7 @@ float2 SMAASearchDiag1(SMAATexture2D edgesTex, float2 texcoord, float2 dir, out 
     while (coord.z < float(SMAA_MAX_SEARCH_STEPS_DIAG - 1) &&
            coord.w > 0.9) {
         coord.xyz = mad(float3(SMAA_RT_METRICS.xy, 1.0), float3(dir, 1.0), coord.xyz);
-        e.rg = SMAASampleLevelZero(edgesTex, coord.xy).rg;
+        e = SMAASampleLevelZero(edgesTex, coord.xy).rg;
         coord.w = dot(e, 0.5);
     }
     return coord.zw;
@@ -831,11 +831,28 @@ float2 SMAASearchDiag1(SMAATexture2D edgesTex, float2 texcoord, float2 dir, out 
 
 float2 SMAASearchDiag2(SMAATexture2D edgesTex, float2 texcoord, float2 dir, out float2 e) {
     float4 coord = float4(texcoord, -1.0, 1.0);
+    coord.x += 0.25 * SMAA_RT_METRICS.x; // See @SearchDiag2Optimization
     while (coord.z < float(SMAA_MAX_SEARCH_STEPS_DIAG - 1) &&
            coord.w > 0.9) {
         coord.xyz = mad(float3(SMAA_RT_METRICS.xy, 1.0), float3(dir, 1.0), coord.xyz);
-        e.g = SMAASampleLevelZero(edgesTex, coord.xy).g;
-        e.r = SMAASampleLevelZeroOffset(edgesTex, coord.xy, int2(1, 0)).r;
+
+        // @SearchDiag2Optimization
+        // Fetch both edges at once using bilinear filtering:
+        e = SMAASampleLevelZero(edgesTex, coord.xy).rg;
+
+        // Now is time for decoding them. If an edge is enabled:
+        //   r: (0.75 * X + 0.25 * 1) => 0.25 or 1.0
+        //   g: (0.75 * 1 + 0.25 * X) => 0.75 or 1.0
+        //
+        // This function will unpack the values, expands to 5 instructions:
+        // wolframalpha.com: 1.0 - (5.0 * abs((x - 0.25) * (x - 1))) > 0.5 plot 0 to 1
+        e.r = 1.0 - 5.0 * abs((e.r - 0.25) * (e.r - 1.0));
+        e = step(0.5, e);
+
+        // Non-optimized version:
+        // e.g = SMAASampleLevelZero(edgesTex, coord.xy).g;
+        // e.r = SMAASampleLevelZeroOffset(edgesTex, coord.xy, int2(1, 0)).r;
+
         coord.w = dot(e, 0.5);
     }
     return coord.zw;
@@ -873,13 +890,13 @@ float2 SMAACalculateDiagWeights(SMAATexture2D edgesTex, SMAATexture2D areaTex, f
 
     // Search for the line ends:
     float4 d;
-    float2 ee;
+    float2 end;
     if (e.r > 0.0) {
-        d.xz = SMAASearchDiag1(edgesTex, texcoord, float2(-1.0,  1.0), ee.xy);
-        d.x += float(ee.y > 0.9);
+        d.xz = SMAASearchDiag1(edgesTex, texcoord, float2(-1.0,  1.0), end);
+        d.x += float(end.y > 0.9);
     } else
         d.xz = 0.0;
-    d.yw = SMAASearchDiag1(edgesTex, texcoord, float2(1.0, -1.0), ee.xy);
+    d.yw = SMAASearchDiag1(edgesTex, texcoord, float2(1.0, -1.0), end);
 
     SMAA_BRANCH
     if (d.x + d.y > 2.0) { // d.x + d.y + 1 > 3
@@ -901,10 +918,10 @@ float2 SMAACalculateDiagWeights(SMAATexture2D edgesTex, SMAATexture2D areaTex, f
     }
 
     // Search for the line ends:
-    d.xz = SMAASearchDiag2(edgesTex, texcoord, float2(-1.0, -1.0), ee.xy);
+    d.xz = SMAASearchDiag2(edgesTex, texcoord, float2(-1.0, -1.0), end);
     if (SMAASampleLevelZeroOffset(edgesTex, texcoord, int2(1, 0)).r > 0.0) {
-        d.yw = SMAASearchDiag2(edgesTex, texcoord, float2(1.0, 1.0), ee.xy);
-        d.y += float(ee.y > 0.9);
+        d.yw = SMAASearchDiag2(edgesTex, texcoord, float2(1.0, 1.0), end);
+        d.y += float(end.y > 0.9);
     } else
         d.yw = 0.0;
 
