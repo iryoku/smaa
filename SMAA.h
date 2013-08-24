@@ -816,6 +816,32 @@ float4 SMAADepthEdgeDetectionPS(float2 texcoord,
 #if SMAA_MAX_SEARCH_STEPS_DIAG > 0 || SMAA_FORCE_DIAGONAL_DETECTION
 
 /**
+ * Allows to decode two binary values from a bilinear-filtered access.
+ */
+float2 SMAADecodeDiagBilinearAccess(float2 e) {
+    // Bilinear access for fetching 'e' have a 0.25 offset, and we are
+    // interested in the R and G edges:
+    //
+    // +---G---+-------+
+    // |   x o R   x   |
+    // +-------+-------+
+    //
+    // Then, if one of these edge is enabled:
+    //   Red:   (0.75 * X + 0.25 * 1) => 0.25 or 1.0
+    //   Green: (0.75 * 1 + 0.25 * X) => 0.75 or 1.0
+    //
+    // This function will unpack the values (mad + mul + round):
+    // wolframalpha.com: round(x * abs(5 * x - 5 * 0.75)) plot 0 to 1
+    e.r = e.r * abs(5.0 * e.r - 5.0 * 0.75);
+    return round(e);
+}
+
+float4 SMAADecodeDiagBilinearAccess(float4 e) {
+    e.rb = e.rb * abs(5.0 * e.rb - 5.0 * 0.75);
+    return round(e);
+}
+
+/**
  * These functions allows to perform diagonal pattern searches.
  */
 float2 SMAASearchDiag1(SMAATexture2D edgesTex, float2 texcoord, float2 dir, out float2 e) {
@@ -839,15 +865,7 @@ float2 SMAASearchDiag2(SMAATexture2D edgesTex, float2 texcoord, float2 dir, out 
         // @SearchDiag2Optimization
         // Fetch both edges at once using bilinear filtering:
         e = SMAASampleLevelZero(edgesTex, coord.xy).rg;
-
-        // Now is time for decoding them. If an edge is enabled:
-        //   r: (0.75 * X + 0.25 * 1) => 0.25 or 1.0
-        //   g: (0.75 * 1 + 0.25 * X) => 0.75 or 1.0
-        //
-        // This function will unpack the values, expands to 5 instructions:
-        // wolframalpha.com: 1.0 - (5.0 * abs((x - 0.25) * (x - 1))) > 0.5 plot 0 to 1
-        e.r = 1.0 - 5.0 * abs((e.r - 0.25) * (e.r - 1.0));
-        e = step(0.5, e);
+        e = SMAADecodeDiagBilinearAccess(e);
 
         // Non-optimized version:
         // e.g = SMAASampleLevelZero(edgesTex, coord.xy).g;
@@ -900,14 +918,22 @@ float2 SMAACalculateDiagWeights(SMAATexture2D edgesTex, SMAATexture2D areaTex, f
 
     SMAA_BRANCH
     if (d.x + d.y > 2.0) { // d.x + d.y + 1 > 3
-        float4 coords = mad(float4(-d.x, d.x, d.y, -d.y), SMAA_RT_METRICS.xyxy, texcoord.xyxy);
-
         // Fetch the crossing edges:
+        float4 coords = mad(float4(-d.x + 0.25, d.x, d.y, -d.y - 0.25), SMAA_RT_METRICS.xyxy, texcoord.xyxy);
         float4 c;
-        c.x = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-1,  0)).g;
-        c.y = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 0,  0)).r;
-        c.z = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1,  0)).g;
-        c.w = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1, -1)).r;
+        c.xy = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-1,  0)).rg;
+        c.zw = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1,  0)).rg;
+        c.yxwz = SMAADecodeDiagBilinearAccess(c.xyzw);
+
+        // Non-optimized version:
+        // float4 coords = mad(float4(-d.x, d.x, d.y, -d.y), SMAA_RT_METRICS.xyxy, texcoord.xyxy);
+        // float4 c;
+        // c.x = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-1,  0)).g;
+        // c.y = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 0,  0)).r;
+        // c.z = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1,  0)).g;
+        // c.w = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1, -1)).r;
+
+        // Merge crossing edges at each side into a single value:
         float2 e = mad(2.0, c.xz, c.yw);
 
         // Remove the crossing edge if we didn't found the end of the line:
@@ -927,9 +953,8 @@ float2 SMAACalculateDiagWeights(SMAATexture2D edgesTex, SMAATexture2D areaTex, f
 
     SMAA_BRANCH
     if (d.x + d.y > 2.0) { // d.x + d.y + 1 > 3
-        float4 coords = mad(float4(-d.x, -d.x, d.y, d.y), SMAA_RT_METRICS.xyxy, texcoord.xyxy);
-
         // Fetch the crossing edges:
+        float4 coords = mad(float4(-d.x, -d.x, d.y, d.y), SMAA_RT_METRICS.xyxy, texcoord.xyxy);
         float4 c;
         c.x  = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-1,  0)).g;
         c.y  = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 0, -1)).r;
