@@ -299,7 +299,7 @@
 #define SMAA_MAX_SEARCH_STEPS_DIAG 8
 #define SMAA_CORNER_ROUNDING 25
 #elif SMAA_PRESET_ULTRA
-#define SMAA_THRESHOLD 0.05
+#define SMAA_THRESHOLD 0.075
 #define SMAA_MAX_SEARCH_STEPS 32
 #define SMAA_MAX_SEARCH_STEPS_DIAG 16
 #define SMAA_CORNER_ROUNDING 25
@@ -459,6 +459,18 @@
  */
 #ifndef SMAA_DIRECTX9_LINEAR_BLEND
 #define SMAA_DIRECTX9_LINEAR_BLEND 0
+#endif
+
+/**
+ * If there is an neighbor edge that has SMAA_LOCAL_CONTRAST_FACTOR times
+ * bigger contrast than current edge, current edge will be discarded.
+ *
+ * This allows to eliminate spurious crossing edges, and is based on the fact
+ * that, if there is too much contrast in a direction, that will hide
+ * perceptually contrast in the other neighbors.
+ */
+#ifndef SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR
+#define SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR 2.0
 #endif
 
 /**
@@ -680,6 +692,7 @@ float4 SMAALumaEdgeDetectionPS(float2 texcoord,
     // Calculate lumas:
     float3 weights = float3(0.2126, 0.7152, 0.0722);
     float L = dot(SMAASample(colorTex, texcoord).rgb, weights);
+
     float Lleft = dot(SMAASample(colorTex, offset[0].xy).rgb, weights);
     float Ltop  = dot(SMAASample(colorTex, offset[0].zw).rgb, weights);
 
@@ -699,7 +712,6 @@ float4 SMAALumaEdgeDetectionPS(float2 texcoord,
 
     // Calculate the maximum delta in the direct neighborhood:
     float2 maxDelta = max(delta.xy, delta.zw);
-    maxDelta = max(maxDelta.xx, maxDelta.yy);
 
     // Calculate left-left and top-top deltas:
     float Lleftleft = dot(SMAASample(colorTex, offset[2].xy).rgb, weights);
@@ -708,18 +720,10 @@ float4 SMAALumaEdgeDetectionPS(float2 texcoord,
 
     // Calculate the final maximum delta:
     maxDelta = max(maxDelta.xy, delta.zw);
+    maxDelta = max(maxDelta.xx, maxDelta.yy);
 
-    /**
-     * Each edge with a delta in luma of less than 50% of the maximum luma
-     * surrounding this pixel is discarded. This allows to eliminate spurious
-     * crossing edges, and is based on the fact that, if there is too much
-     * contrast in a direction, that will hide contrast in the other
-     * neighbors.
-     * This is done after the discard intentionally as this situation doesn't
-     * happen too frequently (but it's important to do as it prevents some 
-     * edges from going undetected).
-     */
-    edges.xy *= step(0.5 * maxDelta, delta.xy);
+    // Local contrast adaptation:
+    edges.xy *= step((1.0 / SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR) * maxDelta, delta.xy);
 
     return float4(edges, 0.0, 0.0);
 }
@@ -773,7 +777,7 @@ float4 SMAAColorEdgeDetectionPS(float2 texcoord,
     delta.w = max(max(t.r, t.g), t.b);
 
     // Calculate the maximum delta in the direct neighborhood:
-    float maxDelta = max(max(max(delta.x, delta.y), delta.z), delta.w);
+    float2 maxDelta = max(delta.xy, delta.zw);
 
     // Calculate left-left and top-top deltas:
     float3 Cleftleft  = SMAASample(colorTex, offset[2].xy).rgb;
@@ -785,10 +789,11 @@ float4 SMAAColorEdgeDetectionPS(float2 texcoord,
     delta.w = max(max(t.r, t.g), t.b);
 
     // Calculate the final maximum delta:
-    maxDelta = max(max(maxDelta, delta.z), delta.w);
+    maxDelta = max(maxDelta.xy, delta.zw);
+    maxDelta = max(maxDelta.xx, maxDelta.yy);
 
-    // Local contrast adaptation in action:
-    edges.xy *= step(0.5 * maxDelta, delta.xy);
+    // Local contrast adaptation:
+    edges.xy *= step((1.0 / SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR) * maxDelta, delta.xy);
 
     return float4(edges, 0.0, 0.0);
 }
