@@ -113,10 +113,10 @@ SMAA::SMAA(IDirect3DDevice9 *device, int width, int height, Preset preset, const
     stringstream s;
 
     // Setup pixel size macro
-    s << "float2(1.0 / " << width << ", 1.0 / " << height << ")";
+    s << "float4(1.0 / " << width << ", 1.0 / " << height << ", " << width << ", " << height << ")";
     string pixelSizeText = s.str();
-    D3DXMACRO pixelSizeMacro = { "SMAA_PIXEL_SIZE", pixelSizeText.c_str() };
-    defines.push_back(pixelSizeMacro);
+    D3DXMACRO renderTargetMetricsMacro = { "SMAA_RT_METRICS", pixelSizeText.c_str() };
+    defines.push_back(renderTargetMetricsMacro);
 
     // Setup preset macro
     D3DXMACRO presetMacros[] = {

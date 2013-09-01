@@ -38,13 +38,6 @@
 
 
 /**
- * Setup mandatory defines. Use a real macro here for maximum performance!
- */
-#ifndef SMAA_PIXEL_SIZE // It's actually set on runtime, this is for compilation time syntax checking.
-#define SMAA_PIXEL_SIZE float2(1.0 / 1280.0, 1.0 / 720.0)
-#endif
-
-/**
  * This can be ignored; its purpose is to support interactive custom parameter
  * tweaking.
  */
@@ -52,6 +45,15 @@ float threshld;
 float maxSearchSteps;
 float maxSearchStepsDiag;
 float cornerRounding;
+
+
+// Use a real macro here for maximum performance!
+#ifndef SMAA_RT_METRICS // This is just for compilation-time syntax checking.
+#define SMAA_RT_METRICS float4(1.0 / 1280.0, 1.0 / 720.0, 1280.0, 720.0)
+#endif
+
+// Set the HLSL version:
+#define SMAA_HLSL_3 1
 
 #ifdef SMAA_PRESET_CUSTOM
 #define SMAA_THRESHOLD threshld
@@ -61,9 +63,6 @@ float cornerRounding;
 #define SMAA_FORCE_DIAGONAL_DETECTION 1
 #define SMAA_FORCE_CORNER_DETECTION 1
 #endif
-
-// Set the HLSL version:
-#define SMAA_HLSL_3 1
 
 // And include our header!
 #include "SMAA.h"
@@ -152,7 +151,7 @@ void DX9_SMAABlendingWeightCalculationVS(inout float4 position : POSITION,
 
 void DX9_SMAANeighborhoodBlendingVS(inout float4 position : POSITION,
                                     inout float2 texcoord : TEXCOORD0,
-                                    out float4 offset[2] : TEXCOORD1) {
+                                    out float4 offset : TEXCOORD1) {
     SMAANeighborhoodBlendingVS(position, position, texcoord, offset);
 }
 
@@ -190,7 +189,7 @@ float4 DX9_SMAABlendingWeightCalculationPS(float4 position : SV_POSITION,
 
 float4 DX9_SMAANeighborhoodBlendingPS(float4 position : SV_POSITION,
                                       float2 texcoord : TEXCOORD0,
-                                      float4 offset[2] : TEXCOORD1,
+                                      float4 offset : TEXCOORD1,
                                       uniform SMAATexture2D colorTex,
                                       uniform SMAATexture2D blendTex) : COLOR {
     return SMAANeighborhoodBlendingPS(texcoord, offset, colorTex, blendTex);

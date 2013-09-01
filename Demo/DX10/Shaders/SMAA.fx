@@ -38,11 +38,6 @@
 
 
 /**
- * This should be set to float4(1.0 / width, 1.0 / height, width, height)
- */
-float4 renderTargetMetrics;
-
-/**
  * This is only required for temporal modes (SMAA T2x).
  */
 float4 subsampleIndices;
@@ -63,8 +58,11 @@ float maxSearchSteps;
 float maxSearchStepsDiag;
 float cornerRounding;
 
-// Set the render target metrics:
-#define SMAA_RT_METRICS renderTargetMetrics
+
+// Use a real macro here for maximum performance!
+#ifndef SMAA_RT_METRICS // This is just for compilation-time syntax checking.
+#define SMAA_RT_METRICS float4(1.0 / 1280.0, 1.0 / 720.0, 1280.0, 720.0)
+#endif
 
 // Set the HLSL version:
 #ifndef SMAA_HLSL_4_1
@@ -170,7 +168,7 @@ void DX10_SMAABlendingWeightCalculationVS(float4 position : POSITION,
 void DX10_SMAANeighborhoodBlendingVS(float4 position : POSITION,
                                      out float4 svPosition : SV_POSITION,
                                      inout float2 texcoord : TEXCOORD0,
-                                     out float4 offset[2] : TEXCOORD1) {
+                                     out float4 offset : TEXCOORD1) {
     SMAANeighborhoodBlendingVS(position, svPosition, texcoord, offset);
 }
 
@@ -227,7 +225,7 @@ float4 DX10_SMAABlendingWeightCalculationPS(float4 position : SV_POSITION,
 
 float4 DX10_SMAANeighborhoodBlendingPS(float4 position : SV_POSITION,
                                        float2 texcoord : TEXCOORD0,
-                                       float4 offset[2] : TEXCOORD1,
+                                       float4 offset : TEXCOORD1,
                                        uniform SMAATexture2D colorTex,
                                        uniform SMAATexture2D blendTex) : SV_TARGET {
     return SMAANeighborhoodBlendingPS(texcoord, offset, colorTex, blendTex);

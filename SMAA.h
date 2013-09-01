@@ -610,7 +610,7 @@ void SMAABlendingWeightCalculationVS(float4 position,
                                      out float4 offset[3]) {
     svPosition = position;
 
-    pixcoord = texcoord / SMAA_RT_METRICS.xy;
+    pixcoord = texcoord * SMAA_RT_METRICS.zw;
 
     // We will use these offsets for the searches later on (see @PSEUDO_GATHER4):
     offset[0] = mad(SMAA_RT_METRICS.xyxy, float4(-0.25, -0.125,  1.25, -0.125), texcoord.xyxy);
@@ -628,11 +628,10 @@ void SMAABlendingWeightCalculationVS(float4 position,
 void SMAANeighborhoodBlendingVS(float4 position,
                                 out float4 svPosition,
                                 inout float2 texcoord,
-                                out float4 offset[2]) {
+                                out float4 offset) {
     svPosition = position;
 
-    offset[0] = mad(SMAA_RT_METRICS.xyxy, float4(-1.0, 0.0, 0.0, -1.0), texcoord.xyxy);
-    offset[1] = mad(SMAA_RT_METRICS.xyxy, float4( 1.0, 0.0, 0.0,  1.0), texcoord.xyxy);
+    offset = mad(SMAA_RT_METRICS.xyxy, float4( 1.0, 0.0, 0.0,  1.0), texcoord.xyxy);
 }
 
 /**
@@ -1225,14 +1224,14 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
 // Neighborhood Blending Pixel Shader (Third Pass)
 
 float4 SMAANeighborhoodBlendingPS(float2 texcoord,
-                                  float4 offset[2],
+                                  float4 offset,
                                   SMAATexture2D colorTex,
                                   SMAATexture2D blendTex) {
     // Fetch the blending weights for current pixel:
     float4 a;
     a.xz = SMAASample(blendTex, texcoord).xz;
-    a.y = SMAASample(blendTex, offset[1].zw).g;
-    a.w = SMAASample(blendTex, offset[1].xy).a;
+    a.y = SMAASample(blendTex, offset.zw).g;
+    a.w = SMAASample(blendTex, offset.xy).a;
 
     // Is there any blending weight with a value greater than 0.0?
     SMAA_BRANCH

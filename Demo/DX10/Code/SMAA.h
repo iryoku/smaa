@@ -240,7 +240,7 @@ class SMAA {
         ID3D10EffectScalarVariable *thresholdVariable, *cornerRoundingVariable,
                                    *maxSearchStepsVariable, *maxSearchStepsDiagVariable,
                                    *blendFactorVariable;
-        ID3D10EffectVectorVariable *renderTargetMetricsVariable, *subsampleIndicesVariable;
+        ID3D10EffectVectorVariable *subsampleIndicesVariable;
         ID3D10EffectShaderResourceVariable *areaTexVariable, *searchTexVariable,
                                            *colorTexVariable, *colorTexGammaVariable, *colorTexPrevVariable, *colorMSTexVariable,
                                            *depthTexVariable, *velocityTexVariable,

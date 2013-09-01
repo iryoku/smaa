@@ -124,6 +124,12 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     // Setup the defines for compiling the effect:
     vector<D3D10_SHADER_MACRO> defines;
     stringstream s;
+    
+    // Setup pixel size macro:
+    s << "float4(1.0 / " << width << ", 1.0 / " << height << ", " << width << ", " << height << ")";
+    string pixelSizeText = s.str();
+    D3D10_SHADER_MACRO renderTargetMetricsMacro = { "SMAA_RT_METRICS", pixelSizeText.c_str() };
+    defines.push_back(renderTargetMetricsMacro);
 
     // Setup the preset macro:
     D3D10_SHADER_MACRO presetMacros[] = {
@@ -187,7 +193,6 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     loadSearchTex();
 
     // Create some handles for variables:
-    renderTargetMetricsVariable = effect->GetVariableByName("renderTargetMetrics")->AsVector();
     thresholdVariable = effect->GetVariableByName("threshld")->AsScalar();
     cornerRoundingVariable = effect->GetVariableByName("cornerRounding")->AsScalar();
     maxSearchStepsVariable = effect->GetVariableByName("maxSearchSteps")->AsScalar();
@@ -269,8 +274,6 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
     int subsampleIndex = getSubsampleIndex(mode, pass);
 
     // Setup variables:
-    float renderTargetMetrics[] = { 1.0f / float(width), 1.0f / float(height), float(width), float(height) };
-    renderTargetMetricsVariable->SetFloatVector(renderTargetMetrics);
     if (preset == PRESET_CUSTOM) {
         V(thresholdVariable->SetFloat(threshold));
         V(cornerRoundingVariable->SetFloat(cornerRounding));
