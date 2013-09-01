@@ -66,7 +66,7 @@ class SMAA {
          * search for @EXTERNAL_STORAGE.
          */
         SMAA(ID3D10Device *device, int width, int height, 
-             Preset preset=PRESET_HIGH, bool predication=false, bool reprojection=false,
+             Preset preset=PRESET_HIGH, bool predication=false, bool reprojection=false, const DXGI_ADAPTER_DESC *adapterDesc=NULL,
              const ExternalStorage &storage=ExternalStorage());
         ~SMAA();
 

@@ -714,6 +714,7 @@ IDXGIFactory* WINAPI DXUTGetDXGIFactory()                  { DXUTDelayLoadDXGI()
 bool WINAPI DXUTIsD3D10Available()                         { DXUTDelayLoadDXGI(); return GetDXUTState().GetD3D10Available(); }
 bool WINAPI DXUTIsAppRenderingWithD3D9()                   { return (GetDXUTState().GetD3D9Device() != NULL); }
 bool WINAPI DXUTIsAppRenderingWithD3D10()                  { return (GetDXUTState().GetD3D10Device() != NULL); }
+IDXGIAdapter* WINAPI DXUTGetDXGIAdapter()                  { return GetDXUTState().GetD3D10Adapter(); }
 
 
 //--------------------------------------------------------------------------------------
@@ -3833,16 +3834,6 @@ HRESULT DXUTCreate3DEnvironment10( ID3D10Device* pd3d10DeviceFromApp )
         hr = S_OK;
         if( pNewDeviceSettings->d3d10.DriverType == D3D10_DRIVER_TYPE_HARDWARE )
             hr = pDXGIFactory->EnumAdapters( pNewDeviceSettings->d3d10.AdapterOrdinal, &pAdapter );
-        else if( pNewDeviceSettings->d3d10.DriverType == D3D10_DRIVER_TYPE_REFERENCE ) { // [IRYOKU] [PERFHUD_FIX]
-            hr = pDXGIFactory->EnumAdapters( pNewDeviceSettings->d3d10.AdapterOrdinal, &pAdapter );
-            DXGI_ADAPTER_DESC desc;
-            V(pAdapter->GetDesc(&desc));
-            bool isPerfHUD = wcscmp(desc.Description, L"NVIDIA PerfHUD") == 0;
-            if ( !isPerfHUD )
-            {
-                SAFE_RELEASE(pAdapter);
-            }
-        }
         if( SUCCEEDED( hr ) )
         {
             // Try creating the D3D10.1 device first
@@ -3865,8 +3856,7 @@ HRESULT DXUTCreate3DEnvironment10( ID3D10Device* pd3d10DeviceFromApp )
 
             if( SUCCEEDED( hr ) )
             {
-                if( pNewDeviceSettings->d3d10.DriverType != D3D10_DRIVER_TYPE_HARDWARE
-                    && pAdapter == NULL ) // [IRYOKU] [PERFHUD_FIX]: && pAdapter == NULL
+                if( pNewDeviceSettings->d3d10.DriverType != D3D10_DRIVER_TYPE_HARDWARE )
                 {
                     IDXGIDevice* pDXGIDev = NULL;
                     hr = pd3d10Device->QueryInterface( __uuidof( IDXGIDevice ), ( LPVOID* )&pDXGIDev );

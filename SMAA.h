@@ -95,16 +95,17 @@
  * step is done correctly (don't try to integrate SMAA T2x with predicated edge
  * detection from the start!). Ok then, let's go!
  *
- *  1. The first step is to create two RGBA temporal framebuffers for holding
+ *  1. The first step is to create two RGBA temporal render targets for holding
  *     |edgesTex| and |blendTex|.
  *
- *     In DX10 or DX11, you can use a RG framebuffer for the edges texture.
- *     In the case of NVIDIA GPUs, it seems to be actually slower.
+ *     In DX10 or DX11, you can use a RG render target for the edges texture.
+ *     In the case of NVIDIA GPUs, using RG render targets seems to actually be
+ *     slower.
  *
- *     On the Xbox 360, you can use the same framebuffer for resolving both
+ *     On the Xbox 360, you can use the same render target for resolving both
  *     |edgesTex| and |blendTex|, as they aren't needed simultaneously.
  *
- *  2. Both temporal framebuffers |edgesTex| and |blendTex| must be cleared
+ *  2. Both temporal render targets |edgesTex| and |blendTex| must be cleared
  *     each frame. Do not forget to clear the alpha channel!
  *
  *  3. The next step is loading the two supporting precalculated textures,
@@ -119,19 +120,19 @@
  *     exception of 'searchTex', which must be set to point filtering.
  *
  *  5. All texture reads and buffer writes must be non-sRGB, with the exception
- *     of the input read and the output write of input in 
+ *     of the input read and the output write in
  *     'SMAANeighborhoodBlending' (and only in this pass!). If sRGB reads in
  *     this last pass are not possible, the technique will work anyway, but
- *     will perform antialiasing in gamma space. 
+ *     will perform antialiasing in gamma space.
  *
  *     IMPORTANT: for best results the input read for the color/luma edge 
  *     detection should *NOT* be sRGB.
  *
- *  6. Before including SMAA.h you'll have to setup the framebuffer metrics,
+ *  6. Before including SMAA.h you'll have to setup the render target metrics,
  *     the target and any optional configuration defines. Optionally you can
  *     use a preset.
  *
- *     You have three targets available: 
+ *     You have the following targets available: 
  *         SMAA_HLSL_3
  *         SMAA_HLSL_4
  *         SMAA_HLSL_4_1
@@ -161,8 +162,9 @@
  *     Checkout the function wrappers, you may want to copy-paste them!
  *
  *  8. It's recommended to validate the produced |edgesTex| and |blendTex|.
- *     It's advised to not continue with the implementation until both buffers
- *     are verified to produce identical results to our reference demo.
+ *     You can use a screenshot from your engine to compare the |edgesTex|
+ *     and |blendTex| produced inside of the engine with the results obtained
+ *     with the reference demo.
  *
  *  9. After you get the last pass to work, it's time to optimize. You'll have
  *     to initialize a stencil buffer in the first pass (discard is already in

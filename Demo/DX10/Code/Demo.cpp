@@ -433,7 +433,10 @@ void initSMAA(ID3D10Device *device, const DXGI_SURFACE_DESC *desc) {
     SMAA::Preset preset = SMAA::Preset(int(hud.GetComboBox(IDC_PRESET)->GetSelectedData()));
     bool predication = hud.GetCheckBox(IDC_PREDICATION)->GetEnabled() && hud.GetCheckBox(IDC_PREDICATION)->GetChecked();
     bool reprojection = hud.GetCheckBox(IDC_REPROJECTION)->GetEnabled() && hud.GetCheckBox(IDC_REPROJECTION)->GetChecked();
-    smaa = new SMAA(device, desc->Width, desc->Height, preset, predication, reprojection);
+    DXGI_ADAPTER_DESC adapterDesc;
+    DXUTGetDXGIAdapter()->GetDesc(&adapterDesc); // This seems to be the only reliable way to obtain the adapter in laptops with multiple GPUs, with DXUT
+
+    smaa = new SMAA(device, desc->Width, desc->Height, preset, predication, reprojection, &adapterDesc);
     setVisibleCustomControls(preset == SMAA::PRESET_CUSTOM);
 
     int min, max;
@@ -889,38 +892,7 @@ void CALLBACK keyboardProc(UINT nchar, bool keyDown, bool altDown, void *context
 }
 
 
-void setAdapter(DXUTDeviceSettings *settings) {
-    HRESULT hr;
-
-    // Look for 'NVIDIA PerfHUD' adapter. If it is present, override default settings.
-    IDXGIFactory *factory;
-    V(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**) &factory));
-
-    // Search for a PerfHUD adapter.
-    IDXGIAdapter *adapter = nullptr;
-    int i = 0;
-    while (factory->EnumAdapters(i, &adapter) != DXGI_ERROR_NOT_FOUND) {
-        if (adapter) {
-            DXGI_ADAPTER_DESC desc;
-            if (SUCCEEDED(adapter->GetDesc(&desc))) {
-                const bool isPerfHUD = wcscmp(desc.Description, L"NVIDIA PerfHUD") == 0;
-
-                if(isPerfHUD) {
-                    // IMPORTANT: we modified DXUT for this to work. Search for <PERFHUD_FIX> in DXUT.cpp
-                    settings->d3d10.AdapterOrdinal = i;
-                    settings->d3d10.DriverType = D3D10_DRIVER_TYPE_REFERENCE;
-                    break;
-                }
-            }
-        }
-        i++;
-    }
-}
-
-
 bool CALLBACK modifyDeviceSettings(DXUTDeviceSettings *settings, void *context) {
-    setAdapter(settings);
-
     settingsDialog.GetDialogControl()->GetComboBox(DXUTSETTINGSDLG_D3D10_MULTISAMPLE_COUNT)->SetEnabled(false);
     settingsDialog.GetDialogControl()->GetComboBox(DXUTSETTINGSDLG_D3D10_MULTISAMPLE_QUALITY)->SetEnabled(false);
     settingsDialog.GetDialogControl()->GetStatic(DXUTSETTINGSDLG_D3D10_MULTISAMPLE_COUNT_LABEL)->SetEnabled(false);

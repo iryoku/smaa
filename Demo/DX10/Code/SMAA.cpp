@@ -101,7 +101,7 @@ class ID3D10IncludeResource : public ID3D10Include {
 #pragma endregion
 
 
-SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool predication, bool reprojection, const ExternalStorage &storage)
+SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool predication, bool reprojection, const DXGI_ADAPTER_DESC *adapterDesc, const ExternalStorage &storage)
         : device(device),
           width(width),
           height(height),
@@ -175,12 +175,16 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     D3D10_PASS_DESC desc;
     V(effect->GetTechniqueByName("NeighborhoodBlending")->GetPassByIndex(0)->GetDesc(&desc));
     quad = new Quad(device, desc);
-    
+
+    // In NVIDIA cards R8G8 is slower, avoid it:
+    bool isNVIDIACard = adapterDesc? adapterDesc->VendorId == 0x10DE : false;
+    DXGI_FORMAT format = isNVIDIACard? DXGI_FORMAT_R8G8B8A8_UNORM : DXGI_FORMAT_R8G8_UNORM;
+
     // If storage for the edges is not specified we will create it:
     if (storage.edgesRTV != nullptr && storage.edgesSRV != nullptr)
         edgesRT = new RenderTarget(device, storage.edgesRTV, storage.edgesSRV);
     else
-        edgesRT = new RenderTarget(device, width, height, DXGI_FORMAT_R8G8B8A8_UNORM);
+        edgesRT = new RenderTarget(device, width, height, format);
 
     // Same for blending weights:
     if (storage.weightsRTV != nullptr && storage.weightsSRV != nullptr)

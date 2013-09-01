@@ -305,6 +305,7 @@ ID3D10DepthStencilView*  WINAPI DXUTGetD3D10DepthStencilView(); // Does not addr
 const DXGI_SURFACE_DESC* WINAPI DXUTGetDXGIBackBufferSurfaceDesc();
 bool                     WINAPI DXUTDoesAppSupportD3D10();
 bool                     WINAPI DXUTIsAppRenderingWithD3D10();
+IDXGIAdapter*            WINAPI DXUTGetDXGIAdapter();
 
 // General
 DXUTDeviceSettings WINAPI DXUTGetDeviceSettings(); 
