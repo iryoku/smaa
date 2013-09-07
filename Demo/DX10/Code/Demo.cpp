@@ -379,8 +379,8 @@ HRESULT CALLBACK onCreateDevice(ID3D10Device *device, const DXGI_SURFACE_DESC *d
     Copy::init(device);
     V_RETURN(initSimpleEffect(device));
 
-    camera.setAngle(D3DXVECTOR2(0.0f, 0.0f));
-    camera.setDistance(30.0f);
+    camera.setAngle(D3DXVECTOR2(30.0f, 0.0f));
+    camera.setDistance(60.0f);
 
     V_RETURN(loadInput());
 

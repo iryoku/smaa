@@ -90,7 +90,7 @@ sampler2D colorTex {
     SRGBTexture = true;
 };
 
-sampler2D colorTexG {
+sampler2D colorGammaTex {
     Texture = <colorTex2D>;
     AddressU  = Clamp; AddressV = Clamp;
     MipFilter = Linear; MinFilter = Linear; MagFilter = Linear;
@@ -139,59 +139,51 @@ sampler2D searchTex {
 void DX9_SMAAEdgeDetectionVS(inout float4 position : POSITION,
                              inout float2 texcoord : TEXCOORD0,
                              out float4 offset[3] : TEXCOORD1) {
-    SMAAEdgeDetectionVS(position, position, texcoord, offset);
+    SMAAEdgeDetectionVS(texcoord, offset);
 }
 
 void DX9_SMAABlendingWeightCalculationVS(inout float4 position : POSITION,
                                          inout float2 texcoord : TEXCOORD0,
                                          out float2 pixcoord : TEXCOORD1,
                                          out float4 offset[3] : TEXCOORD2) {
-    SMAABlendingWeightCalculationVS(position, position, texcoord, pixcoord, offset);
+    SMAABlendingWeightCalculationVS(texcoord, pixcoord, offset);
 }
 
 void DX9_SMAANeighborhoodBlendingVS(inout float4 position : POSITION,
                                     inout float2 texcoord : TEXCOORD0,
                                     out float4 offset : TEXCOORD1) {
-    SMAANeighborhoodBlendingVS(position, position, texcoord, offset);
+    SMAANeighborhoodBlendingVS(texcoord, offset);
 }
 
 
 float4 DX9_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
                                    float2 texcoord : TEXCOORD0,
-                                   float4 offset[3] : TEXCOORD1,
-                                   uniform SMAATexture2D colorGammaTex) : COLOR {
+                                   float4 offset[3] : TEXCOORD1) : COLOR {
     return SMAALumaEdgeDetectionPS(texcoord, offset, colorGammaTex);
 }
 
 float4 DX9_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
-                                    float4 offset[3] : TEXCOORD1,
-                                    uniform SMAATexture2D colorGammaTex) : COLOR {
+                                    float4 offset[3] : TEXCOORD1) : COLOR {
     return SMAAColorEdgeDetectionPS(texcoord, offset, colorGammaTex);
 }
 
 float4 DX9_SMAADepthEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
-                                    float4 offset[3] : TEXCOORD1,
-                                    uniform SMAATexture2D depthTex) : COLOR {
+                                    float4 offset[3] : TEXCOORD1) : COLOR {
     return SMAADepthEdgeDetectionPS(texcoord, offset, depthTex);
 }
 
 float4 DX9_SMAABlendingWeightCalculationPS(float4 position : SV_POSITION,
                                            float2 texcoord : TEXCOORD0,
                                            float2 pixcoord : TEXCOORD1,
-                                           float4 offset[3] : TEXCOORD2,
-                                           uniform SMAATexture2D edgesTex, 
-                                           uniform SMAATexture2D areaTex, 
-                                           uniform SMAATexture2D searchTex) : COLOR {
+                                           float4 offset[3] : TEXCOORD2) : COLOR {
     return SMAABlendingWeightCalculationPS(texcoord, pixcoord, offset, edgesTex, areaTex, searchTex, 0);
 }
 
 float4 DX9_SMAANeighborhoodBlendingPS(float4 position : SV_POSITION,
                                       float2 texcoord : TEXCOORD0,
-                                      float4 offset : TEXCOORD1,
-                                      uniform SMAATexture2D colorTex,
-                                      uniform SMAATexture2D blendTex) : COLOR {
+                                      float4 offset : TEXCOORD1) : COLOR {
     return SMAANeighborhoodBlendingPS(texcoord, offset, colorTex, blendTex);
 }
 
@@ -202,7 +194,7 @@ float4 DX9_SMAANeighborhoodBlendingPS(float4 position : SV_POSITION,
 technique LumaEdgeDetection {
     pass LumaEdgeDetection {
         VertexShader = compile vs_3_0 DX9_SMAAEdgeDetectionVS();
-        PixelShader = compile ps_3_0 DX9_SMAALumaEdgeDetectionPS(colorTexG);
+        PixelShader = compile ps_3_0 DX9_SMAALumaEdgeDetectionPS();
         ZEnable = false;        
         SRGBWriteEnable = false;
         AlphaBlendEnable = false;
@@ -218,7 +210,7 @@ technique LumaEdgeDetection {
 technique ColorEdgeDetection {
     pass ColorEdgeDetection {
         VertexShader = compile vs_3_0 DX9_SMAAEdgeDetectionVS();
-        PixelShader = compile ps_3_0 DX9_SMAAColorEdgeDetectionPS(colorTexG);
+        PixelShader = compile ps_3_0 DX9_SMAAColorEdgeDetectionPS();
         ZEnable = false;        
         SRGBWriteEnable = false;
         AlphaBlendEnable = false;
@@ -234,7 +226,7 @@ technique ColorEdgeDetection {
 technique DepthEdgeDetection {
     pass DepthEdgeDetection {
         VertexShader = compile vs_3_0 DX9_SMAAEdgeDetectionVS();
-        PixelShader = compile ps_3_0 DX9_SMAADepthEdgeDetectionPS(depthTex);
+        PixelShader = compile ps_3_0 DX9_SMAADepthEdgeDetectionPS();
         ZEnable = false;        
         SRGBWriteEnable = false;
         AlphaBlendEnable = false;
@@ -250,7 +242,7 @@ technique DepthEdgeDetection {
 technique BlendWeightCalculation {
     pass BlendWeightCalculation {
         VertexShader = compile vs_3_0 DX9_SMAABlendingWeightCalculationVS();
-        PixelShader = compile ps_3_0 DX9_SMAABlendingWeightCalculationPS(edgesTex, areaTex, searchTex);
+        PixelShader = compile ps_3_0 DX9_SMAABlendingWeightCalculationPS();
         ZEnable = false;
         SRGBWriteEnable = false;
         AlphaBlendEnable = false;
@@ -267,7 +259,7 @@ technique BlendWeightCalculation {
 technique NeighborhoodBlending {
     pass NeighborhoodBlending {
         VertexShader = compile vs_3_0 DX9_SMAANeighborhoodBlendingVS();
-        PixelShader = compile ps_3_0 DX9_SMAANeighborhoodBlendingPS(colorTex, blendTex);
+        PixelShader = compile ps_3_0 DX9_SMAANeighborhoodBlendingPS();
         ZEnable = false;
         SRGBWriteEnable = true;
         AlphaBlendEnable = false;

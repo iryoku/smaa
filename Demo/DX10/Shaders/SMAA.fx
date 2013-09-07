@@ -154,7 +154,8 @@ void DX10_SMAAEdgeDetectionVS(float4 position : POSITION,
                               out float4 svPosition : SV_POSITION,
                               inout float2 texcoord : TEXCOORD0,
                               out float4 offset[3] : TEXCOORD1) {
-    SMAAEdgeDetectionVS(position, svPosition, texcoord, offset);
+    svPosition = position;
+    SMAAEdgeDetectionVS(texcoord, offset);
 }
 
 void DX10_SMAABlendingWeightCalculationVS(float4 position : POSITION,
@@ -162,32 +163,33 @@ void DX10_SMAABlendingWeightCalculationVS(float4 position : POSITION,
                                           inout float2 texcoord : TEXCOORD0,
                                           out float2 pixcoord : TEXCOORD1,
                                           out float4 offset[3] : TEXCOORD2) {
-    SMAABlendingWeightCalculationVS(position, svPosition, texcoord, pixcoord, offset);
+    svPosition = position;
+    SMAABlendingWeightCalculationVS(texcoord, pixcoord, offset);
 }
 
 void DX10_SMAANeighborhoodBlendingVS(float4 position : POSITION,
                                      out float4 svPosition : SV_POSITION,
                                      inout float2 texcoord : TEXCOORD0,
                                      out float4 offset : TEXCOORD1) {
-    SMAANeighborhoodBlendingVS(position, svPosition, texcoord, offset);
+    svPosition = position;
+    SMAANeighborhoodBlendingVS(texcoord, offset);
 }
 
 void DX10_SMAAResolveVS(float4 position : POSITION,
                         out float4 svPosition : SV_POSITION,
                         inout float2 texcoord : TEXCOORD0) {
-    SMAAResolveVS(position, svPosition, texcoord);
+    svPosition = position;
 }
 
 void DX10_SMAASeparateVS(float4 position : POSITION,
                          out float4 svPosition : SV_POSITION,
                          inout float2 texcoord : TEXCOORD0) {
-    SMAASeparateVS(position, svPosition, texcoord);
+    svPosition = position;
 }
 
 float4 DX10_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
-                                    float4 offset[3] : TEXCOORD1,
-                                    uniform SMAATexture2D colorTexGamma) : SV_TARGET {
+                                    float4 offset[3] : TEXCOORD1) : SV_TARGET {
     #if SMAA_PREDICATION == 1
     return SMAALumaEdgeDetectionPS(texcoord, offset, colorTexGamma, depthTex);
     #else
@@ -197,8 +199,7 @@ float4 DX10_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
 
 float4 DX10_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
                                      float2 texcoord : TEXCOORD0,
-                                     float4 offset[3] : TEXCOORD1,
-                                     uniform SMAATexture2D colorTexGamma) : SV_TARGET {
+                                     float4 offset[3] : TEXCOORD1) : SV_TARGET {
     #if SMAA_PREDICATION == 1
     return SMAAColorEdgeDetectionPS(texcoord, offset, colorTexGamma, depthTex);
     #else
@@ -208,34 +209,25 @@ float4 DX10_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
 
 float4 DX10_SMAADepthEdgeDetectionPS(float4 position : SV_POSITION,
                                      float2 texcoord : TEXCOORD0,
-                                     float4 offset[3] : TEXCOORD1,
-                                     uniform SMAATexture2D depthTex) : SV_TARGET {
+                                     float4 offset[3] : TEXCOORD1) : SV_TARGET {
     return SMAADepthEdgeDetectionPS(texcoord, offset, depthTex);
 }
 
 float4 DX10_SMAABlendingWeightCalculationPS(float4 position : SV_POSITION,
                                             float2 texcoord : TEXCOORD0,
                                             float2 pixcoord : TEXCOORD1,
-                                            float4 offset[3] : TEXCOORD2,
-                                            uniform SMAATexture2D edgesTex, 
-                                            uniform SMAATexture2D areaTex, 
-                                            uniform SMAATexture2D searchTex) : SV_TARGET {
+                                            float4 offset[3] : TEXCOORD2) : SV_TARGET {
     return SMAABlendingWeightCalculationPS(texcoord, pixcoord, offset, edgesTex, areaTex, searchTex, subsampleIndices);
 }
 
 float4 DX10_SMAANeighborhoodBlendingPS(float4 position : SV_POSITION,
                                        float2 texcoord : TEXCOORD0,
-                                       float4 offset : TEXCOORD1,
-                                       uniform SMAATexture2D colorTex,
-                                       uniform SMAATexture2D blendTex) : SV_TARGET {
+                                       float4 offset : TEXCOORD1) : SV_TARGET {
     return SMAANeighborhoodBlendingPS(texcoord, offset, colorTex, blendTex);
 }
 
 float4 DX10_SMAAResolvePS(float4 position : SV_POSITION,
-                          float2 texcoord : TEXCOORD0,
-                          uniform SMAATexture2D colorTex,
-                          uniform SMAATexture2D colorTexPrev,
-                          uniform SMAATexture2D velocityTex) : SV_TARGET {
+                          float2 texcoord : TEXCOORD0) : SV_TARGET {
     #if SMAA_REPROJECTION == 1
     return SMAAResolvePS(texcoord, colorTex, colorTexPrev, velocityTex);
     #else
@@ -246,8 +238,7 @@ float4 DX10_SMAAResolvePS(float4 position : SV_POSITION,
 void DX10_SMAASeparatePS(float4 position : SV_POSITION,
                          float2 texcoord : TEXCOORD0,
                          out float4 target0 : SV_TARGET0,
-                         out float4 target1 : SV_TARGET1,
-                         uniform SMAATexture2DMS2 colorMSTex) {
+                         out float4 target1 : SV_TARGET1) {
     SMAASeparatePS(position, texcoord, target0, target1, colorMSTex);
 }
 
@@ -258,7 +249,7 @@ technique10 LumaEdgeDetection {
     pass LumaEdgeDetection {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAAEdgeDetectionVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAALumaEdgeDetectionPS(colorTexGamma)));
+        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAALumaEdgeDetectionPS()));
 
         SetDepthStencilState(DisableDepthReplaceStencil, 1);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
@@ -269,7 +260,7 @@ technique10 ColorEdgeDetection {
     pass ColorEdgeDetection {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAAEdgeDetectionVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAAColorEdgeDetectionPS(colorTexGamma)));
+        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAAColorEdgeDetectionPS()));
 
         SetDepthStencilState(DisableDepthReplaceStencil, 1);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
@@ -280,7 +271,7 @@ technique10 DepthEdgeDetection {
     pass DepthEdgeDetection {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAAEdgeDetectionVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAADepthEdgeDetectionPS(depthTex)));
+        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAADepthEdgeDetectionPS()));
 
         SetDepthStencilState(DisableDepthReplaceStencil, 1);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
@@ -294,7 +285,7 @@ technique10 BlendingWeightCalculation {
     pass BlendingWeightCalculation {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAABlendingWeightCalculationVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAABlendingWeightCalculationPS(edgesTex, areaTex, searchTex)));
+        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAABlendingWeightCalculationPS()));
 
         SetDepthStencilState(DisableDepthUseStencil, 1);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
@@ -308,7 +299,7 @@ technique10 NeighborhoodBlending {
     pass NeighborhoodBlending {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAANeighborhoodBlendingVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAANeighborhoodBlendingPS(colorTex, blendTex)));
+        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAANeighborhoodBlendingPS()));
 
         SetDepthStencilState(DisableDepthStencil, 0);
         SetBlendState(Blend, float4(blendFactor, blendFactor, blendFactor, blendFactor), 0xFFFFFFFF);
@@ -323,7 +314,7 @@ technique10 Resolve {
     pass Resolve {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAAResolveVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAAResolvePS(colorTex, colorTexPrev, velocityTex)));
+        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAAResolvePS()));
 
         SetDepthStencilState(DisableDepthStencil, 0);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
@@ -337,7 +328,7 @@ technique10 Separate {
     pass Separate {
         SetVertexShader(CompileShader(vs_4_0, DX10_SMAASeparateVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAASeparatePS(colorMSTex)));
+        SetPixelShader(CompileShader(PS_VERSION, DX10_SMAASeparatePS()));
 
         SetDepthStencilState(DisableDepthStencil, 0);
         SetBlendState(NoBlending, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
