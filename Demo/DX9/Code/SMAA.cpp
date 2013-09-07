@@ -45,8 +45,9 @@
 using namespace std;
 
 
-// This define is for testing the precomputed textures files:
-// #define SMAA_TEST_DDS_FILES
+// This define is for using the precomputed textures DDS files instead of the
+// headers:
+#define SMAA_USE_DDS_PRECOMPUTED_TEXTURES 1
 
 
 #pragma region Useful Macros from DXUT (copy-pasted here as we prefer this to be as self-contained as possible)
@@ -234,7 +235,12 @@ void SMAA::go(IDirect3DTexture9 *edges,
 
 
 void SMAA::loadAreaTex() {
-    #ifndef SMAA_TEST_DDS_FILES
+    #if SMAA_USE_DDS_PRECOMPUTED_TEXTURES
+    HRESULT hr;
+    D3DXIMAGE_INFO info;
+    V(D3DXGetImageInfoFromResource(GetModuleHandle(nullptr), L"AreaTexDX9.dds", &info));
+    V(D3DXCreateTextureFromResourceEx(device, GetModuleHandle(nullptr), L"AreaTexDX9.dds", info.Width, info.Height, 1, 0, D3DFMT_A8L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, nullptr, &areaTex));
+    #else
     HRESULT hr;
     V(device->CreateTexture(AREATEX_WIDTH, AREATEX_HEIGHT, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8L8, D3DPOOL_DEFAULT, &areaTex, nullptr));
     D3DLOCKED_RECT rect;
@@ -242,17 +248,17 @@ void SMAA::loadAreaTex() {
     for (int i = 0; i < AREATEX_HEIGHT; i++)
         CopyMemory(((char *) rect.pBits) + i * rect.Pitch, areaTexBytes + i * AREATEX_PITCH, AREATEX_PITCH);
     V(areaTex->UnlockRect(0));
-    #else
-    HRESULT hr;
-    D3DXIMAGE_INFO info;
-    V(D3DXGetImageInfoFromFile(L"../../Textures/AreaTexDX9.dds", &info));
-    V(D3DXCreateTextureFromFileEx(device, L"../../Textures/AreaTexDX9.dds", info.Width, info.Height, 1, 0, D3DFMT_A8L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, nullptr, &areaTex));
     #endif
 }
 
 
 void SMAA::loadSearchTex() {
-    #ifndef SMAA_TEST_DDS_FILES
+    #if SMAA_USE_DDS_PRECOMPUTED_TEXTURES
+    HRESULT hr;
+    D3DXIMAGE_INFO info;
+    V(D3DXGetImageInfoFromResource(GetModuleHandle(nullptr), L"SearchTex.dds", &info));
+    V(D3DXCreateTextureFromResourceEx(device, GetModuleHandle(nullptr), L"SearchTex.dds", info.Width, info.Height, 1, 0, D3DFMT_L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, nullptr, &searchTex));
+    #else
     HRESULT hr;
     V(device->CreateTexture(SEARCHTEX_WIDTH, SEARCHTEX_HEIGHT, 1, D3DUSAGE_DYNAMIC, D3DFMT_L8, D3DPOOL_DEFAULT, &searchTex, nullptr));
     D3DLOCKED_RECT rect;
@@ -260,11 +266,6 @@ void SMAA::loadSearchTex() {
     for (int i = 0; i < SEARCHTEX_HEIGHT; i++)
         CopyMemory(((char *) rect.pBits) + i * rect.Pitch, searchTexBytes + i * SEARCHTEX_PITCH, SEARCHTEX_PITCH);
     V(searchTex->UnlockRect(0));
-    #else
-    HRESULT hr;
-    D3DXIMAGE_INFO info;
-    V(D3DXGetImageInfoFromFile(L"../../Textures/SearchTex.dds", &info));
-    V(D3DXCreateTextureFromFileEx(device, L"../../Textures/SearchTex.dds", info.Width, info.Height, 1, 0, D3DFMT_L8, D3DPOOL_DEFAULT, D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, &info, nullptr, &searchTex));
     #endif
 }
 

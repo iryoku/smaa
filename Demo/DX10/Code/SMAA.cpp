@@ -48,8 +48,15 @@
 using namespace std;
 
 
-// This define is for testing the precomputed textures files:
-// #define SMAA_TEST_DDS_FILES
+// This define is for using the precomputed textures DDS files instead of the
+// headers:
+#define SMAA_USE_DDS_PRECOMPUTED_TEXTURES 0
+
+// This define is for compressing the precomputed textures:
+// (Non-perceptible quality decrease, marginal performance increase)
+#if SMAA_USE_DDS_PRECOMPUTED_TEXTURES
+#define SMAA_ENABLE_COMPRESSION 0
+#endif
 
 #pragma region Useful Macros from DXUT (copy-pasted here as we prefer this to be as self-contained as possible)
 #if defined(DEBUG) || defined(_DEBUG)
@@ -163,9 +170,8 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     defines.push_back(null);
 
     /**
-     * IMPORTANT! Here we load and compile the SMAA effect from a *RESOURCE*
-     * (Yeah, we like all-in-one executables for demos =)
-     * In case you want it to be loaded from other place change this line accordingly.
+     * If your debugger is breaking here is because you have not included the
+     * shader as resource (other option is to load it FromFile).
      */
     ID3D10IncludeResource includeResource;
     string profile = dx10_1? "fx_4_1" : "fx_4_0";
@@ -367,7 +373,18 @@ void SMAA::separate(ID3D10ShaderResourceView *srcSRV,
 
 
 void SMAA::loadAreaTex() {
-    #ifndef SMAA_TEST_DDS_FILES
+    #if SMAA_USE_DDS_PRECOMPUTED_TEXTURES
+    areaTex = nullptr;
+    HRESULT hr;
+    D3DX10_IMAGE_LOAD_INFO info = D3DX10_IMAGE_LOAD_INFO();
+    info.MipLevels = 1;
+    #if SMAA_ENABLE_COMPRESSION
+    info.Format = DXGI_FORMAT_BC5_UNORM;
+    #else
+    info.Format = DXGI_FORMAT_R8G8_UNORM;
+    #endif
+    V(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(nullptr), L"AreaTexDX10.dds", &info, nullptr, &areaTexSRV, nullptr));
+    #else
     HRESULT hr;
 
     D3D10_SUBRESOURCE_DATA data;
@@ -394,19 +411,23 @@ void SMAA::loadAreaTex() {
     descSRV.Texture2D.MostDetailedMip = 0;
     descSRV.Texture2D.MipLevels = 1;
     V(device->CreateShaderResourceView(areaTex, &descSRV, &areaTexSRV));
-    #else
-    areaTex = nullptr;
-    HRESULT hr;
-    D3DX10_IMAGE_LOAD_INFO info = D3DX10_IMAGE_LOAD_INFO();
-    info.MipLevels = 1;
-    info.Format = DXGI_FORMAT_R8G8_UNORM;
-    V(D3DX10CreateShaderResourceViewFromFile(device, L"../../Textures/AreaTexDX10.dds", &info, nullptr, &areaTexSRV, nullptr));
     #endif
 }
 
 
 void SMAA::loadSearchTex() {
-    #ifndef SMAA_TEST_DDS_FILES
+    #if SMAA_USE_DDS_PRECOMPUTED_TEXTURES
+    searchTex = nullptr;
+    HRESULT hr;
+    D3DX10_IMAGE_LOAD_INFO info = D3DX10_IMAGE_LOAD_INFO();
+    info.MipLevels = 1;
+    #if SMAA_ENABLE_COMPRESSION
+    info.Format = DXGI_FORMAT_BC4_UNORM;
+    #else
+    info.Format = DXGI_FORMAT_R8_UNORM;
+    #endif
+    V(D3DX10CreateShaderResourceViewFromResource(device, GetModuleHandle(nullptr), L"SearchTex.dds", &info, nullptr, &searchTexSRV, nullptr));
+    #else
     HRESULT hr;
 
     D3D10_SUBRESOURCE_DATA data;
@@ -433,13 +454,6 @@ void SMAA::loadSearchTex() {
     descSRV.Texture2D.MostDetailedMip = 0;
     descSRV.Texture2D.MipLevels = 1;
     V(device->CreateShaderResourceView(searchTex, &descSRV, &searchTexSRV));
-    #else
-    searchTex = nullptr;
-    HRESULT hr;
-    D3DX10_IMAGE_LOAD_INFO info = D3DX10_IMAGE_LOAD_INFO();
-    info.MipLevels = 1;
-    info.Format = DXGI_FORMAT_R8_UNORM;
-    V(D3DX10CreateShaderResourceViewFromFile(device, L"../../Textures/SearchTex.dds", &info, nullptr, &searchTexSRV, nullptr));
     #endif
 }
 

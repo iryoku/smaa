@@ -106,7 +106,7 @@ for x in range(33):
         texcoord = 0.03125 * x, 0.03125 * y
         if edge.has_key(texcoord[0]) and edge.has_key(texcoord[1]):
             edges = edge[texcoord[0]], edge[texcoord[1]]
-            val = deltaLeft(*edges)
+            val = 127 * deltaLeft(*edges) # Maximize dynamic range to help compression
             image.putpixel((x, y), (val, val, val))
             #debug("left: ", texcoord, val, *edges)
 
@@ -116,9 +116,14 @@ for x in range(33):
         texcoord = 0.03125 * x, 0.03125 * y
         if edge.has_key(texcoord[0]) and edge.has_key(texcoord[1]):
             edges = edge[texcoord[0]], edge[texcoord[1]]
-            val = deltaRight(*edges)
+            val = 127 * deltaRight(*edges) # Maximize dynamic range to help compression
             image.putpixel((33 + x, y), (val, val, val))
             #debug("right: ", texcoord, val, *edges)
+
+# Crop it to power-of-two to make it BC4-friendly:
+# (Cropped area and borders are black)
+image = image.crop([0, 17, 64, 33])
+image = image.transpose(Image.FLIP_TOP_BOTTOM)
 
 # Save the texture:
 image.save("SearchTex.tga")

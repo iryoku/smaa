@@ -116,6 +116,11 @@
  *     If you use the C++ headers, be sure to load them in the format specified
  *     inside of them.
  *
+ *     You can also compress 'areaTex' and 'searchTex' using BC5 and BC4
+ *     respectively, if you have that option in your content processor pipeline.
+ *     When compressing then, you get a non-perceptible quality decrease, and a
+ *     marginal performance increase.
+ *
  *  4. In DX9, all samplers must be set to linear filtering and clamp, with the
  *     exception of 'searchTex', which must be set to point filtering.
  *
@@ -980,13 +985,18 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
  * @PSEUDO_GATHER4), and adds 0, 1 or 2, depending on which edges and
  * crossing edges are active.
  */
-float SMAASearchLength(SMAATexture2D(searchTex), float2 e, float bias, float scale) {
-    // Not required if searchTex accesses are set to point:
-    // float2 SEARCH_TEX_PIXEL_SIZE = 1.0 / float2(66.0, 33.0);
-    // e = float2(bias, 0.0) + 0.5 * SEARCH_TEX_PIXEL_SIZE + 
-    //     e * float2(scale, 1.0) * float2(64.0, 32.0) * SEARCH_TEX_PIXEL_SIZE;
-    e.r = mad(scale, e.r, bias);
-    return SMAA_SEARCHTEX_SELECT(SMAASampleLevelZeroPoint(searchTex, e));
+float SMAASearchLength(SMAATexture2D(searchTex), float2 e, float offset) {
+    // We have cropped the texture, so we need to unpack the coordinates:
+    float2 ratio = float2(66.0 / 64.0, 33.0 / 16.0);
+
+    // The texture is flipped vertically, with left and right cases taking half
+    // of the space horizontally:
+    float2 scale = ratio * float2(0.5, -1.0);
+
+    // We need to offset the coordinates, depending on left/right cases:
+    float2 bias = ratio * float2(offset, 1.0);
+
+    return SMAA_SEARCHTEX_SELECT(SMAASampleLevelZeroPoint(searchTex, mad(scale, e, bias)));
 }
 
 /**
@@ -1008,6 +1018,10 @@ float SMAASearchXLeft(SMAATexture2D(edgesTex), SMAATexture2D(searchTex), float2 
         texcoord = mad(-float2(2.0, 0.0), SMAA_RT_METRICS.xy, texcoord);
     }
 
+    float offset = mad(-(255.0 / 127.0), SMAASearchLength(SMAATexturePass2D(searchTex), e, 0.0), 3.25);
+    return mad(SMAA_RT_METRICS.x, offset, texcoord.x);
+
+    // Non-optimized version:
     // We correct the previous (-0.25, -0.125) offset we applied:
     // texcoord.x += 0.25 * SMAA_RT_METRICS.x;
 
@@ -1016,10 +1030,8 @@ float SMAASearchXLeft(SMAATexture2D(edgesTex), SMAATexture2D(searchTex), float2 
 
     // Disambiguate the length added by the last step:
     // texcoord.x += 2.0 * SMAA_RT_METRICS.x; // Undo last step
-    // texcoord.x -= SMAA_RT_METRICS.x * 255.0 * SMAASearchLength(SMAATexturePass2D(searchTex), e, 0.0, 0.5);
-
-    float offset = mad(-255.0, SMAASearchLength(SMAATexturePass2D(searchTex), e, 0.0, 0.5), 3.25);
-    return mad(SMAA_RT_METRICS.x, offset, texcoord.x);
+    // texcoord.x -= SMAA_RT_METRICS.x * (255.0 / 127.0) * SMAASearchLength(SMAATexturePass2D(searchTex), e, 0.0);
+    // return mad(SMAA_RT_METRICS.x, offset, texcoord.x);
 }
 
 float SMAASearchXRight(SMAATexture2D(edgesTex), SMAATexture2D(searchTex), float2 texcoord, float end) {
@@ -1030,7 +1042,7 @@ float SMAASearchXRight(SMAATexture2D(edgesTex), SMAATexture2D(searchTex), float2
         e = SMAASampleLevelZero(edgesTex, texcoord).rg;
         texcoord = mad(float2(2.0, 0.0), SMAA_RT_METRICS.xy, texcoord);
     }
-    float offset = mad(-255.0, SMAASearchLength(SMAATexturePass2D(searchTex), e, 0.5, 0.5), 3.25);
+    float offset = mad(-(255.0 / 127.0), SMAASearchLength(SMAATexturePass2D(searchTex), e, 0.5), 3.25);
     return mad(-SMAA_RT_METRICS.x, offset, texcoord.x);
 }
 
@@ -1042,7 +1054,7 @@ float SMAASearchYUp(SMAATexture2D(edgesTex), SMAATexture2D(searchTex), float2 te
         e = SMAASampleLevelZero(edgesTex, texcoord).rg;
         texcoord = mad(-float2(0.0, 2.0), SMAA_RT_METRICS.xy, texcoord);
     }
-    float offset = mad(-255.0, SMAASearchLength(SMAATexturePass2D(searchTex), e.gr, 0.0, 0.5), 3.25);
+    float offset = mad(-(255.0 / 127.0), SMAASearchLength(SMAATexturePass2D(searchTex), e.gr, 0.0), 3.25);
     return mad(SMAA_RT_METRICS.y, offset, texcoord.y);
 }
 
@@ -1054,7 +1066,7 @@ float SMAASearchYDown(SMAATexture2D(edgesTex), SMAATexture2D(searchTex), float2 
         e = SMAASampleLevelZero(edgesTex, texcoord).rg;
         texcoord = mad(float2(0.0, 2.0), SMAA_RT_METRICS.xy, texcoord);
     }
-    float offset = mad(-255.0, SMAASearchLength(SMAATexturePass2D(searchTex), e.gr, 0.5, 0.5), 3.25);
+    float offset = mad(-(255.0 / 127.0), SMAASearchLength(SMAATexturePass2D(searchTex), e.gr, 0.5), 3.25);
     return mad(-SMAA_RT_METRICS.y, offset, texcoord.y);
 }
 

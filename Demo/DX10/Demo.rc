@@ -4,6 +4,9 @@ SMAA.fx RCDATA Shaders\SMAA.fx
 SMAA.h RCDATA "..\\..\\SMAA.h"
 Simple.fx RCDATA Shaders\Simple.fx
 
+AreaTexDX10.dds RCDATA "..\\..\\Textures\\AreaTexDX10.dds"
+SearchTex.dds RCDATA "..\\..\\Textures\\SearchTex.dds"
+
 Unigine01.png RCDATA "..\\Media\\Unigine01.png"
 Unigine02.png RCDATA "..\\Media\\Unigine02.png"
 Unigine03.png RCDATA "..\\Media\\Unigine03.png"
