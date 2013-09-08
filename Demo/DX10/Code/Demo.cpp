@@ -621,21 +621,21 @@ void runSMAA(ID3D10Device *device, SMAA::Mode mode) {
         timer->start(L"SMAA");
         switch (mode) {
             case SMAA::MODE_SMAA_1X:
-                smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode);
+                smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, nullptr, *backbufferRT, *depthStencil1x, input, mode);
                 break;
             case SMAA::MODE_SMAA_T2X:
-                smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode);
+                smaa->go(*tmpRT, *tmpRT_SRGB, *depthBufferRT, *velocityRT, *finalRT[currentIndex], *depthStencil1x, input, mode);
                 smaa->reproject(*finalRT[currentIndex], *finalRT[previousIndex], *velocityRT, *backbufferRT);
                 break;
             case SMAA::MODE_SMAA_S2X:
                 smaa->separate(*tmpRT, *tmp1xRT[0], *tmp1xRT[1]);
-                smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode, 0);
-                smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, *backbufferRT, *depthStencil1x, input, mode, 1);
+                smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, nullptr, *backbufferRT, *depthStencil1x, input, mode, 0);
+                smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, nullptr, *backbufferRT, *depthStencil1x, input, mode, 1);
                 break;
             case SMAA::MODE_SMAA_4X:
                 smaa->separate(*tmpRT, *tmp1xRT[0], *tmp1xRT[1]);
-                smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 0);
-                smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 1);
+                smaa->go(*tmp1xRT[0], *tmp1xRT_SRGB[0], *depthBufferRT, *velocityRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 0);
+                smaa->go(*tmp1xRT[1], *tmp1xRT_SRGB[1], *depthBufferRT, *velocityRT, *finalRT[currentIndex], *depthStencil1x, input, mode, 1);
                 smaa->reproject(*finalRT[currentIndex], *finalRT[previousIndex], *velocity1xRT, *backbufferRT);
                 break;
         }

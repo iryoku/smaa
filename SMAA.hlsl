@@ -203,6 +203,7 @@
  *    into SMAAResolve for resolving 2x modes. After you get it working, you'll
  *    probably see ghosting everywhere. But fear not, you can enable the
  *    CryENGINE temporal reprojection by setting the SMAA_REPROJECTION macro.
+ *    Check out SMAA_DECODE_VELOCITY if your velocity buffer is encoded.
  *
  * 3. The next step is to apply SMAA to each subpixel jittered frame, just as
  *    done for 1x.
@@ -387,6 +388,18 @@
 #endif
 
 /**
+ * If there is an neighbor edge that has SMAA_LOCAL_CONTRAST_FACTOR times
+ * bigger contrast than current edge, current edge will be discarded.
+ *
+ * This allows to eliminate spurious crossing edges, and is based on the fact
+ * that, if there is too much contrast in a direction, that will hide
+ * perceptually contrast in the other neighbors.
+ */
+#ifndef SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR
+#define SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR 2.0
+#endif
+
+/**
  * Predicated thresholding allows to better preserve texture details and to
  * improve performance, by decreasing the number of detected edges using an
  * additional buffer like the light accumulation buffer, object ids or even the
@@ -459,18 +472,8 @@
  *
  * Range: [0, 80]
  */
+#ifndef SMAA_REPROJECTION_WEIGHT_SCALE
 #define SMAA_REPROJECTION_WEIGHT_SCALE 30.0
-
-/**
- * If there is an neighbor edge that has SMAA_LOCAL_CONTRAST_FACTOR times
- * bigger contrast than current edge, current edge will be discarded.
- *
- * This allows to eliminate spurious crossing edges, and is based on the fact
- * that, if there is too much contrast in a direction, that will hide
- * perceptually contrast in the other neighbors.
- */
-#ifndef SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR
-#define SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR 2.0
 #endif
 
 /**
@@ -485,7 +488,7 @@
 #endif
 
 //-----------------------------------------------------------------------------
-// Precalculated Textures Defines
+// Texture Access Defines
 
 #ifndef SMAA_AREATEX_SELECT
 #if SMAA_HLSL_3
@@ -497,6 +500,10 @@
 
 #ifndef SMAA_SEARCHTEX_SELECT
 #define SMAA_SEARCHTEX_SELECT(sample) sample.r
+#endif
+
+#ifndef SMAA_DECODE_VELOCITY
+#define SMAA_DECODE_VELOCITY(sample) sample.rg
 #endif
 
 //-----------------------------------------------------------------------------
@@ -596,7 +603,6 @@ float3 SMAAGatherNeighbours(float2 texcoord,
  */
 float2 SMAACalculatePredicatedThreshold(float2 texcoord,
                                         float4 offset[3],
-                                        SMAATexture2D(colorTex),
                                         SMAATexture2D(predicationTex)) {
     float3 neighbours = SMAAGatherNeighbours(texcoord, offset, SMAATexturePass2D(predicationTex));
     float2 delta = abs(neighbours.xx - neighbours.yz);
@@ -607,12 +613,12 @@ float2 SMAACalculatePredicatedThreshold(float2 texcoord,
 /**
  * Conditional move:
  */
-void SMAAMovc(bool2 cond, inout float2 variable, float2 value) {
+void SMAAMovc(float2 cond, inout float2 variable, float2 value) {
     SMAA_FLATTEN if (cond.x) variable.x = value.x;
     SMAA_FLATTEN if (cond.y) variable.y = value.y;
 }
 
-void SMAAMovc(bool4 cond, inout float4 variable, float4 value) {
+void SMAAMovc(float4 cond, inout float4 variable, float4 value) {
     SMAAMovc(cond.xy, variable.xy, value.xy);
     SMAAMovc(cond.zw, variable.zw, value.zw);
 }
@@ -678,7 +684,7 @@ float4 SMAALumaEdgeDetectionPS(float2 texcoord,
                                ) {
     // Calculate the threshold:
     #if SMAA_PREDICATION
-    float2 threshold = SMAACalculatePredicatedThreshold(texcoord, offset, SMAATexturePass2D(colorTex), SMAATexturePass2D(predicationTex));
+    float2 threshold = SMAACalculatePredicatedThreshold(texcoord, offset, SMAATexturePass2D(predicationTex));
     #else
     float2 threshold = float2(SMAA_THRESHOLD, SMAA_THRESHOLD);
     #endif
@@ -737,7 +743,7 @@ float4 SMAAColorEdgeDetectionPS(float2 texcoord,
                                 ) {
     // Calculate the threshold:
     #if SMAA_PREDICATION
-    float2 threshold = SMAACalculatePredicatedThreshold(texcoord, offset, colorTex, predicationTex);
+    float2 threshold = SMAACalculatePredicatedThreshold(texcoord, offset, predicationTex);
     #else
     float2 threshold = float2(SMAA_THRESHOLD, SMAA_THRESHOLD);
     #endif
@@ -928,13 +934,13 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
         // c.w = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1, -1)).r;
 
         // Merge crossing edges at each side into a single value:
-        float2 e = mad(2.0, c.xz, c.yw);
+        float2 cc = mad(2.0, c.xz, c.yw);
 
         // Remove the crossing edge if we didn't found the end of the line:
-        SMAAMovc(step(0.9, d.zw), e, 0.0);
+        SMAAMovc(step(0.9, d.zw), cc, 0.0);
 
         // Fetch the areas for this line:
-        weights += SMAAAreaDiag(SMAATexturePass2D(areaTex), d.xy, e, subsampleIndices.z);
+        weights += SMAAAreaDiag(SMAATexturePass2D(areaTex), d.xy, cc, subsampleIndices.z);
     }
 
     // Search for the line ends:
@@ -953,13 +959,13 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
         c.x  = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-1,  0)).g;
         c.y  = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 0, -1)).r;
         c.zw = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1,  0)).gr;
-        float2 e = mad(2.0, c.xz, c.yw);
+        float2 cc = mad(2.0, c.xz, c.yw);
 
         // Remove the crossing edge if we didn't found the end of the line:
-        SMAAMovc(step(0.9, d.zw), e, 0.0);
+        SMAAMovc(step(0.9, d.zw), cc, 0.0);
 
         // Fetch the areas for this line:
-        weights += SMAAAreaDiag(SMAATexturePass2D(areaTex), d.xy, e, subsampleIndices.w).gr;
+        weights += SMAAAreaDiag(SMAATexturePass2D(areaTex), d.xy, cc, subsampleIndices.w).gr;
     }
 
     return weights;
@@ -1161,7 +1167,7 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
         // better interleave arithmetic and memory accesses):
         d = mad(SMAA_RT_METRICS.z, d, -pixcoord.x);
 
-        // SMAAArea below needs a sqrt, as the areas texture is compressed 
+        // SMAAArea below needs a sqrt, as the areas texture is compressed
         // quadratically:
         float2 sqrt_d = sqrt(abs(d));
 
@@ -1224,7 +1230,11 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
 float4 SMAANeighborhoodBlendingPS(float2 texcoord,
                                   float4 offset,
                                   SMAATexture2D(colorTex),
-                                  SMAATexture2D(blendTex)) {
+                                  SMAATexture2D(blendTex)
+                                  #if SMAA_REPROJECTION
+                                  , SMAATexture2D(velocityTex)
+                                  #endif
+                                  ) {
     // Fetch the blending weights for current pixel:
     float4 a;
     a.x = SMAASample(blendTex, offset.xy).a; // Right
@@ -1233,43 +1243,42 @@ float4 SMAANeighborhoodBlendingPS(float2 texcoord,
 
     // Is there any blending weight with a value greater than 0.0?
     SMAA_BRANCH
-    if (dot(a, float4(1.0, 1.0, 1.0, 1.0)) < 1e-5)
-        return SMAASampleLevelZero(colorTex, texcoord);
-    else {
-        bool horizontal = max(a.x, a.z) > max(a.y, a.w); // max(horizontal) > max(vertical)
-
-        float4 offset = float4(0.0, a.y, 0.0, a.w);
-        float2 w = a.yw;
-        SMAAMovc(horizontal, offset, float4(a.x, 0.0, a.z, 0.0));
-        SMAAMovc(horizontal, w, a.xz);
-        float2 ww = w / dot(w, 1.0);
+    if (dot(a, float4(1.0, 1.0, 1.0, 1.0)) < 1e-5) {
+        float4 color = SMAASampleLevelZero(colorTex, texcoord);
 
         #if SMAA_REPROJECTION
-        offset = mad(sign(offset), float4(SMAA_RT_METRICS.xy, -SMAA_RT_METRICS.xy), texcoord.xyxy);
+        float2 velocity = SMAA_DECODE_VELOCITY(SMAASampleLevelZero(velocityTex, texcoord));
 
-        // Fetch the opposite color and lerp by hand:
-        float4 C = SMAASampleLevelZero(colorTex, texcoord);
-        float4 Cop1 = SMAASampleLevelZero(colorTex, offset.xy);
-        float4 Cop2 = SMAASampleLevelZero(colorTex, offset.zw);
+        // Pack velocity into the alpha channel:
+        color.a = sqrt(5.0 * length(velocity));
+        #endif
 
-        // Unpack the velocity values:
-        C.a *= C.a;
-        Cop1.a *= Cop1.a;
-        Cop2.a *= Cop2.a;
+        return color;
+    } else {
+        bool horizontal = max(a.x, a.z) > max(a.y, a.w); // max(horizontal) > max(vertical)
 
-        // Lerp the colors:
-        float4 color = ww.x * lerp(C, Cop1, w.x);
-        color += ww.y * lerp(C, Cop2, w.y);
+        // Calculate the blending offsets:
+        float4 blendingOffset = float4(0.0, a.y, 0.0, a.w);
+        float2 blendingWeight = a.yw;
+        SMAAMovc(horizontal, blendingOffset, float4(a.x, 0.0, a.z, 0.0));
+        SMAAMovc(horizontal, blendingWeight, a.xz);
+        blendingWeight /= dot(blendingWeight, 1.0);
 
-        // Unpack velocity and return the resulting value:
-        color.a = sqrt(color.a);
-        #else
+        // Calculate the texture coordinates:
+        float4 blendingCoord = mad(blendingOffset, float4(SMAA_RT_METRICS.xy, -SMAA_RT_METRICS.xy), texcoord.xyxy);
+
         // We exploit bilinear filtering to mix current pixel with the chosen
         // neighbor:
-        offset = mad(offset, float4(SMAA_RT_METRICS.xy, -SMAA_RT_METRICS.xy), texcoord.xyxy);
+        float4 color = blendingWeight.x * SMAASampleLevelZero(colorTex, blendingCoord.xy);
+        color += blendingWeight.y * SMAASampleLevelZero(colorTex, blendingCoord.zw);
 
-        float4 color = ww.x * SMAASampleLevelZero(colorTex, offset.xy);
-        color += ww.y * SMAASampleLevelZero(colorTex, offset.zw);
+        #if SMAA_REPROJECTION
+        // Antialias velocity for proper reprojection in a later stage:
+        float2 velocity = blendingWeight.x * SMAA_DECODE_VELOCITY(SMAASampleLevelZero(velocityTex, blendingCoord.xy));
+        velocity += blendingWeight.y * SMAA_DECODE_VELOCITY(SMAASampleLevelZero(velocityTex, blendingCoord.zw));
+
+        // Pack velocity into the alpha channel:
+        color.a = sqrt(5.0 * length(velocity));
         #endif
 
         return color;
@@ -1280,33 +1289,33 @@ float4 SMAANeighborhoodBlendingPS(float2 texcoord,
 // Temporal Resolve Pixel Shader (Optional Pass)
 
 float4 SMAAResolvePS(float2 texcoord,
-                     SMAATexture2D(colorTexCurr),
-                     SMAATexture2D(colorTexPrev)
+                     SMAATexture2D(currentColorTex),
+                     SMAATexture2D(previousColorTex)
                      #if SMAA_REPROJECTION
                      , SMAATexture2D(velocityTex)
                      #endif
                      ) {
     #if SMAA_REPROJECTION
-    // Velocity is calculated from previous to current position, so we need to
-    // inverse it:
-    float2 velocity = -SMAASample(velocityTex, texcoord).rg;
+    // Velocity is assumed to be calculated for motion blur, so we need to
+    // inverse it for reprojection:
+    float2 velocity = -SMAA_DECODE_VELOCITY(SMAASample(velocityTex, texcoord).rg);
 
     // Fetch current pixel:
-    float4 current = SMAASample(colorTexCurr, texcoord);
+    float4 current = SMAASample(currentColorTex, texcoord);
 
     // Reproject current coordinates and fetch previous pixel:
-    float4 previous = SMAASample(colorTexPrev, texcoord + velocity);
+    float4 previous = SMAASample(previousColorTex, texcoord + velocity);
 
     // Attenuate the previous pixel if the velocity is different:
     float delta = abs(current.a * current.a - previous.a * previous.a) / 5.0;
-    float weight = 0.5 * saturate(1.0 - (sqrt(delta) * SMAA_REPROJECTION_WEIGHT_SCALE));
+    float weight = 0.5 * saturate(1.0 - sqrt(delta) * SMAA_REPROJECTION_WEIGHT_SCALE);
 
     // Blend the pixels according to the calculated weight:
     return lerp(current, previous, weight);
     #else
     // Just blend the pixels:
-    float4 current = SMAASample(colorTexCurr, texcoord);
-    float4 previous = SMAASample(colorTexPrev, texcoord);
+    float4 current = SMAASample(currentColorTex, texcoord);
+    float4 previous = SMAASample(previousColorTex, texcoord);
     return lerp(current, previous, 0.5);
     #endif
 }
@@ -1315,8 +1324,8 @@ float4 SMAAResolvePS(float2 texcoord,
 // Separate Multisamples Pixel Shader (Optional Pass)
 
 #ifdef SMAALoad
-void SMAASeparatePS(float4 position : SV_POSITION,
-                    float2 texcoord : TEXCOORD0,
+void SMAASeparatePS(float4 position,
+                    float2 texcoord,
                     out float4 target0,
                     out float4 target1,
                     uniform SMAATexture2DMS2(colorTexMS)) {

@@ -157,14 +157,10 @@ float4 SimplePS(SimpleV2P input,
     // Calculate velocity in non-homogeneous projection space:
     velocity = input.currPosition.xy - input.prevPosition.xy;
 
-    // Compress the velocity for storing it in a 8-bit render target:
-    float velocityLength = sqrt(5.0 * length(velocity));
-
     // Shade the pixel:
     float3 color = shading? Shade(input) : 0.5;
 
-    // Output the results, packing the velocity length in the alpha channel:
-    return float4(color, velocityLength);
+    return float4(color, 1.0);
 }
 
 

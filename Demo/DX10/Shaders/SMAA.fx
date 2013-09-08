@@ -130,7 +130,7 @@ BlendState NoBlending {
 Texture2D colorTex;
 Texture2D colorTexGamma;
 Texture2D colorTexPrev;
-Texture2DMS<float4, 2> colorMSTex;
+Texture2DMS<float4, 2> colorTexMS;
 Texture2D depthTex;
 Texture2D velocityTex;
 
@@ -190,7 +190,7 @@ void DX10_SMAASeparateVS(float4 position : POSITION,
 float4 DX10_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
                                     float4 offset[3] : TEXCOORD1) : SV_TARGET {
-    #if SMAA_PREDICATION == 1
+    #if SMAA_PREDICATION
     return SMAALumaEdgeDetectionPS(texcoord, offset, colorTexGamma, depthTex);
     #else
     return SMAALumaEdgeDetectionPS(texcoord, offset, colorTexGamma);
@@ -200,7 +200,7 @@ float4 DX10_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
 float4 DX10_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
                                      float2 texcoord : TEXCOORD0,
                                      float4 offset[3] : TEXCOORD1) : SV_TARGET {
-    #if SMAA_PREDICATION == 1
+    #if SMAA_PREDICATION
     return SMAAColorEdgeDetectionPS(texcoord, offset, colorTexGamma, depthTex);
     #else
     return SMAAColorEdgeDetectionPS(texcoord, offset, colorTexGamma);
@@ -223,12 +223,16 @@ float4 DX10_SMAABlendingWeightCalculationPS(float4 position : SV_POSITION,
 float4 DX10_SMAANeighborhoodBlendingPS(float4 position : SV_POSITION,
                                        float2 texcoord : TEXCOORD0,
                                        float4 offset : TEXCOORD1) : SV_TARGET {
+    #if SMAA_REPROJECTION
+    return SMAANeighborhoodBlendingPS(texcoord, offset, colorTex, blendTex, velocityTex);
+    #else
     return SMAANeighborhoodBlendingPS(texcoord, offset, colorTex, blendTex);
+    #endif
 }
 
 float4 DX10_SMAAResolvePS(float4 position : SV_POSITION,
                           float2 texcoord : TEXCOORD0) : SV_TARGET {
-    #if SMAA_REPROJECTION == 1
+    #if SMAA_REPROJECTION
     return SMAAResolvePS(texcoord, colorTex, colorTexPrev, velocityTex);
     #else
     return SMAAResolvePS(texcoord, colorTex, colorTexPrev);
@@ -239,7 +243,7 @@ void DX10_SMAASeparatePS(float4 position : SV_POSITION,
                          float2 texcoord : TEXCOORD0,
                          out float4 target0 : SV_TARGET0,
                          out float4 target1 : SV_TARGET1) {
-    SMAASeparatePS(position, texcoord, target0, target1, colorMSTex);
+    SMAASeparatePS(position, texcoord, target0, target1, colorTexMS);
 }
 
 /**

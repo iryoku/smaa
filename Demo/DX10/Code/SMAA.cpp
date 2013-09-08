@@ -214,7 +214,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     colorTexVariable = effect->GetVariableByName("colorTex")->AsShaderResource();
     colorTexGammaVariable = effect->GetVariableByName("colorTexGamma")->AsShaderResource();
     colorTexPrevVariable = effect->GetVariableByName("colorTexPrev")->AsShaderResource();
-    colorMSTexVariable = effect->GetVariableByName("colorMSTex")->AsShaderResource();
+    colorTexMSVariable = effect->GetVariableByName("colorTexMS")->AsShaderResource();
     depthTexVariable = effect->GetVariableByName("depthTex")->AsShaderResource();
     velocityTexVariable = effect->GetVariableByName("velocityTex")->AsShaderResource();
     edgesTexVariable = effect->GetVariableByName("edgesTex")->AsShaderResource();
@@ -249,6 +249,7 @@ SMAA::~SMAA() {
 void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
               ID3D10ShaderResourceView *srcSRV,
               ID3D10ShaderResourceView *depthSRV,
+              ID3D10ShaderResourceView *velocitySRV,
               ID3D10RenderTargetView *dstRTV,
               ID3D10DepthStencilView *dsv,
               Input input,
@@ -291,18 +292,28 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
         V(maxSearchStepsDiagVariable->SetFloat(float(maxSearchStepsDiag)));
     }
     V(blendFactorVariable->SetFloat(pass == 0? 1.0f : 0.5f));
-    V(colorTexVariable->SetResource(srcSRV));
+
     V(edgesTexVariable->SetResource(*edgesRT));
     V(blendTexVariable->SetResource(*blendRT));
     V(areaTexVariable->SetResource(areaTexSRV));
     V(searchTexVariable->SetResource(searchTexSRV));
+
     V(colorTexGammaVariable->SetResource(srcGammaSRV));
+    V(colorTexVariable->SetResource(srcSRV));
     V(depthTexVariable->SetResource(depthSRV));
+    V(velocityTexVariable->SetResource(velocitySRV));
 
     // And here we go!
     edgesDetectionPass(dsv, input);
     blendingWeightsCalculationPass(dsv, mode, subsampleIndex);
     neighborhoodBlendingPass(dstRTV, dsv);
+
+    // Reset external inputs, to avoid warnings:
+    V(colorTexGammaVariable->SetResource(nullptr));
+    V(colorTexVariable->SetResource(nullptr));
+    V(depthTexVariable->SetResource(nullptr));
+    V(velocityTexVariable->SetResource(nullptr));
+    V(resolveTechnique->GetPassByIndex(0)->Apply(0));
 }
 
 
@@ -337,6 +348,12 @@ void SMAA::reproject(ID3D10ShaderResourceView *currentSRV,
     device->OMSetRenderTargets(1, &dstRTV, nullptr);
     quad->draw();
     device->OMSetRenderTargets(0, nullptr, nullptr);
+
+    // Reset external inputs, to avoid warnings:
+    V(colorTexVariable->SetResource(nullptr));
+    V(colorTexPrevVariable->SetResource(nullptr));
+    V(velocityTexVariable->SetResource(nullptr));
+    V(resolveTechnique->GetPassByIndex(0)->Apply(0));
 }
 
 
@@ -359,7 +376,7 @@ void SMAA::separate(ID3D10ShaderResourceView *srcSRV,
     quad->setInputLayout();
 
     // Setup variables:
-    V(colorMSTexVariable->SetResource(srcSRV));
+    V(colorTexMSVariable->SetResource(srcSRV));
 
     // Select the technique accordingly:
     V(separateTechnique->GetPassByIndex(0)->Apply(0));

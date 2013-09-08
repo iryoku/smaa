@@ -97,6 +97,7 @@ class SMAA {
         void go(ID3D10ShaderResourceView *srcGammaSRV, // Non-SRGB version of the input color texture.
                 ID3D10ShaderResourceView *srcSRV, // SRGB version of the input color texture.
                 ID3D10ShaderResourceView *depthSRV, // Input depth texture.
+                ID3D10ShaderResourceView *velocitySRV, // Input velocity texture, if reproject is going to be called later on, nullptr otherwise.
                 ID3D10RenderTargetView *dstRTV, // Output render target.
                 ID3D10DepthStencilView *dsv, // Depth-stencil buffer for optimizations.
                 Input input, // Selects the input for edge detection.
@@ -242,7 +243,7 @@ class SMAA {
                                    *blendFactorVariable;
         ID3D10EffectVectorVariable *subsampleIndicesVariable;
         ID3D10EffectShaderResourceVariable *areaTexVariable, *searchTexVariable,
-                                           *colorTexVariable, *colorTexGammaVariable, *colorTexPrevVariable, *colorMSTexVariable,
+                                           *colorTexVariable, *colorTexGammaVariable, *colorTexPrevVariable, *colorTexMSVariable,
                                            *depthTexVariable, *velocityTexVariable,
                                            *edgesTexVariable, *blendTexVariable;
 
