@@ -462,22 +462,6 @@
 #define SMAA_REPROJECTION_WEIGHT_SCALE 30.0
 
 /**
- * In the last pass we leverage bilinear filtering to avoid some lerps.
- * However, bilinear filtering is done in gamma space in DX9, under DX9
- * hardware (but not in DX9 code running on DX10 hardware), which gives
- * inaccurate results.
- *
- * So, if you are in DX9, under DX9 hardware, and do you want accurate linear
- * blending, you must set this flag to 1.
- *
- * It's ignored when using SMAA_HLSL_4, and of course, only has sense when
- * using sRGB read and writes on the last pass.
- */
-#ifndef SMAA_FORCE_LINEAR_BLEND
-#define SMAA_FORCE_LINEAR_BLEND 0
-#endif
-
-/**
  * If there is an neighbor edge that has SMAA_LOCAL_CONTRAST_FACTOR times
  * bigger contrast than current edge, current edge will be discarded.
  *
@@ -623,10 +607,16 @@ float2 SMAACalculatePredicatedThreshold(float2 texcoord,
 /**
  * Conditional move:
  */
-void SMAACMov(bool2 cond, inout float2 variable, float2 value) {
+void SMAAMovc(bool2 cond, inout float2 variable, float2 value) {
     SMAA_FLATTEN if (cond.x) variable.x = value.x;
     SMAA_FLATTEN if (cond.y) variable.y = value.y;
 }
+
+void SMAAMovc(bool4 cond, inout float4 variable, float4 value) {
+    SMAAMovc(cond.xy, variable.xy, value.xy);
+    SMAAMovc(cond.zw, variable.zw, value.zw);
+}
+
 
 #if SMAA_INCLUDE_VS
 //-----------------------------------------------------------------------------
@@ -941,7 +931,7 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
         float2 e = mad(2.0, c.xz, c.yw);
 
         // Remove the crossing edge if we didn't found the end of the line:
-        SMAACMov(step(0.9, d.zw), e, 0.0);
+        SMAAMovc(step(0.9, d.zw), e, 0.0);
 
         // Fetch the areas for this line:
         weights += SMAAAreaDiag(SMAATexturePass2D(areaTex), d.xy, e, subsampleIndices.z);
@@ -966,7 +956,7 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
         float2 e = mad(2.0, c.xz, c.yw);
 
         // Remove the crossing edge if we didn't found the end of the line:
-        SMAACMov(step(0.9, d.zw), e, 0.0);
+        SMAAMovc(step(0.9, d.zw), e, 0.0);
 
         // Fetch the areas for this line:
         weights += SMAAAreaDiag(SMAATexturePass2D(areaTex), d.xy, e, subsampleIndices.w).gr;
@@ -1237,60 +1227,52 @@ float4 SMAANeighborhoodBlendingPS(float2 texcoord,
                                   SMAATexture2D(blendTex)) {
     // Fetch the blending weights for current pixel:
     float4 a;
-    a.xz = SMAASample(blendTex, texcoord).xz;
-    a.y = SMAASample(blendTex, offset.zw).g;
-    a.w = SMAASample(blendTex, offset.xy).a;
+    a.x = SMAASample(blendTex, offset.xy).a; // Right
+    a.y = SMAASample(blendTex, offset.zw).g; // Top
+    a.wz = SMAASample(blendTex, texcoord).xz; // Bottom / Left
 
     // Is there any blending weight with a value greater than 0.0?
     SMAA_BRANCH
     if (dot(a, float4(1.0, 1.0, 1.0, 1.0)) < 1e-5)
         return SMAASampleLevelZero(colorTex, texcoord);
     else {
-        float4 color = float4(0.0, 0.0, 0.0, 0.0);
+        bool horizontal = max(a.x, a.z) > max(a.y, a.w); // max(horizontal) > max(vertical)
 
-        // Up to 4 lines can be crossing a pixel (one through each edge). We
-        // favor blending by choosing the line with the maximum weight for each
-        // direction:
-        float2 offset;
-        offset.x = a.a > a.b? a.a : -a.b; // left vs. right 
-        offset.y = a.g > a.r? a.g : -a.r; // top vs. bottom
-
-        // Then we go in the direction that has the maximum weight:
-        if (abs(offset.x) > abs(offset.y)) // horizontal vs. vertical
-            offset.y = 0.0;
-        else
-            offset.x = 0.0;
+        float4 offset = float4(0.0, a.y, 0.0, a.w);
+        float2 w = a.yw;
+        SMAAMovc(horizontal, offset, float4(a.x, 0.0, a.z, 0.0));
+        SMAAMovc(horizontal, w, a.xz);
+        float2 ww = w / dot(w, 1.0);
 
         #if SMAA_REPROJECTION
+        offset = mad(sign(offset), float4(SMAA_RT_METRICS.xy, -SMAA_RT_METRICS.xy), texcoord.xyxy);
+
         // Fetch the opposite color and lerp by hand:
         float4 C = SMAASampleLevelZero(colorTex, texcoord);
-        texcoord += sign(offset) * SMAA_RT_METRICS.xy;
-        float4 Cop = SMAASampleLevelZero(colorTex, texcoord);
-        float s = abs(offset.x) > abs(offset.y)? abs(offset.x) : abs(offset.y);
+        float4 Cop1 = SMAASampleLevelZero(colorTex, offset.xy);
+        float4 Cop2 = SMAASampleLevelZero(colorTex, offset.zw);
 
         // Unpack the velocity values:
         C.a *= C.a;
-        Cop.a *= Cop.a;
+        Cop1.a *= Cop1.a;
+        Cop2.a *= Cop2.a;
 
         // Lerp the colors:
-        float4 Caa = lerp(C, Cop, s);
+        float4 color = ww.x * lerp(C, Cop1, w.x);
+        color += ww.y * lerp(C, Cop2, w.y);
 
         // Unpack velocity and return the resulting value:
-        Caa.a = sqrt(Caa.a);
-        return Caa;
-        #elif SMAA_FORCE_LINEAR_BLEND
-        // Fetch the opposite color and lerp by hand:
-        float4 C = SMAASampleLevelZero(colorTex, texcoord);
-        texcoord += sign(offset) * SMAA_RT_METRICS.xy;
-        float4 Cop = SMAASampleLevelZero(colorTex, texcoord);
-        float s = abs(offset.x) > abs(offset.y)? abs(offset.x) : abs(offset.y);
-        return lerp(C, Cop, s);
+        color.a = sqrt(color.a);
         #else
         // We exploit bilinear filtering to mix current pixel with the chosen
         // neighbor:
-        texcoord += offset * SMAA_RT_METRICS.xy;
-        return SMAASampleLevelZero(colorTex, texcoord);
+        offset = mad(offset, float4(SMAA_RT_METRICS.xy, -SMAA_RT_METRICS.xy), texcoord.xyxy);
+
+        float4 color = ww.x * SMAASampleLevelZero(colorTex, offset.xy);
+        color += ww.y * SMAASampleLevelZero(colorTex, offset.zw);
         #endif
+
+        return color;
     }
 }
 
