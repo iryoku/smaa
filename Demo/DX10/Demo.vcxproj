@@ -126,7 +126,6 @@
     <ClCompile Include="..\Support\Timer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\SMAA.h" />
     <ClInclude Include="..\..\Textures\AreaTex.h" />
     <ClInclude Include="..\..\Textures\SearchTex.h" />
     <ClInclude Include="..\DXUT\Core\DXUT.h" />
@@ -177,6 +176,9 @@
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)</AdditionalIncludeDirectories>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\SMAA.hlsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

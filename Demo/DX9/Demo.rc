@@ -1,7 +1,7 @@
 1 ICON "Icon.ico"
 	
 SMAA.fx RCDATA Shaders\SMAA.fx
-SMAA.h RCDATA "..\\..\\SMAA.h"
+SMAA.hlsl RCDATA "..\\..\\SMAA.hlsl"
 
 AreaTexDX9.dds RCDATA "..\\..\\Textures\\AreaTexDX9.dds"
 SearchTex.dds RCDATA "..\\..\\Textures\\SearchTex.dds"

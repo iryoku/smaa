@@ -86,9 +86,6 @@
     <ClInclude Include="..\..\Textures\AreaTex.h">
       <Filter>Code\Textures</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\SMAA.h">
-      <Filter>Shaders</Filter>
-    </ClInclude>
     <ClInclude Include="..\DXUT\Core\DXUTenum.h">
       <Filter>DXUT</Filter>
     </ClInclude>
@@ -127,5 +124,10 @@
     <CustomBuild Include="Shaders\Simple.fx">
       <Filter>Shaders</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\SMAA.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

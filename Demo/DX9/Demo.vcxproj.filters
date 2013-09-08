@@ -19,9 +19,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\SMAA.h">
-      <Filter>Shaders</Filter>
-    </ClInclude>
     <ClInclude Include="Code\SMAA.h">
       <Filter>Code</Filter>
     </ClInclude>
@@ -107,5 +104,10 @@
     <CustomBuild Include="Shaders\SMAA.fx">
       <Filter>Shaders</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\SMAA.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

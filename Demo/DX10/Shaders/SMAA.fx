@@ -80,7 +80,7 @@ float cornerRounding;
 #endif
 
 // And include our header!
-#include "SMAA.h"
+#include "SMAA.hlsl"
 
 // Set pixel shader version accordingly:
 #if SMAA_HLSL_4_1 == 1

@@ -65,7 +65,7 @@ float cornerRounding;
 #endif
 
 // And include our header!
-#include "SMAA.h"
+#include "SMAA.hlsl"
 
 
 /**

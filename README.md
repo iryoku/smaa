@@ -1,7 +1,9 @@
 SMAA: Subpixel Morphological Antialiasing
 =========================================
 
-SMAA is a very efficient GPU-based MLAA implementation, capable of handling subpixel features seamlessly, and featuring an advanced pattern detection & handling mechanism.
+SMAA is a very efficient GPU-based MLAA implementation (DX9, DX10, DX11 and OpenGL), capable of handling subpixel features seamlessly, and featuring an improved and advanced pattern detection & handling mechanism.
+
+The technique focuses on handling each pattern in a very specific way (via look-up-tables), in order to minimize false positives in the pattern detection. Ultimately, this prevents antialiasing features that are not produced by jaggies, like texture details. Furthermore, this conservative morphological approach allows to accurately combine it with multi/supersampling techniques.
 
 Checkout the [paper](http://www.iryoku.com/smaa/) for more info!
 
@@ -33,7 +35,7 @@ Thanks To
 Usage
 -----
 
-See [SMAA.h](https://github.com/iryoku/smaa/blob/master/SMAA.h) for integration info.
+See [SMAA.hlsl](https://github.com/iryoku/smaa/blob/master/SMAA.hlsl) for integration info (despite the extension, note that it's OpenGL compatible).
 
 You'll also need some precomputed textures, which can be found as C++ headers ([Textures/AreaTex.h](https://github.com/iryoku/smaa/blob/master/Textures/AreaTex.h) and [Textures/SearchTex.h](https://github.com/iryoku/smaa/blob/master/Textures/SearchTex.h)), or as regular DDS files (see [Textures](https://github.com/iryoku/smaa/blob/master/Textures) directory). If you want to see where they came from, you can check out the [Scripts](https://github.com/iryoku/smaa/blob/master/Scripts) directory.
 
