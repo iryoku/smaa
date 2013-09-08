@@ -6,6 +6,9 @@
 # Requires:
 #   - Python 2.7: http://www.python.org/
 #   - PIL: http://www.pythonware.com/products/pil/
+#
+# There is a bug in multiprocessing.Pool which will prevent from canceling the
+# command with Ctrl+C, you will need to kill the tasks by yourself.
 
 from PIL import Image
 from multiprocessing import *
@@ -35,6 +38,9 @@ SIZE_DIAG  = 20 # * 4 slots = 80
 # Number of samples for calculating areas in the diagonal textures:
 # (diagonal areas are calculated using brute force sampling)
 SAMPLES_DIAG = 30
+
+# Maximum distance for smoothing u-shapes:
+SMOOTH_MAX_DISTANCE = 32
 
 #------------------------------------------------------------------------------
 # Misc Functions
@@ -81,13 +87,33 @@ class vec2(tuple):
     def __add__(self, other):
         t1, t2 = map(operator.add, self, other)
         return self.__class__(t1, t2)
+    def __sub__(self, other):
+        t1, t2 = map(operator.sub, self, other)
+        return self.__class__(t1, t2)
     def __mul__(self, other):
-        t1, t2 = map(operator.mul, self, other)
+        t1, t2 = map(operator.mul, self, other) if isinstance(other, vec2) else (other * self[0], other * self[1])
         return self.__class__(t1, t2)
     def __div__(self, other):
         return self.__class__(self[0] / other, self[1] / other)
     def __ne__(self, other):
         return any([v1 != v2 for v1, v2 in zip(self, other)])
+    def sqrt(self):
+        return self.__class__(sqrt(self[0]), sqrt(self[1]))
+
+# Linear interpolation:
+def lerp(a, b, p):
+    return a + (b - a) * p
+
+# Saturates a value to [0..1] range:
+def saturate(a):
+    return min(max(a, 0.0), 1.0)
+
+# Smoothing function for small u-patterns:
+def smootharea(d, a1, a2):
+    b1 = (a1 * 2.0).sqrt() * 0.5
+    b2 = (a2 * 2.0).sqrt() * 0.5
+    p = saturate(d / float(SMOOTH_MAX_DISTANCE))
+    return lerp(b1, a1, p), lerp(b2, a2, p)
 
 #------------------------------------------------------------------------------
 # Mapping Functions (for placing each pattern subtexture into its place)
@@ -177,9 +203,10 @@ def areaortho(pattern, left, right, offset):
         #
         #   .------.
         #   |      |
-        a1 = area(([0.0, o2]), ([d / 2.0, 0.0]), left)
-        a2 = area(([d / 2.0, 0.0]), ([d, o2]), left)
-        return a1[0] + a2[0], a1[1] + a2[1], 0.0, 0.0
+        a1 = vec2(*area(([0.0, o2]), ([d / 2.0, 0.0]), left))
+        a2 = vec2(*area(([d / 2.0, 0.0]), ([d, o2]), left))
+        a1, a2 = smootharea(d, a1, a2)
+        return a1[0] + a2[0], a1[1] + a2[1]
 
     elif pattern == 4:
         #   |
@@ -257,9 +284,10 @@ def areaortho(pattern, left, right, offset):
         #   |      |
         #   `------´
         #   
-        a1 = area(([0.0, o1]), ([d / 2.0, 0.0]), left)
-        a2 = area(([d / 2.0, 0.0]), ([d, o1]), left)
-        return a1[0] + a2[0], a1[1] + a2[1], 0.0, 0.0
+        a1 = vec2(*area(([0.0, o1]), ([d / 2.0, 0.0]), left))
+        a2 = vec2(*area(([d / 2.0, 0.0]), ([d, o1]), left))
+        a1, a2 = smootharea(d, a1, a2)
+        return a1[0] + a2[0], a1[1] + a2[1]
 
     elif pattern == 13:
         #   |      |
@@ -557,7 +585,6 @@ def tex2ddiag(args):
 
 # Calculate the orthogonal patterns 4D texture for a given offset:
 def tex4dortho(tex4d, files, y, offset):
-
     # Build each pattern subtexture concurrently:
     cores = max(1, cpu_count() - 1)
     pool = Pool(processes=cores) 
@@ -571,7 +598,6 @@ def tex4dortho(tex4d, files, y, offset):
 
 # Calculate the diagonal patterns 4D texture for a given offset:
 def tex4ddiag(tex4d, files, y, offset):
-
     # Build each pattern subtexture concurrently:
     cores = max(1, cpu_count() - 1)
     pool = Pool(processes=cores) 

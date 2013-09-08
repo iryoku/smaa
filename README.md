@@ -33,7 +33,11 @@ Thanks To
 Usage
 -----
 
-See [SMAA.h](https://github.com/iryoku/smaa/blob/master/SMAA.h) for integration info. You'll also need some precomputed textures, which can be found as C++ headers ([Textures/AreaTex.h](https://github.com/iryoku/smaa/blob/master/Textures/AreaTex.h) and [Textures/SearchTex.h](https://github.com/iryoku/smaa/blob/master/Textures/SearchTex.h)), or as regular DDS files (see [Textures](https://github.com/iryoku/smaa/blob/master/Textures) directory). The directories [DX9](https://github.com/iryoku/smaa/blob/master/Demo/DX9) and [DX10](https://github.com/iryoku/smaa/blob/master/Demo/DX10) contain integration examples for DirectX 9 and 10 respectively.
+See [SMAA.h](https://github.com/iryoku/smaa/blob/master/SMAA.h) for integration info.
+
+You'll also need some precomputed textures, which can be found as C++ headers ([Textures/AreaTex.h](https://github.com/iryoku/smaa/blob/master/Textures/AreaTex.h) and [Textures/SearchTex.h](https://github.com/iryoku/smaa/blob/master/Textures/SearchTex.h)), or as regular DDS files (see [Textures](https://github.com/iryoku/smaa/blob/master/Textures) directory). If you want to see where they came from, you can check out the [Scripts](https://github.com/iryoku/smaa/blob/master/Scripts) directory.
+
+The directories [DX9](https://github.com/iryoku/smaa/blob/master/Demo/DX9) and [DX10](https://github.com/iryoku/smaa/blob/master/Demo/DX10) contain integration examples for DirectX 9 and 10 respectively.
 
 
 Bug Tracker

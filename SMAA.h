@@ -473,8 +473,8 @@
  * It's ignored when using SMAA_HLSL_4, and of course, only has sense when
  * using sRGB read and writes on the last pass.
  */
-#ifndef SMAA_DIRECTX9_LINEAR_BLEND
-#define SMAA_DIRECTX9_LINEAR_BLEND 0
+#ifndef SMAA_FORCE_LINEAR_BLEND
+#define SMAA_FORCE_LINEAR_BLEND 0
 #endif
 
 /**
@@ -1278,18 +1278,18 @@ float4 SMAANeighborhoodBlendingPS(float2 texcoord,
         // Unpack velocity and return the resulting value:
         Caa.a = sqrt(Caa.a);
         return Caa;
-        #elif SMAA_HLSL_4 || SMAA_DIRECTX9_LINEAR_BLEND == 0
-        // We exploit bilinear filtering to mix current pixel with the chosen
-        // neighbor:
-        texcoord += offset * SMAA_RT_METRICS.xy;
-        return SMAASampleLevelZero(colorTex, texcoord);
-        #else
+        #elif SMAA_FORCE_LINEAR_BLEND
         // Fetch the opposite color and lerp by hand:
         float4 C = SMAASampleLevelZero(colorTex, texcoord);
         texcoord += sign(offset) * SMAA_RT_METRICS.xy;
         float4 Cop = SMAASampleLevelZero(colorTex, texcoord);
         float s = abs(offset.x) > abs(offset.y)? abs(offset.x) : abs(offset.y);
         return lerp(C, Cop, s);
+        #else
+        // We exploit bilinear filtering to mix current pixel with the chosen
+        // neighbor:
+        texcoord += offset * SMAA_RT_METRICS.xy;
+        return SMAASampleLevelZero(colorTex, texcoord);
         #endif
     }
 }
