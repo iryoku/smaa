@@ -3,7 +3,7 @@ SMAA: Subpixel Morphological Antialiasing
 
 SMAA is a very efficient GPU-based MLAA implementation (DX9, DX10, DX11 and OpenGL), capable of handling subpixel features seamlessly, and featuring an improved and advanced pattern detection & handling mechanism.
 
-The technique focuses on handling each pattern in a very specific way (via look-up-tables), in order to minimize false positives in the pattern detection. **Ultimately, this prevents antialiasing features that are not produced by jaggies, like texture details**. Furthermore, this conservative morphological approach, together with correct subsample area estimation, allows to accurately combine MLAA with multi/supersampling techniques.
+The technique focuses on handling each pattern in a very specific way (via look-up-tables), in order to minimize false positives in the pattern detection. **Ultimately, this prevents antialiasing features that are not produced by jaggies, like texture details**. Furthermore, this conservative morphological approach, together with correct subsample area estimation, allows to accurately combine MLAA with multi/supersampling techniques. Finally, the technique has been specifically designed to clone (to a reasonable extent) multisampling reference results.
 
 Checkout the [paper](http://www.iryoku.com/smaa/) for more info!
 

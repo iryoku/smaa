@@ -1,14 +1,11 @@
-# -*- coding: UTF-8 -*-
+#!python3
 #
 # This texture allows to obtain the area for a certain pattern and distances
 # to the left and to right of the line.
 #
 # Requires:
-#   - Python 2.7: http://www.python.org/
-#   - PIL: http://www.pythonware.com/products/pil/
-#
-# There is a bug in multiprocessing.Pool which will prevent from canceling the
-# command with Ctrl+C, you will need to kill the tasks by yourself.
+#   - Python 3.3.2: http://www.python.org/
+#   - Pillow 2.1.0: https://pypi.python.org/pypi/Pillow/2.1.0#downloads
 
 from PIL import Image
 from multiprocessing import *
@@ -62,23 +59,23 @@ def cpp(image):
     n = 0
     last = 2 * (image.size[0] * image.size[1]) - 1
 
-    print "static const unsigned char areaTexBytes[] = {"
-    print "   ",
+    print("static const unsigned char areaTexBytes[] = {")
+    print("   ", end=" ")
     for y in range(image.size[1]):
         for x in range(image.size[0]):
             val = image.getpixel((x, y))
 
-            if n < last: print "0x%02x," % val[0],
-            else: print "0x%02x" % val[0],
+            if n < last: print("0x%02x," % val[0], end=" ")
+            else: print("0x%02x" % val[0], end=" ")
             n += 1
 
-            if n < last: print "0x%02x," % val[1],
-            else: print "0x%02x" % val[1],
+            if n < last: print("0x%02x," % val[1], end=" ")
+            else: print("0x%02x" % val[1], end=" ")
             n += 1
 
-            if n % 12 == 0: print "\n   ",
-    print
-    print "};"
+            if n % 12 == 0: print("\n   ", end=" ")
+    print()
+    print("};")
 
 # A vector of two numbers:
 class vec2(tuple):
@@ -93,7 +90,7 @@ class vec2(tuple):
     def __mul__(self, other):
         t1, t2 = map(operator.mul, self, other) if isinstance(other, vec2) else (other * self[0], other * self[1])
         return self.__class__(t1, t2)
-    def __div__(self, other):
+    def __truediv__(self, other):
         return self.__class__(self[0] / other, self[1] / other)
     def __ne__(self, other):
         return any([v1 != v2 for v1, v2 in zip(self, other)])
@@ -144,7 +141,7 @@ def areaortho(pattern, left, right, offset):
             istrapezoid = (copysign(1.0, y1) == copysign(1.0, y2) or 
                            abs(y1) < 1e-4 or abs(y2) < 1e-4)
             if istrapezoid:
-                a = (y1 + y2) / 2
+                a = (y1 + y2) / 2.0
                 if a < 0.0:
                     return abs(a), 0.0
                 else:

@@ -1,11 +1,11 @@
-# -*- coding: UTF-8 -*-
+#!python3
 #
 # This texture allows to know how many pixels we must advance in the last step
 # of our line search algorithm, with a single fetch.
 #
 # Requires:
-#   - Python 2.7: http://www.python.org/
-#   - PIL: http://www.pythonware.com/products/pil/
+#   - Python 3.3.2: http://www.python.org/
+#   - Pillow 2.1.0: https://pypi.python.org/pypi/Pillow/2.1.0#downloads
 
 from PIL import Image
 
@@ -79,32 +79,32 @@ def deltaRight(left, top):
 
 # Prints the edges in a readable form:
 def debug(dir, texcoord, val, left, top):
-    print dir, texcoord, val
-    print "|%s %s| |%s %s|" % (left[0], left[1], top[0], top[1])
-    print "|%s %s| |%s %s|" % (left[2], left[3], top[2], top[3])
-    print
+    print(dir, texcoord, val)
+    print("|%s %s| |%s %s|" % (left[0], left[1], top[0], top[1]))
+    print("|%s %s| |%s %s|" % (left[2], left[3], top[2], top[3]))
+    print()
 
 # Prints C++ code encoding a texture:
 def cpp(image):
     n = 0
-    print "static const unsigned char searchTexBytes[] = {"
-    print "   ",
+    print("static const unsigned char searchTexBytes[] = {")
+    print("   ", end=" ")
     for y in range(image.size[1]):
         for x in range(image.size[0]):
             val = image.getpixel((x, y))[0]
-            if n < 66 * 33 - 1: print "0x%02x," % val,
-            else: print "0x%02x" % val,
+            if n < 66 * 33 - 1: print("0x%02x," % val, end=" ")
+            else: print("0x%02x" % val, end=" ")
             n += 1
-            if n % 12 == 0: print "\n   ",
-    print
-    print "};"
+            if n % 12 == 0: print("\n   ", end=" ")
+    print()
+    print("};")
 
 # Calculate delta distances to the left:
 image = Image.new("RGB", (66, 33))
 for x in range(33):
     for y in range(33):
         texcoord = 0.03125 * x, 0.03125 * y
-        if edge.has_key(texcoord[0]) and edge.has_key(texcoord[1]):
+        if texcoord[0] in edge and texcoord[1] in edge:
             edges = edge[texcoord[0]], edge[texcoord[1]]
             val = 127 * deltaLeft(*edges) # Maximize dynamic range to help compression
             image.putpixel((x, y), (val, val, val))
@@ -114,7 +114,7 @@ for x in range(33):
 for x in range(33):
     for y in range(33):
         texcoord = 0.03125 * x, 0.03125 * y
-        if edge.has_key(texcoord[0]) and edge.has_key(texcoord[1]):
+        if texcoord[0] in edge and texcoord[1] in edge:
             edges = edge[texcoord[0]], edge[texcoord[1]]
             val = 127 * deltaRight(*edges) # Maximize dynamic range to help compression
             image.putpixel((33 + x, y), (val, val, val))
