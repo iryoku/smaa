@@ -74,7 +74,9 @@
  *                              v
  *                           |output|
  *
- * Note that each [pass] has its own vertex and pixel shader.
+ * Note that each [pass] has its own vertex and pixel shader. Remember to use
+ * oversized triangles instead of quads to avoid overshading along the
+ * diagonal.
  *
  * You've three edge detection methods to choose from: luma, color or depth.
  * They represent different quality/performance and anti-aliasing/sharpness
@@ -123,6 +125,15 @@
  *
  *  4. In DX9, all samplers must be set to linear filtering and clamp, with the
  *     exception of 'searchTex', which must be set to point filtering.
+ *
+ *     After you get the technique working, remember that 64-bit inputs have
+ *     half-rate linear filtering on GCN.
+ *
+ *     If SMAA is applied to 64-bit color buffers, switching to point filtering
+ *     when accesing them will increase the performance. Search for
+ *     'SMAASamplePoint' to see which textures may benefit from point
+ *     filtering, and where (which is basically the color input to the edge
+ *     detection and resolve passes).
  *
  *  5. All texture reads and buffer writes must be non-sRGB, with the exception
  *     of the input read and the output write in
@@ -588,9 +599,9 @@ float3 SMAAGatherNeighbours(float2 texcoord,
     #ifdef SMAAGather
     return SMAAGather(tex, texcoord + SMAA_RT_METRICS.xy * float2(-0.5, -0.5)).grb;
     #else
-    float P = SMAASample(tex, texcoord).r;
-    float Pleft = SMAASample(tex, offset[0].xy).r;
-    float Ptop  = SMAASample(tex, offset[0].zw).r;
+    float P = SMAASamplePoint(tex, texcoord).r;
+    float Pleft = SMAASamplePoint(tex, offset[0].xy).r;
+    float Ptop  = SMAASamplePoint(tex, offset[0].zw).r;
     return float3(P, Pleft, Ptop);
     #endif
 }
@@ -688,10 +699,10 @@ float2 SMAALumaEdgeDetectionPS(float2 texcoord,
 
     // Calculate lumas:
     float3 weights = float3(0.2126, 0.7152, 0.0722);
-    float L = dot(SMAASample(colorTex, texcoord).rgb, weights);
+    float L = dot(SMAASamplePoint(colorTex, texcoord).rgb, weights);
 
-    float Lleft = dot(SMAASample(colorTex, offset[0].xy).rgb, weights);
-    float Ltop  = dot(SMAASample(colorTex, offset[0].zw).rgb, weights);
+    float Lleft = dot(SMAASamplePoint(colorTex, offset[0].xy).rgb, weights);
+    float Ltop  = dot(SMAASamplePoint(colorTex, offset[0].zw).rgb, weights);
 
     // We do the usual threshold:
     float4 delta;
@@ -703,16 +714,16 @@ float2 SMAALumaEdgeDetectionPS(float2 texcoord,
         discard;
 
     // Calculate right and bottom deltas:
-    float Lright = dot(SMAASample(colorTex, offset[1].xy).rgb, weights);
-    float Lbottom  = dot(SMAASample(colorTex, offset[1].zw).rgb, weights);
+    float Lright = dot(SMAASamplePoint(colorTex, offset[1].xy).rgb, weights);
+    float Lbottom  = dot(SMAASamplePoint(colorTex, offset[1].zw).rgb, weights);
     delta.zw = abs(L - float2(Lright, Lbottom));
 
     // Calculate the maximum delta in the direct neighborhood:
     float2 maxDelta = max(delta.xy, delta.zw);
 
     // Calculate left-left and top-top deltas:
-    float Lleftleft = dot(SMAASample(colorTex, offset[2].xy).rgb, weights);
-    float Ltoptop = dot(SMAASample(colorTex, offset[2].zw).rgb, weights);
+    float Lleftleft = dot(SMAASamplePoint(colorTex, offset[2].xy).rgb, weights);
+    float Ltoptop = dot(SMAASamplePoint(colorTex, offset[2].zw).rgb, weights);
     delta.zw = abs(float2(Lleft, Ltop) - float2(Lleftleft, Ltoptop));
 
     // Calculate the final maximum delta:
@@ -747,13 +758,13 @@ float2 SMAAColorEdgeDetectionPS(float2 texcoord,
 
     // Calculate color deltas:
     float4 delta;
-    float3 C = SMAASample(colorTex, texcoord).rgb;
+    float3 C = SMAASamplePoint(colorTex, texcoord).rgb;
 
-    float3 Cleft = SMAASample(colorTex, offset[0].xy).rgb;
+    float3 Cleft = SMAASamplePoint(colorTex, offset[0].xy).rgb;
     float3 t = abs(C - Cleft);
     delta.x = max(max(t.r, t.g), t.b);
 
-    float3 Ctop  = SMAASample(colorTex, offset[0].zw).rgb;
+    float3 Ctop  = SMAASamplePoint(colorTex, offset[0].zw).rgb;
     t = abs(C - Ctop);
     delta.y = max(max(t.r, t.g), t.b);
 
@@ -765,11 +776,11 @@ float2 SMAAColorEdgeDetectionPS(float2 texcoord,
         discard;
 
     // Calculate right and bottom deltas:
-    float3 Cright = SMAASample(colorTex, offset[1].xy).rgb;
+    float3 Cright = SMAASamplePoint(colorTex, offset[1].xy).rgb;
     t = abs(C - Cright);
     delta.z = max(max(t.r, t.g), t.b);
 
-    float3 Cbottom  = SMAASample(colorTex, offset[1].zw).rgb;
+    float3 Cbottom  = SMAASamplePoint(colorTex, offset[1].zw).rgb;
     t = abs(C - Cbottom);
     delta.w = max(max(t.r, t.g), t.b);
 
@@ -777,11 +788,11 @@ float2 SMAAColorEdgeDetectionPS(float2 texcoord,
     float2 maxDelta = max(delta.xy, delta.zw);
 
     // Calculate left-left and top-top deltas:
-    float3 Cleftleft  = SMAASample(colorTex, offset[2].xy).rgb;
+    float3 Cleftleft  = SMAASamplePoint(colorTex, offset[2].xy).rgb;
     t = abs(C - Cleftleft);
     delta.z = max(max(t.r, t.g), t.b);
 
-    float3 Ctoptop = SMAASample(colorTex, offset[2].zw).rgb;
+    float3 Ctoptop = SMAASamplePoint(colorTex, offset[2].zw).rgb;
     t = abs(C - Ctoptop);
     delta.w = max(max(t.r, t.g), t.b);
 
@@ -1303,13 +1314,13 @@ float4 SMAAResolvePS(float2 texcoord,
     #if SMAA_REPROJECTION
     // Velocity is assumed to be calculated for motion blur, so we need to
     // inverse it for reprojection:
-    float2 velocity = -SMAA_DECODE_VELOCITY(SMAASample(velocityTex, texcoord).rg);
+    float2 velocity = -SMAA_DECODE_VELOCITY(SMAASamplePoint(velocityTex, texcoord).rg);
 
     // Fetch current pixel:
-    float4 current = SMAASample(currentColorTex, texcoord);
+    float4 current = SMAASamplePoint(currentColorTex, texcoord);
 
     // Reproject current coordinates and fetch previous pixel:
-    float4 previous = SMAASample(previousColorTex, texcoord + velocity);
+    float4 previous = SMAASamplePoint(previousColorTex, texcoord + velocity);
 
     // Attenuate the previous pixel if the velocity is different:
     float delta = abs(current.a * current.a - previous.a * previous.a) / 5.0;
@@ -1319,8 +1330,8 @@ float4 SMAAResolvePS(float2 texcoord,
     return lerp(current, previous, weight);
     #else
     // Just blend the pixels:
-    float4 current = SMAASample(currentColorTex, texcoord);
-    float4 previous = SMAASample(previousColorTex, texcoord);
+    float4 current = SMAASamplePoint(currentColorTex, texcoord);
+    float4 previous = SMAASamplePoint(previousColorTex, texcoord);
     return lerp(current, previous, 0.5);
     #endif
 }
