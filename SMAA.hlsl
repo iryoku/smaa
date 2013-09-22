@@ -509,14 +509,11 @@
 //-----------------------------------------------------------------------------
 // Non-Configurable Defines
 
-#ifndef SMAA_AREATEX_MAX_DISTANCE
 #define SMAA_AREATEX_MAX_DISTANCE 16
-#endif
-#ifndef SMAA_AREATEX_MAX_DISTANCE_DIAG
 #define SMAA_AREATEX_MAX_DISTANCE_DIAG 20
-#endif
 #define SMAA_AREATEX_PIXEL_SIZE (1.0 / float2(160.0, 560.0))
 #define SMAA_AREATEX_SUBTEX_SIZE (1.0 / 7.0)
+#define SMAA_CORNER_ROUNDING_NORM (float(SMAA_CORNER_ROUNDING) / 100.0)
 
 //-----------------------------------------------------------------------------
 // Porting Functions
@@ -526,9 +523,9 @@
 #define SMAATexturePass2D(tex) tex
 #define SMAASampleLevelZero(tex, coord) tex2Dlod(tex, float4(coord, 0.0, 0.0))
 #define SMAASampleLevelZeroPoint(tex, coord) tex2Dlod(tex, float4(coord, 0.0, 0.0))
+#define SMAASampleLevelZeroOffset(tex, coord, offset) tex2Dlod(tex, float4(coord + offset * SMAA_RT_METRICS.xy, 0.0, 0.0))
 #define SMAASample(tex, coord) tex2D(tex, coord)
 #define SMAASamplePoint(tex, coord) tex2D(tex, coord)
-#define SMAASampleLevelZeroOffset(tex, coord, offset) tex2Dlod(tex, float4(coord + offset * SMAA_RT_METRICS.xy, 0.0, 0.0))
 #define SMAASampleOffset(tex, coord, offset) tex2D(tex, coord + offset * SMAA_RT_METRICS.xy)
 #define SMAA_FLATTEN [flatten]
 #define SMAA_BRANCH [branch]
@@ -540,10 +537,10 @@ SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; Addres
 #define SMAATexturePass2D(tex) tex
 #define SMAASampleLevelZero(tex, coord) tex.SampleLevel(LinearSampler, coord, 0)
 #define SMAASampleLevelZeroPoint(tex, coord) tex.SampleLevel(PointSampler, coord, 0)
-#define SMAASample(tex, coord) SMAASampleLevelZero(tex, coord)
-#define SMAASamplePoint(tex, coord) SMAASampleLevelZeroPoint(tex, coord)
 #define SMAASampleLevelZeroOffset(tex, coord, offset) tex.SampleLevel(LinearSampler, coord, 0, offset)
-#define SMAASampleOffset(tex, coord, offset) SMAASampleLevelZeroOffset(tex, coord, offset)
+#define SMAASample(tex, coord) tex.Sample(LinearSampler, coord)
+#define SMAASamplePoint(tex, coord) tex.Sample(PointSampler, coord)
+#define SMAASampleOffset(tex, coord, offset) tex.Sample(LinearSampler, coord, offset)
 #define SMAA_FLATTEN [flatten]
 #define SMAA_BRANCH [branch]
 #define SMAATexture2DMS2(tex) Texture2DMS<float4, 2> tex
@@ -557,9 +554,9 @@ SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; Addres
 #define SMAATexturePass2D(tex) tex
 #define SMAASampleLevelZero(tex, coord) textureLod(tex, coord, 0.0)
 #define SMAASampleLevelZeroPoint(tex, coord) textureLod(tex, coord, 0.0)
+#define SMAASampleLevelZeroOffset(tex, coord, offset) textureLodOffset(tex, coord, 0.0, offset)
 #define SMAASample(tex, coord) texture(tex, coord)
 #define SMAASamplePoint(tex, coord) texture(tex, coord)
-#define SMAASampleLevelZeroOffset(tex, coord, offset) textureLodOffset(tex, coord, 0.0, offset)
 #define SMAASampleOffset(tex, coord, offset) texture(tex, coord, offset)
 #define SMAA_FLATTEN
 #define SMAA_BRANCH
@@ -675,7 +672,7 @@ void SMAANeighborhoodBlendingVS(float2 texcoord,
  * IMPORTANT NOTICE: luma edge detection requires gamma-corrected colors, and
  * thus 'colorTex' should be a non-sRGB texture.
  */
-float4 SMAALumaEdgeDetectionPS(float2 texcoord,
+float2 SMAALumaEdgeDetectionPS(float2 texcoord,
                                float4 offset[3],
                                SMAATexture2D(colorTex)
                                #if SMAA_PREDICATION
@@ -720,12 +717,12 @@ float4 SMAALumaEdgeDetectionPS(float2 texcoord,
 
     // Calculate the final maximum delta:
     maxDelta = max(maxDelta.xy, delta.zw);
-    maxDelta = max(maxDelta.xx, maxDelta.yy);
+    float finalDelta = max(maxDelta.x, maxDelta.y);
 
     // Local contrast adaptation:
-    edges.xy *= step((1.0 / SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR) * maxDelta, delta.xy);
+    edges.xy *= step(finalDelta, SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR * delta.xy);
 
-    return float4(edges, 0.0, 0.0);
+    return edges;
 }
 
 /**
@@ -734,7 +731,7 @@ float4 SMAALumaEdgeDetectionPS(float2 texcoord,
  * IMPORTANT NOTICE: color edge detection requires gamma-corrected colors, and
  * thus 'colorTex' should be a non-sRGB texture.
  */
-float4 SMAAColorEdgeDetectionPS(float2 texcoord,
+float2 SMAAColorEdgeDetectionPS(float2 texcoord,
                                 float4 offset[3],
                                 SMAATexture2D(colorTex)
                                 #if SMAA_PREDICATION
@@ -790,18 +787,18 @@ float4 SMAAColorEdgeDetectionPS(float2 texcoord,
 
     // Calculate the final maximum delta:
     maxDelta = max(maxDelta.xy, delta.zw);
-    maxDelta = max(maxDelta.xx, maxDelta.yy);
+    float finalDelta = max(maxDelta.x, maxDelta.y);
 
     // Local contrast adaptation:
-    edges.xy *= step((1.0 / SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR) * maxDelta, delta.xy);
+    edges.xy *= step(finalDelta, SMAA_LOCAL_CONTRAST_ADAPTATION_FACTOR * delta.xy);
 
-    return float4(edges, 0.0, 0.0);
+    return edges;
 }
 
 /**
  * Depth Edge Detection
  */
-float4 SMAADepthEdgeDetectionPS(float2 texcoord,
+float2 SMAADepthEdgeDetectionPS(float2 texcoord,
                                 float4 offset[3],
                                 SMAATexture2D(depthTex)) {
     float3 neighbours = SMAAGatherNeighbours(texcoord, offset, SMAATexturePass2D(depthTex));
@@ -811,7 +808,7 @@ float4 SMAADepthEdgeDetectionPS(float2 texcoord,
     if (dot(edges, float2(1.0, 1.0)) == 0.0)
         discard;
 
-    return float4(edges, 0.0, 0.0);
+    return edges;
 }
 
 //-----------------------------------------------------------------------------
@@ -1091,15 +1088,19 @@ void SMAADetectHorizontalCornerPattern(SMAATexture2D(edgesTex), inout float2 wei
     #if SMAA_CORNER_ROUNDING < 100 || SMAA_FORCE_CORNER_DETECTION
     float4 coords = mad(float4(d.x, 0.0, d.y, 0.0),
                         SMAA_RT_METRICS.xyxy, texcoord.xyxy);
-    float2 e;
-    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(0.0,  1.0)).r;
-    bool left = abs(d.x) < abs(d.y);
-    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(0.0, -2.0)).r;
-    if (left) weights *= saturate(float(SMAA_CORNER_ROUNDING) / 100.0 + 1.0 - e);
 
-    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(1.0,  1.0)).r;
-    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(1.0, -2.0)).r;
-    if (!left) weights *= saturate(float(SMAA_CORNER_ROUNDING) / 100.0 + 1.0 - e);
+    float2 leftRight = step(abs(d.xy), abs(d.yx));
+    float2 rounding = (1.0 - SMAA_CORNER_ROUNDING_NORM) * leftRight;
+
+    rounding /= leftRight.x + leftRight.y; // Reduce blending for pixels in the center of a line.
+
+    float2 factor = 1.0;
+    factor.x -= rounding.x * SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(0.0,  1.0)).r;
+    factor.x -= rounding.y * SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(1.0,  1.0)).r;
+    factor.y -= rounding.x * SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(0.0, -2.0)).r;
+    factor.y -= rounding.y * SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(1.0, -2.0)).r;
+
+    weights *= saturate(factor);
     #endif
 }
 
@@ -1107,15 +1108,19 @@ void SMAADetectVerticalCornerPattern(SMAATexture2D(edgesTex), inout float2 weigh
     #if SMAA_CORNER_ROUNDING < 100 || SMAA_FORCE_CORNER_DETECTION
     float4 coords = mad(float4(0.0, d.x, 0.0, d.y),
                         SMAA_RT_METRICS.xyxy, texcoord.xyxy);
-    float2 e;
-    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 1.0, 0.0)).g;
-    bool left = abs(d.x) < abs(d.y);
-    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-2.0, 0.0)).g;
-    if (left) weights *= saturate(float(SMAA_CORNER_ROUNDING) / 100.0 + 1.0 - e);
 
-    e.r = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1.0, 1.0)).g;
-    e.g = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(-2.0, 1.0)).g;
-    if (!left) weights *= saturate(float(SMAA_CORNER_ROUNDING) / 100.0 + 1.0 - e);
+    float2 leftRight = step(abs(d.xy), abs(d.yx));
+    float2 rounding = (1.0 - SMAA_CORNER_ROUNDING_NORM) * leftRight;
+
+    rounding /= leftRight.x + leftRight.y;
+
+    float2 factor = 1.0;
+    factor.x -= rounding.x * SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 1.0, 0.0)).g;
+    factor.x -= rounding.y * SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1.0, 1.0)).g;
+    factor.y -= rounding.x * SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-2.0, 0.0)).g;
+    factor.y -= rounding.y * SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2(-2.0, 1.0)).g;
+
+    weights *= saturate(factor);
     #endif
 }
 
@@ -1143,7 +1148,7 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
         // We give priority to diagonals, so if we find a diagonal we skip 
         // horizontal/vertical processing.
         SMAA_BRANCH
-        if (dot(weights.rg, float2(1.0, 1.0)) == 0.0) {
+        if (weights.r == -weights.g) { // weights.r + weights.g == 0.0
         #endif
 
         float2 d;

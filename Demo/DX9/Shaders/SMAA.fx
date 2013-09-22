@@ -159,19 +159,19 @@ void DX9_SMAANeighborhoodBlendingVS(inout float4 position : POSITION,
 float4 DX9_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
                                    float2 texcoord : TEXCOORD0,
                                    float4 offset[3] : TEXCOORD1) : COLOR {
-    return SMAALumaEdgeDetectionPS(texcoord, offset, colorGammaTex);
+    return float4(SMAALumaEdgeDetectionPS(texcoord, offset, colorGammaTex), 0.0, 0.0);
 }
 
 float4 DX9_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
                                     float4 offset[3] : TEXCOORD1) : COLOR {
-    return SMAAColorEdgeDetectionPS(texcoord, offset, colorGammaTex);
+    return float4(SMAAColorEdgeDetectionPS(texcoord, offset, colorGammaTex), 0.0, 0.0);
 }
 
 float4 DX9_SMAADepthEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
                                     float4 offset[3] : TEXCOORD1) : COLOR {
-    return SMAADepthEdgeDetectionPS(texcoord, offset, depthTex);
+    return float4(SMAADepthEdgeDetectionPS(texcoord, offset, depthTex), 0.0, 0.0);
 }
 
 float4 DX9_SMAABlendingWeightCalculationPS(float4 position : SV_POSITION,

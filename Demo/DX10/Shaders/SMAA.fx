@@ -187,7 +187,7 @@ void DX10_SMAASeparateVS(float4 position : POSITION,
     svPosition = position;
 }
 
-float4 DX10_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
+float2 DX10_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
                                     float2 texcoord : TEXCOORD0,
                                     float4 offset[3] : TEXCOORD1) : SV_TARGET {
     #if SMAA_PREDICATION
@@ -197,7 +197,7 @@ float4 DX10_SMAALumaEdgeDetectionPS(float4 position : SV_POSITION,
     #endif
 }
 
-float4 DX10_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
+float2 DX10_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
                                      float2 texcoord : TEXCOORD0,
                                      float4 offset[3] : TEXCOORD1) : SV_TARGET {
     #if SMAA_PREDICATION
@@ -207,7 +207,7 @@ float4 DX10_SMAAColorEdgeDetectionPS(float4 position : SV_POSITION,
     #endif
 }
 
-float4 DX10_SMAADepthEdgeDetectionPS(float4 position : SV_POSITION,
+float2 DX10_SMAADepthEdgeDetectionPS(float4 position : SV_POSITION,
                                      float2 texcoord : TEXCOORD0,
                                      float4 offset[3] : TEXCOORD1) : SV_TARGET {
     return SMAADepthEdgeDetectionPS(texcoord, offset, depthTex);

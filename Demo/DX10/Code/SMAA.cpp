@@ -169,13 +169,19 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     D3D10_SHADER_MACRO null = { nullptr, nullptr };
     defines.push_back(null);
 
+    UINT flags = D3D10_SHADER_ENABLE_STRICTNESS;
+    #if defined(DEBUG) || defined(_DEBUG)
+    flags |= D3D10_SHADER_DEBUG;
+    flags |= D3D10_SHADER_SKIP_OPTIMIZATION;
+    #endif
+
     /**
      * If your debugger is breaking here is because you have not included the
      * shader as resource (other option is to load it FromFile).
      */
     ID3D10IncludeResource includeResource;
     string profile = dx10_1? "fx_4_1" : "fx_4_0";
-    V(D3DX10CreateEffectFromResource(GetModuleHandle(nullptr), L"SMAA.fx", nullptr, &defines.front(), &includeResource, profile.c_str(), D3D10_SHADER_ENABLE_STRICTNESS, 0, device, nullptr, nullptr, &effect, nullptr, nullptr));
+    V(D3DX10CreateEffectFromResource(GetModuleHandle(nullptr), L"SMAA.fx", nullptr, &defines.front(), &includeResource, profile.c_str(), flags, 0, device, nullptr, nullptr, &effect, nullptr, nullptr));
 
     // This is for rendering the typical fullscreen quad later on:
     D3D10_PASS_DESC desc;
