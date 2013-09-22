@@ -284,7 +284,7 @@ BackbufferRenderTarget::~BackbufferRenderTarget() {
 }
 
 
-struct FSVertex{
+struct Vertex {
     D3DXVECTOR3 position;
     D3DXVECTOR2 texcoord;
 };
@@ -292,32 +292,32 @@ struct FSVertex{
 
 Quad::Quad(ID3D10Device *device, const D3D10_PASS_DESC &desc) 
         : device(device) {
-    D3D10_BUFFER_DESC BufDesc;
-    D3D10_SUBRESOURCE_DATA SRData;
-    FSVertex vertices[4];
+    D3D10_BUFFER_DESC bufferDesc;
+    D3D10_SUBRESOURCE_DATA data;
+    Vertex vertices[4];
 
     vertices[0].position = D3DXVECTOR3(-1.0f, -1.0f, 1.0f);
     vertices[1].position = D3DXVECTOR3(-1.0f,  1.0f, 1.0f);
     vertices[2].position = D3DXVECTOR3( 1.0f, -1.0f, 1.0f);
     vertices[3].position = D3DXVECTOR3( 1.0f,  1.0f, 1.0f);
 
-    vertices[0].texcoord = D3DXVECTOR2(0, 1);
-    vertices[1].texcoord = D3DXVECTOR2(0, 0);
-    vertices[2].texcoord = D3DXVECTOR2(1, 1);
-    vertices[3].texcoord = D3DXVECTOR2(1, 0);
+    vertices[0].texcoord = D3DXVECTOR2(0.0f, 1.0f);
+    vertices[1].texcoord = D3DXVECTOR2(0.0f, 0.0f);
+    vertices[2].texcoord = D3DXVECTOR2(1.0f, 1.0f);
+    vertices[3].texcoord = D3DXVECTOR2(1.0f, 0.0f);
 
-    BufDesc.ByteWidth = sizeof(FSVertex) * 4;
-    BufDesc.Usage = D3D10_USAGE_DEFAULT;
-    BufDesc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
-    BufDesc.CPUAccessFlags = 0;
-    BufDesc.MiscFlags = 0;
+    bufferDesc.ByteWidth = sizeof(Vertex) * 4;
+    bufferDesc.Usage = D3D10_USAGE_DEFAULT;
+    bufferDesc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
+    bufferDesc.CPUAccessFlags = 0;
+    bufferDesc.MiscFlags = 0;
 
-    SRData.pSysMem = vertices;
-    SRData.SysMemPitch = 0;
-    SRData.SysMemSlicePitch = 0;
+    data.pSysMem = vertices;
+    data.SysMemPitch = 0;
+    data.SysMemSlicePitch = 0;
 
     HRESULT hr;
-    V(device->CreateBuffer(&BufDesc, &SRData, &buffer));
+    V(device->CreateBuffer(&bufferDesc, &data, &buffer));
 
     const D3D10_INPUT_ELEMENT_DESC layout[] = {
         { "POSITION",  0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
@@ -337,10 +337,62 @@ Quad::~Quad() {
 
 void Quad::draw() {
     const UINT offset = 0;
-    const UINT stride = sizeof(FSVertex);
+    const UINT stride = sizeof(Vertex);
     device->IASetVertexBuffers(0, 1, &buffer, &stride, &offset);
     device->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
     device->Draw(4, 0);
+}
+
+
+FullscreenTriangle::FullscreenTriangle(ID3D10Device *device, const D3D10_PASS_DESC &desc) 
+        : device(device) {
+    D3D10_BUFFER_DESC bufferDesc;
+    D3D10_SUBRESOURCE_DATA data;
+    Vertex vertices[3];
+
+    vertices[0].position = D3DXVECTOR3(-1.0f, -1.0f, 1.0f);
+    vertices[1].position = D3DXVECTOR3(-1.0f,  3.0f, 1.0f);
+    vertices[2].position = D3DXVECTOR3( 3.0f, -1.0f, 1.0f);
+
+    vertices[0].texcoord = D3DXVECTOR2(0.0f,  1.0f);
+    vertices[1].texcoord = D3DXVECTOR2(0.0f, -1.0f);
+    vertices[2].texcoord = D3DXVECTOR2(2.0f,  1.0f);
+
+    bufferDesc.ByteWidth = sizeof(Vertex) * 3;
+    bufferDesc.Usage = D3D10_USAGE_DEFAULT;
+    bufferDesc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
+    bufferDesc.CPUAccessFlags = 0;
+    bufferDesc.MiscFlags = 0;
+
+    data.pSysMem = vertices;
+    data.SysMemPitch = 0;
+    data.SysMemSlicePitch = 0;
+
+    HRESULT hr;
+    V(device->CreateBuffer(&bufferDesc, &data, &buffer));
+
+    const D3D10_INPUT_ELEMENT_DESC layout[] = {
+        { "POSITION",  0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD",  0, DXGI_FORMAT_R32G32_FLOAT,    0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    UINT numElements = sizeof(layout) / sizeof(D3D10_INPUT_ELEMENT_DESC);
+
+    V(device->CreateInputLayout(layout, numElements, desc.pIAInputSignature, desc.IAInputSignatureSize, &vertexLayout));
+}
+
+
+FullscreenTriangle::~FullscreenTriangle() {
+    SAFE_RELEASE(buffer);
+    SAFE_RELEASE(vertexLayout);
+}
+
+
+void FullscreenTriangle::draw() {
+    const UINT offset = 0;
+    const UINT stride = sizeof(Vertex);
+    device->IASetVertexBuffers(0, 1, &buffer, &stride, &offset);
+    device->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+    device->Draw(3, 0);
 }
 
 

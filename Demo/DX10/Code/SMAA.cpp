@@ -186,7 +186,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
     // This is for rendering the typical fullscreen quad later on:
     D3D10_PASS_DESC desc;
     V(effect->GetTechniqueByName("NeighborhoodBlending")->GetPassByIndex(0)->GetDesc(&desc));
-    quad = new Quad(device, desc);
+    triangle = new FullscreenTriangle(device, desc);
 
     // In NVIDIA cards R8G8 is slower, avoid it:
     bool isNVIDIACard = adapterDesc? adapterDesc->VendorId == 0x10DE : false;
@@ -242,7 +242,7 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
 
 SMAA::~SMAA() {
     SAFE_RELEASE(effect);
-    SAFE_DELETE(quad);
+    SAFE_DELETE(triangle);
     SAFE_DELETE(edgesRT);
     SAFE_DELETE(blendRT);
     SAFE_RELEASE(areaTex);
@@ -280,7 +280,7 @@ void SMAA::go(ID3D10ShaderResourceView *srcGammaSRV,
 
     // Setup the viewport and the vertex layout:
     edgesRT->setViewport();
-    quad->setInputLayout();
+    triangle->setInputLayout();
 
     // Clear render targets:
     float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -340,7 +340,7 @@ void SMAA::reproject(ID3D10ShaderResourceView *currentSRV,
 
     // Setup the viewport and the vertex layout:
     edgesRT->setViewport();
-    quad->setInputLayout();
+    triangle->setInputLayout();
 
     // Setup variables:
     V(colorTexVariable->SetResource(currentSRV));
@@ -352,7 +352,7 @@ void SMAA::reproject(ID3D10ShaderResourceView *currentSRV,
 
     // Do it!
     device->OMSetRenderTargets(1, &dstRTV, nullptr);
-    quad->draw();
+    triangle->draw();
     device->OMSetRenderTargets(0, nullptr, nullptr);
 
     // Reset external inputs, to avoid warnings:
@@ -379,7 +379,7 @@ void SMAA::separate(ID3D10ShaderResourceView *srcSRV,
 
     // Setup the viewport and the vertex layout:
     edgesRT->setViewport();
-    quad->setInputLayout();
+    triangle->setInputLayout();
 
     // Setup variables:
     V(colorTexMSVariable->SetResource(srcSRV));
@@ -390,7 +390,7 @@ void SMAA::separate(ID3D10ShaderResourceView *srcSRV,
     // Do it!
     ID3D10RenderTargetView *dst[] = { dst1RTV, dst2RTV };
     device->OMSetRenderTargets(2, dst, nullptr);
-    quad->draw();
+    triangle->draw();
     device->OMSetRenderTargets(0, nullptr, nullptr);
 }
 
@@ -491,7 +491,7 @@ void SMAA::edgesDetectionPass(ID3D10DepthStencilView *dsv, Input input) {
 
     // Do it!
     device->OMSetRenderTargets(1, *edgesRT, dsv);
-    quad->draw();
+    triangle->draw();
     device->OMSetRenderTargets(0, nullptr, nullptr);
 }
 
@@ -570,7 +570,7 @@ void SMAA::blendingWeightsCalculationPass(ID3D10DepthStencilView *dsv, Mode mode
 
     // And here we go!
     device->OMSetRenderTargets(1, *blendRT, dsv);
-    quad->draw();
+    triangle->draw();
     device->OMSetRenderTargets(0, nullptr, nullptr);
 }
 
@@ -585,7 +585,7 @@ void SMAA::neighborhoodBlendingPass(ID3D10RenderTargetView *dstRTV, ID3D10DepthS
     
     // Do the final pass!
     device->OMSetRenderTargets(1, &dstRTV, dsv);
-    quad->draw();
+    triangle->draw();
     device->OMSetRenderTargets(0, nullptr, nullptr);
 }
 

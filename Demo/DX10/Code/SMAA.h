@@ -228,7 +228,7 @@ class SMAA {
         int width, height;
         Preset preset;
         ID3D10Effect *effect;
-        Quad *quad;
+        FullscreenTriangle *triangle;
 
         RenderTarget *edgesRT;
         RenderTarget *blendRT;

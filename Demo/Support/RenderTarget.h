@@ -152,6 +152,20 @@ class Quad {
 };
 
 
+class FullscreenTriangle {
+    public:
+        FullscreenTriangle(ID3D10Device *device, const D3D10_PASS_DESC &desc);
+        ~FullscreenTriangle();
+        void setInputLayout() { device->IASetInputLayout(vertexLayout); }
+        void draw();
+
+    private:
+        ID3D10Device *device;
+        ID3D10Buffer *buffer;
+        ID3D10InputLayout *vertexLayout;
+};
+
+
 class SaveViewportsScope {
     public: 
         SaveViewportsScope(ID3D10Device *device);
