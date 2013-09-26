@@ -862,7 +862,7 @@ float2 SMAASearchDiag1(SMAATexture2D(edgesTex), float2 texcoord, float2 dir, out
            coord.w > 0.9) {
         coord.xyz = mad(float3(SMAA_RT_METRICS.xy, 1.0), float3(dir, 1.0), coord.xyz);
         e = SMAASampleLevelZero(edgesTex, coord.xy).rg;
-        coord.w = dot(e, 0.5);
+        coord.w = dot(e, float2(0.5, 0.5));
     }
     return coord.zw;
 }
@@ -883,7 +883,7 @@ float2 SMAASearchDiag2(SMAATexture2D(edgesTex), float2 texcoord, float2 dir, out
         // e.g = SMAASampleLevelZero(edgesTex, coord.xy).g;
         // e.r = SMAASampleLevelZeroOffset(edgesTex, coord.xy, int2(1, 0)).r;
 
-        coord.w = dot(e, 0.5);
+        coord.w = dot(e, float2(0.5, 0.5));
     }
     return coord.zw;
 }
@@ -921,7 +921,7 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
         d.xz = SMAASearchDiag1(SMAATexturePass2D(edgesTex), texcoord, float2(-1.0,  1.0), end);
         d.x += float(end.y > 0.9);
     } else
-        d.xz = 0.0;
+        d.xz = float2(0.0, 0.0);
     d.yw = SMAASearchDiag1(SMAATexturePass2D(edgesTex), texcoord, float2(1.0, -1.0), end);
 
     SMAA_BRANCH
@@ -945,7 +945,7 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
         float2 cc = mad(2.0, c.xz, c.yw);
 
         // Remove the crossing edge if we didn't found the end of the line:
-        SMAAMovc(step(0.9, d.zw), cc, 0.0);
+        SMAAMovc(step(0.9, d.zw), cc, float2(0.0, 0.0));
 
         // Fetch the areas for this line:
         weights += SMAAAreaDiag(SMAATexturePass2D(areaTex), d.xy, cc, subsampleIndices.z);
@@ -957,7 +957,7 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
         d.yw = SMAASearchDiag2(SMAATexturePass2D(edgesTex), texcoord, float2(1.0, 1.0), end);
         d.y += float(end.y > 0.9);
     } else
-        d.yw = 0.0;
+        d.yw = float2(0.0, 0.0);
 
     SMAA_BRANCH
     if (d.x + d.y > 2.0) { // d.x + d.y + 1 > 3
@@ -970,7 +970,7 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
         float2 cc = mad(2.0, c.xz, c.yw);
 
         // Remove the crossing edge if we didn't found the end of the line:
-        SMAAMovc(step(0.9, d.zw), cc, 0.0);
+        SMAAMovc(step(0.9, d.zw), cc, float2(0.0, 0.0));
 
         // Fetch the areas for this line:
         weights += SMAAAreaDiag(SMAATexturePass2D(areaTex), d.xy, cc, subsampleIndices.w).gr;
@@ -1102,7 +1102,7 @@ void SMAADetectHorizontalCornerPattern(SMAATexture2D(edgesTex), inout float2 wei
 
     rounding /= leftRight.x + leftRight.y; // Reduce blending for pixels in the center of a line.
 
-    float2 factor = 1.0;
+    float2 factor = float2(1.0, 1.0);
     factor.x -= rounding.x * SMAASampleLevelZeroOffset(edgesTex, texcoord.xy, int2(0,  1)).r;
     factor.x -= rounding.y * SMAASampleLevelZeroOffset(edgesTex, texcoord.zw, int2(1,  1)).r;
     factor.y -= rounding.x * SMAASampleLevelZeroOffset(edgesTex, texcoord.xy, int2(0, -2)).r;
@@ -1119,7 +1119,7 @@ void SMAADetectVerticalCornerPattern(SMAATexture2D(edgesTex), inout float2 weigh
 
     rounding /= leftRight.x + leftRight.y;
 
-    float2 factor = 1.0;
+    float2 factor = float2(1.0, 1.0);
     factor.x -= rounding.x * SMAASampleLevelZeroOffset(edgesTex, texcoord.xy, int2( 1, 0)).g;
     factor.x -= rounding.y * SMAASampleLevelZeroOffset(edgesTex, texcoord.zw, int2( 1, 1)).g;
     factor.y -= rounding.x * SMAASampleLevelZeroOffset(edgesTex, texcoord.xy, int2(-2, 0)).g;
@@ -1267,14 +1267,14 @@ float4 SMAANeighborhoodBlendingPS(float2 texcoord,
 
         return color;
     } else {
-        bool horizontal = max(a.x, a.z) > max(a.y, a.w); // max(horizontal) > max(vertical)
+        float horizontal = float(max(a.x, a.z) > max(a.y, a.w)); // max(horizontal) > max(vertical)
 
         // Calculate the blending offsets:
         float4 blendingOffset = float4(0.0, a.y, 0.0, a.w);
         float2 blendingWeight = a.yw;
-        SMAAMovc(horizontal, blendingOffset, float4(a.x, 0.0, a.z, 0.0));
-        SMAAMovc(horizontal, blendingWeight, a.xz);
-        blendingWeight /= dot(blendingWeight, 1.0);
+        SMAAMovc(horizontal.xxxx, blendingOffset, float4(a.x, 0.0, a.z, 0.0));
+        SMAAMovc(horizontal.xx, blendingWeight, a.xz);
+        blendingWeight /= dot(blendingWeight, float2(1.0, 1.0));
 
         // Calculate the texture coordinates:
         float4 blendingCoord = mad(blendingOffset, float4(SMAA_RT_METRICS.xy, -SMAA_RT_METRICS.xy), texcoord.xyxy);
