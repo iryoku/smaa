@@ -121,11 +121,11 @@ SMAA::SMAA(IDirect3DDevice9 *device, int width, int height, Preset preset, const
 
     // Setup preset macro
     D3DXMACRO presetMacros[] = {
-        { "SMAA_PRESET_LOW", "1" },
-        { "SMAA_PRESET_MEDIUM", "1" },
-        { "SMAA_PRESET_HIGH", "1" },
-        { "SMAA_PRESET_ULTRA", "1" },
-        { "SMAA_PRESET_CUSTOM", "1" }
+        { "SMAA_PRESET_LOW", nullptr },
+        { "SMAA_PRESET_MEDIUM", nullptr },
+        { "SMAA_PRESET_HIGH", nullptr },
+        { "SMAA_PRESET_ULTRA", nullptr },
+        { "SMAA_PRESET_CUSTOM", nullptr }
     };
     defines.push_back(presetMacros[int(preset)]);
 

@@ -165,8 +165,8 @@
  *
  *     For example:
  *         #define SMAA_RT_METRICS float4(1.0 / 1280.0, 1.0 / 720.0, 1280.0, 720.0)
- *         #define SMAA_HLSL_4 1 
- *         #define SMAA_PRESET_HIGH 1
+ *         #define SMAA_HLSL_4
+ *         #define SMAA_PRESET_HIGH
  *         #include "SMAA.h"
  *
  *     Note that SMAA_RT_METRICS doesn't need to be a macro, it can be a
@@ -178,9 +178,8 @@
  *          #define SMAA_AREATEX_SELECT(sample) sample.rg
  *          #define SMAA_SEARCHTEX_SELECT(sample) sample.r
  *
- *     If your engine is already using porting macros, you can also not define
- *     any target (like SMAA_HLSL_3), and define the porting functions by
- *     yourself.
+ *     If your engine is already using porting macros, you can define
+ *     SMAA_CUSTOM_SL, and define the porting functions by yourself.
  *
  *  7. Then, you'll have to setup the passes as indicated in the scheme above.
  *     You can take a look into SMAA.fx, to see how we did it for our demo.
@@ -307,26 +306,26 @@
 // SMAA Presets
 
 /**
- * Note that if you use one of these presets, the corresponding macros below
- * won't be used.
+ * Note that if you use one of these presets, the following configuration
+ * macros will be ignored if set in the "Configurable Defines" section.
  */
 
-#if SMAA_PRESET_LOW
+#if defined(SMAA_PRESET_LOW)
 #define SMAA_THRESHOLD 0.15
 #define SMAA_MAX_SEARCH_STEPS 4
-#define SMAA_MAX_SEARCH_STEPS_DIAG 0
-#define SMAA_CORNER_ROUNDING 100
-#elif SMAA_PRESET_MEDIUM
+#define SMAA_DISABLE_DIAG_DETECTION
+#define SMAA_DISABLE_CORNER_DETECTION
+#elif defined(SMAA_PRESET_MEDIUM)
 #define SMAA_THRESHOLD 0.1
 #define SMAA_MAX_SEARCH_STEPS 8
-#define SMAA_MAX_SEARCH_STEPS_DIAG 0
-#define SMAA_CORNER_ROUNDING 100
-#elif SMAA_PRESET_HIGH
+#define SMAA_DISABLE_DIAG_DETECTION
+#define SMAA_DISABLE_CORNER_DETECTION
+#elif defined(SMAA_PRESET_HIGH)
 #define SMAA_THRESHOLD 0.1
 #define SMAA_MAX_SEARCH_STEPS 16
 #define SMAA_MAX_SEARCH_STEPS_DIAG 8
 #define SMAA_CORNER_ROUNDING 25
-#elif SMAA_PRESET_ULTRA
+#elif defined(SMAA_PRESET_ULTRA)
 #define SMAA_THRESHOLD 0.05
 #define SMAA_MAX_SEARCH_STEPS 32
 #define SMAA_MAX_SEARCH_STEPS_DIAG 16
@@ -380,10 +379,12 @@
  * diagonal pattern searches, at each side of the pixel. In this case we jump
  * one pixel at time, instead of two.
  *
- * Range: [0, 20]; set it to 0 to disable diagonal processing.
+ * Range: [0, 20]
  *
  * On high-end machines it is cheap (between a 0.8x and 0.9x slower for 16 
  * steps), but it can have a significant impact on older machines.
+ *
+ * Define SMAA_DISABLE_DIAG_DETECTION to disable diagonal processing.
  */
 #ifndef SMAA_MAX_SEARCH_STEPS_DIAG
 #define SMAA_MAX_SEARCH_STEPS_DIAG 8
@@ -392,7 +393,9 @@
 /**
  * SMAA_CORNER_ROUNDING specifies how much sharp corners will be rounded.
  *
- * Range: [0, 100]; set it to 100 to disable corner detection.
+ * Range: [0, 100]
+ *
+ * Define SMAA_DISABLE_CORNER_DETECTION to disable corner processing.
  */
 #ifndef SMAA_CORNER_ROUNDING
 #define SMAA_CORNER_ROUNDING 25
@@ -502,7 +505,7 @@
 // Texture Access Defines
 
 #ifndef SMAA_AREATEX_SELECT
-#if SMAA_HLSL_3
+#if defined(SMAA_HLSL_3)
 #define SMAA_AREATEX_SELECT(sample) sample.ra
 #else
 #define SMAA_AREATEX_SELECT(sample) sample.rg
@@ -529,7 +532,7 @@
 //-----------------------------------------------------------------------------
 // Porting Functions
 
-#if SMAA_HLSL_3
+#if defined(SMAA_HLSL_3)
 #define SMAATexture2D(tex) sampler2D tex
 #define SMAATexturePass2D(tex) tex
 #define SMAASampleLevelZero(tex, coord) tex2Dlod(tex, float4(coord, 0.0, 0.0))
@@ -541,7 +544,7 @@
 #define SMAA_FLATTEN [flatten]
 #define SMAA_BRANCH [branch]
 #endif
-#if SMAA_HLSL_4 || SMAA_HLSL_4_1
+#if defined(SMAA_HLSL_4) || defined(SMAA_HLSL_4_1)
 SamplerState LinearSampler { Filter = MIN_MAG_LINEAR_MIP_POINT; AddressU = Clamp; AddressV = Clamp; };
 SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; AddressV = Clamp; };
 #define SMAATexture2D(tex) Texture2D tex
@@ -556,11 +559,11 @@ SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; Addres
 #define SMAA_BRANCH [branch]
 #define SMAATexture2DMS2(tex) Texture2DMS<float4, 2> tex
 #define SMAALoad(tex, pos, sample) tex.Load(pos, sample)
-#if SMAA_HLSL_4_1
+#if defined(SMAA_HLSL_4_1)
 #define SMAAGather(tex, coord) tex.Gather(LinearSampler, coord, 0)
 #endif
 #endif
-#if SMAA_GLSL_3 || SMAA_GLSL_4
+#if defined(SMAA_GLSL_3) || defined(SMAA_GLSL_4)
 #define SMAATexture2D(tex) sampler2D tex
 #define SMAATexturePass2D(tex) tex
 #define SMAASampleLevelZero(tex, coord) textureLod(tex, coord, 0.0)
@@ -573,7 +576,7 @@ SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; Addres
 #define SMAA_BRANCH
 #define lerp(a, b, t) mix(a, b, t)
 #define saturate(a) clamp(a, 0.0, 1.0)
-#if SMAA_GLSL_4
+#if defined(SMAA_GLSL_4)
 #define mad(a, b, c) fma(a, b, c)
 #define SMAAGather(tex, coord) textureGather(tex, coord)
 #else
@@ -585,6 +588,13 @@ SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; Addres
 #define int2 ivec2
 #define int3 ivec3
 #define int4 ivec4
+#define bool2 bvec2
+#define bool3 bvec3
+#define bool4 bvec4
+#endif
+
+#if !defined(SMAA_HLSL_3) && !defined(SMAA_HLSL_4) && !defined(SMAA_HLSL_4_1) && !defined(SMAA_GLSL_3) && !defined(SMAA_GLSL_4) && !defined(SMAA_CUSTOM_SL)
+#error you must define the shading language: SMAA_HLSL_*, SMAA_GLSL_* or SMAA_CUSTOM_SL
 #endif
 
 //-----------------------------------------------------------------------------
@@ -621,12 +631,12 @@ float2 SMAACalculatePredicatedThreshold(float2 texcoord,
 /**
  * Conditional move:
  */
-void SMAAMovc(float2 cond, inout float2 variable, float2 value) {
+void SMAAMovc(bool2 cond, inout float2 variable, float2 value) {
     SMAA_FLATTEN if (cond.x) variable.x = value.x;
     SMAA_FLATTEN if (cond.y) variable.y = value.y;
 }
 
-void SMAAMovc(float4 cond, inout float4 variable, float4 value) {
+void SMAAMovc(bool4 cond, inout float4 variable, float4 value) {
     SMAAMovc(cond.xy, variable.xy, value.xy);
     SMAAMovc(cond.zw, variable.zw, value.zw);
 }
@@ -825,7 +835,7 @@ float2 SMAADepthEdgeDetectionPS(float2 texcoord,
 //-----------------------------------------------------------------------------
 // Diagonal Search Functions
 
-#if SMAA_MAX_SEARCH_STEPS_DIAG > 0 || SMAA_FORCE_DIAGONAL_DETECTION
+#if !defined(SMAA_DISABLE_DIAG_DETECTION)
 
 /**
  * Allows to decode two binary values from a bilinear-filtered access.
@@ -945,7 +955,7 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
         float2 cc = mad(2.0, c.xz, c.yw);
 
         // Remove the crossing edge if we didn't found the end of the line:
-        SMAAMovc(step(0.9, d.zw), cc, float2(0.0, 0.0));
+        SMAAMovc(bool2(step(0.9, d.zw)), cc, float2(0.0, 0.0));
 
         // Fetch the areas for this line:
         weights += SMAAAreaDiag(SMAATexturePass2D(areaTex), d.xy, cc, subsampleIndices.z);
@@ -970,7 +980,7 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
         float2 cc = mad(2.0, c.xz, c.yw);
 
         // Remove the crossing edge if we didn't found the end of the line:
-        SMAAMovc(step(0.9, d.zw), cc, float2(0.0, 0.0));
+        SMAAMovc(bool2(step(0.9, d.zw)), cc, float2(0.0, 0.0));
 
         // Fetch the areas for this line:
         weights += SMAAAreaDiag(SMAATexturePass2D(areaTex), d.xy, cc, subsampleIndices.w).gr;
@@ -1096,7 +1106,7 @@ float2 SMAAArea(SMAATexture2D(areaTex), float2 dist, float e1, float e2, float o
 // Corner Detection Functions
 
 void SMAADetectHorizontalCornerPattern(SMAATexture2D(edgesTex), inout float2 weights, float4 texcoord, float2 d) {
-    #if SMAA_CORNER_ROUNDING < 100 || SMAA_FORCE_CORNER_DETECTION
+    #if !defined(SMAA_DISABLE_CORNER_DETECTION)
     float2 leftRight = step(d.xy, d.yx);
     float2 rounding = (1.0 - SMAA_CORNER_ROUNDING_NORM) * leftRight;
 
@@ -1113,7 +1123,7 @@ void SMAADetectHorizontalCornerPattern(SMAATexture2D(edgesTex), inout float2 wei
 }
 
 void SMAADetectVerticalCornerPattern(SMAATexture2D(edgesTex), inout float2 weights, float4 texcoord, float2 d) {
-    #if SMAA_CORNER_ROUNDING < 100 || SMAA_FORCE_CORNER_DETECTION
+    #if !defined(SMAA_DISABLE_CORNER_DETECTION)
     float2 leftRight = step(d.xy, d.yx);
     float2 rounding = (1.0 - SMAA_CORNER_ROUNDING_NORM) * leftRight;
 
@@ -1145,7 +1155,7 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
 
     SMAA_BRANCH
     if (e.g > 0.0) { // Edge at north
-        #if SMAA_MAX_SEARCH_STEPS_DIAG > 0 || SMAA_FORCE_DIAGONAL_DETECTION
+        #if !defined(SMAA_DISABLE_DIAG_DETECTION)
         // Diagonals have both north and west edges, so searching for them in
         // one of the boundaries is enough.
         weights.rg = SMAACalculateDiagWeights(SMAATexturePass2D(edgesTex), SMAATexturePass2D(areaTex), texcoord, e, subsampleIndices);
@@ -1192,7 +1202,7 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
         coords.y = texcoord.y;
         SMAADetectHorizontalCornerPattern(SMAATexturePass2D(edgesTex), weights.rg, coords.xyzy, d);
 
-        #if SMAA_MAX_SEARCH_STEPS_DIAG > 0 || SMAA_FORCE_DIAGONAL_DETECTION
+        #if !defined(SMAA_DISABLE_DIAG_DETECTION)
         } else
             e.r = 0.0; // Skip vertical processing.
         #endif
@@ -1267,13 +1277,13 @@ float4 SMAANeighborhoodBlendingPS(float2 texcoord,
 
         return color;
     } else {
-        float horizontal = float(max(a.x, a.z) > max(a.y, a.w)); // max(horizontal) > max(vertical)
+        bool h = max(a.x, a.z) > max(a.y, a.w); // max(horizontal) > max(vertical)
 
         // Calculate the blending offsets:
         float4 blendingOffset = float4(0.0, a.y, 0.0, a.w);
         float2 blendingWeight = a.yw;
-        SMAAMovc(horizontal.xxxx, blendingOffset, float4(a.x, 0.0, a.z, 0.0));
-        SMAAMovc(horizontal.xx, blendingWeight, a.xz);
+        SMAAMovc(bool4(h, h, h, h), blendingOffset, float4(a.x, 0.0, a.z, 0.0));
+        SMAAMovc(bool2(h, h), blendingWeight, a.xz);
         blendingWeight /= dot(blendingWeight, float2(1.0, 1.0));
 
         // Calculate the texture coordinates:

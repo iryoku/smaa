@@ -66,24 +66,22 @@ float cornerRounding;
 
 // Set the HLSL version:
 #ifndef SMAA_HLSL_4_1
-#define SMAA_HLSL_4 1
+#define SMAA_HLSL_4
 #endif
 
 // Set preset defines:
-#if SMAA_PRESET_CUSTOM
+#ifdef SMAA_PRESET_CUSTOM
 #define SMAA_THRESHOLD threshld
 #define SMAA_MAX_SEARCH_STEPS maxSearchSteps
 #define SMAA_MAX_SEARCH_STEPS_DIAG maxSearchStepsDiag
 #define SMAA_CORNER_ROUNDING cornerRounding
-#define SMAA_FORCE_DIAGONAL_DETECTION 1
-#define SMAA_FORCE_CORNER_DETECTION 1
 #endif
 
 // And include our header!
 #include "SMAA.hlsl"
 
 // Set pixel shader version accordingly:
-#if SMAA_HLSL_4_1 == 1
+#if SMAA_HLSL_4_1
 #define PS_VERSION ps_4_1
 #else
 #define PS_VERSION ps_4_0

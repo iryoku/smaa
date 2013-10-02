@@ -140,11 +140,11 @@ SMAA::SMAA(ID3D10Device *device, int width, int height, Preset preset, bool pred
 
     // Setup the preset macro:
     D3D10_SHADER_MACRO presetMacros[] = {
-        { "SMAA_PRESET_LOW", "1" },
-        { "SMAA_PRESET_MEDIUM", "1" },
-        { "SMAA_PRESET_HIGH", "1" },
-        { "SMAA_PRESET_ULTRA", "1" },
-        { "SMAA_PRESET_CUSTOM", "1" }
+        { "SMAA_PRESET_LOW", nullptr },
+        { "SMAA_PRESET_MEDIUM", nullptr },
+        { "SMAA_PRESET_HIGH", nullptr },
+        { "SMAA_PRESET_ULTRA", nullptr },
+        { "SMAA_PRESET_CUSTOM", nullptr }
     };
     defines.push_back(presetMacros[int(preset)]);
 

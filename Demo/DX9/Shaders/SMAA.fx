@@ -53,15 +53,13 @@ float cornerRounding;
 #endif
 
 // Set the HLSL version:
-#define SMAA_HLSL_3 1
+#define SMAA_HLSL_3
 
 #ifdef SMAA_PRESET_CUSTOM
 #define SMAA_THRESHOLD threshld
 #define SMAA_MAX_SEARCH_STEPS maxSearchSteps
 #define SMAA_MAX_SEARCH_STEPS_DIAG maxSearchStepsDiag
 #define SMAA_CORNER_ROUNDING cornerRounding
-#define SMAA_FORCE_DIAGONAL_DETECTION 1
-#define SMAA_FORCE_CORNER_DETECTION 1
 #endif
 
 // And include our header!
