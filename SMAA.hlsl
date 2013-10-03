@@ -868,9 +868,10 @@ float4 SMAADecodeDiagBilinearAccess(float4 e) {
  */
 float2 SMAASearchDiag1(SMAATexture2D(edgesTex), float2 texcoord, float2 dir, out float2 e) {
     float4 coord = float4(texcoord, -1.0, 1.0);
+    float3 t = float3(SMAA_RT_METRICS.xy, 1.0);
     while (coord.z < float(SMAA_MAX_SEARCH_STEPS_DIAG - 1) &&
            coord.w > 0.9) {
-        coord.xyz = mad(float3(SMAA_RT_METRICS.xy, 1.0), float3(dir, 1.0), coord.xyz);
+        coord.xyz = mad(t, float3(dir, 1.0), coord.xyz);
         e = SMAASampleLevelZero(edgesTex, coord.xy).rg;
         coord.w = dot(e, float2(0.5, 0.5));
     }
@@ -880,9 +881,10 @@ float2 SMAASearchDiag1(SMAATexture2D(edgesTex), float2 texcoord, float2 dir, out
 float2 SMAASearchDiag2(SMAATexture2D(edgesTex), float2 texcoord, float2 dir, out float2 e) {
     float4 coord = float4(texcoord, -1.0, 1.0);
     coord.x += 0.25 * SMAA_RT_METRICS.x; // See @SearchDiag2Optimization
+    float3 t = float3(SMAA_RT_METRICS.xy, 1.0);
     while (coord.z < float(SMAA_MAX_SEARCH_STEPS_DIAG - 1) &&
            coord.w > 0.9) {
-        coord.xyz = mad(float3(SMAA_RT_METRICS.xy, 1.0), float3(dir, 1.0), coord.xyz);
+        coord.xyz = mad(t, float3(dir, 1.0), coord.xyz);
 
         // @SearchDiag2Optimization
         // Fetch both edges at once using bilinear filtering:
@@ -903,7 +905,7 @@ float2 SMAASearchDiag2(SMAATexture2D(edgesTex), float2 texcoord, float2 dir, out
  * diagonal distance and crossing edges 'e'.
  */
 float2 SMAAAreaDiag(SMAATexture2D(areaTex), float2 dist, float2 e, float offset) {
-    float2 texcoord = mad(float(SMAA_AREATEX_MAX_DISTANCE_DIAG), e, dist);
+    float2 texcoord = mad(float2(SMAA_AREATEX_MAX_DISTANCE_DIAG, SMAA_AREATEX_MAX_DISTANCE_DIAG), e, dist);
 
     // We do a scale and bias for mapping to texel space:
     texcoord = mad(SMAA_AREATEX_PIXEL_SIZE, texcoord, 0.5 * SMAA_AREATEX_PIXEL_SIZE);
@@ -952,7 +954,7 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
         // c.w = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1, -1)).r;
 
         // Merge crossing edges at each side into a single value:
-        float2 cc = mad(2.0, c.xz, c.yw);
+        float2 cc = mad(float2(2.0, 2.0), c.xz, c.yw);
 
         // Remove the crossing edge if we didn't found the end of the line:
         SMAAMovc(bool2(step(0.9, d.zw)), cc, float2(0.0, 0.0));
@@ -977,7 +979,7 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
         c.x  = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2(-1,  0)).g;
         c.y  = SMAASampleLevelZeroOffset(edgesTex, coords.xy, int2( 0, -1)).r;
         c.zw = SMAASampleLevelZeroOffset(edgesTex, coords.zw, int2( 1,  0)).gr;
-        float2 cc = mad(2.0, c.xz, c.yw);
+        float2 cc = mad(float2(2.0, 2.0), c.xz, c.yw);
 
         // Remove the crossing edge if we didn't found the end of the line:
         SMAAMovc(bool2(step(0.9, d.zw)), cc, float2(0.0, 0.0));
@@ -1090,7 +1092,7 @@ float SMAASearchYDown(SMAATexture2D(edgesTex), SMAATexture2D(searchTex), float2 
  */
 float2 SMAAArea(SMAATexture2D(areaTex), float2 dist, float e1, float e2, float offset) {
     // Rounding prevents precision errors of bilinear filtering:
-    float2 texcoord = mad(float(SMAA_AREATEX_MAX_DISTANCE), round(4.0 * float2(e1, e2)), dist);
+    float2 texcoord = mad(float2(SMAA_AREATEX_MAX_DISTANCE, SMAA_AREATEX_MAX_DISTANCE), round(4.0 * float2(e1, e2)), dist);
     
     // We do a scale and bias for mapping to texel space:
     texcoord = mad(SMAA_AREATEX_PIXEL_SIZE, texcoord, 0.5 * SMAA_AREATEX_PIXEL_SIZE);
@@ -1185,7 +1187,7 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
 
         // We want the distances to be in pixel units (doing this here allow to
         // better interleave arithmetic and memory accesses):
-        d = abs(round(mad(SMAA_RT_METRICS.z, d, -pixcoord.x)));
+        d = abs(round(mad(SMAA_RT_METRICS.zz, d, -pixcoord.xx)));
 
         // SMAAArea below needs a sqrt, as the areas texture is compressed
         // quadratically:
@@ -1226,7 +1228,7 @@ float4 SMAABlendingWeightCalculationPS(float2 texcoord,
         d.y = coords.z;
 
         // We want the distances to be in pixel units:
-        d = abs(round(mad(SMAA_RT_METRICS.w, d, -pixcoord.y)));
+        d = abs(round(mad(SMAA_RT_METRICS.ww, d, -pixcoord.yy)));
 
         // SMAAArea below needs a sqrt, as the areas texture is compressed 
         // quadratically:
