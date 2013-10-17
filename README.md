@@ -5,6 +5,8 @@ SMAA is a very efficient GPU-based MLAA implementation (DX9, DX10, DX11 and Open
 
 The technique focuses on handling each pattern in a very specific way (via look-up-tables), in order to minimize false positives in the pattern detection. **Ultimately, this prevents antialiasing features that are not produced by jaggies, like texture details**. Furthermore, this conservative morphological approach, together with correct subsample area estimation, allows to accurately combine MLAA with multi/supersampling techniques. Finally, the technique has been specifically designed to clone (to a reasonable extent) multisampling reference results.
 
+This code is licensed under the MIT license, with a clarification to avoid copyright notices on binary releases (see [below](#copyright-and-license)).
+
 Checkout the [paper](http://www.iryoku.com/smaa/) for more info!
 
 
@@ -69,43 +71,31 @@ Authors
 Copyright and License
 ---------------------
 
-Copyright &copy; 2011 Jorge Jimenez (jorge@iryoku.com)
+Copyright &copy; 2013 Jorge Jimenez (jorge@iryoku.com)
 
-Copyright &copy; 2011 Jose I. Echevarria (joseignacioechevarria@gmail.com) 
+Copyright &copy; 2013 Jose I. Echevarria (joseignacioechevarria@gmail.com)
 
-Copyright &copy; 2011 Belen Masia (bmasia@unizar.es) 
+Copyright &copy; 2013 Belen Masia (bmasia@unizar.es)
 
-Copyright &copy; 2011 Fernando Navarro (fernandn@microsoft.com) 
+Copyright &copy; 2013 Fernando Navarro (fernandn@microsoft.com)
 
-Copyright &copy; 2011 Diego Gutierrez (diegog@unizar.es)
+Copyright &copy; 2013 Diego Gutierrez (diegog@unizar.es)
 
-All rights reserved.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software. As clarification, there is no
+requirement that the copyright notice and permission be included in binary
+distributions of the Software.
 
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the following disclaimer
-      in the documentation and/or other materials provided with the 
-      distribution:
-
-      "Uses SMAA. Copyright (C) 2011 by Jorge Jimenez, Jose I. Echevarria,
-       Tiago Sousa, Belen Masia, Fernando Navarro and Diego Gutierrez."
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS 
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR 
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL COPYRIGHT HOLDERS OR CONTRIBUTORS 
-BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
-POSSIBILITY OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are 
-those of the authors and should not be interpreted as representing official
-policies, either expressed or implied, of the copyright holders.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

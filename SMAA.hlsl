@@ -1,39 +1,29 @@
 /**
- * Copyright (C) 2011 Jorge Jimenez (jorge@iryoku.com)
- * Copyright (C) 2011 Jose I. Echevarria (joseignacioechevarria@gmail.com) 
- * Copyright (C) 2011 Belen Masia (bmasia@unizar.es) 
- * Copyright (C) 2011 Fernando Navarro (fernandn@microsoft.com) 
- * Copyright (C) 2011 Diego Gutierrez (diegog@unizar.es)
- * All rights reserved.
+ * Copyright (C) 2013 Jorge Jimenez (jorge@iryoku.com)
+ * Copyright (C) 2013 Jose I. Echevarria (joseignacioechevarria@gmail.com)
+ * Copyright (C) 2013 Belen Masia (bmasia@unizar.es)
+ * Copyright (C) 2013 Fernando Navarro (fernandn@microsoft.com)
+ * Copyright (C) 2013 Diego Gutierrez (diegog@unizar.es)
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+ * of the Software, and to permit persons to whom the Software is furnished to
+ * do so, subject to the following conditions:
  *
- *    1. Redistributions of source code must retain the above copyright notice,
- *       this list of conditions and the following disclaimer.
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software. As clarification, there
+ * is no requirement that the copyright notice and permission be included in
+ * binary distributions of the Software.
  *
- *    2. Redistributions in binary form must reproduce the following disclaimer
- *       in the documentation and/or other materials provided with the 
- *       distribution:
- *
- *      "Uses SMAA. Copyright (C) 2011 by Jorge Jimenez, Jose I. Echevarria,
- *       Tiago Sousa, Belen Masia, Fernando Navarro and Diego Gutierrez."
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS 
- * IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR 
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL COPYRIGHT HOLDERS OR CONTRIBUTORS 
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
- * POSSIBILITY OF SUCH DAMAGE.
- *
- * The views and conclusions contained in the software and documentation are 
- * those of the authors and should not be interpreted as representing official
- * policies, either expressed or implied, of the copyright holders.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 
 
@@ -123,8 +113,7 @@
  *     When compressing then, you get a non-perceptible quality decrease, and a
  *     marginal performance increase.
  *
- *  4. In DX9, all samplers must be set to linear filtering and clamp, with the
- *     exception of 'searchTex', which must be set to point filtering.
+ *  4. All samplers must be set to linear filtering and clamp.
  *
  *     After you get the technique working, remember that 64-bit inputs have
  *     half-rate linear filtering on GCN.
@@ -132,7 +121,7 @@
  *     If SMAA is applied to 64-bit color buffers, switching to point filtering
  *     when accesing them will increase the performance. Search for
  *     'SMAASamplePoint' to see which textures may benefit from point
- *     filtering, and where (which is basically the color input to the edge
+ *     filtering, and where (which is basically the color input in the edge
  *     detection and resolve passes).
  *
  *  5. All texture reads and buffer writes must be non-sRGB, with the exception
@@ -368,7 +357,7 @@
  * perfectly handled by, for example 16, is 64 (by perfectly, we meant that
  * longer lines won't look as good, but still antialiased).
  *
- * Range: [0, 98]
+ * Range: [0, 112]
  */
 #ifndef SMAA_MAX_SEARCH_STEPS
 #define SMAA_MAX_SEARCH_STEPS 16
@@ -527,6 +516,8 @@
 #define SMAA_AREATEX_MAX_DISTANCE_DIAG 20
 #define SMAA_AREATEX_PIXEL_SIZE (1.0 / float2(160.0, 560.0))
 #define SMAA_AREATEX_SUBTEX_SIZE (1.0 / 7.0)
+#define SMAA_SEARCHTEX_SIZE float2(66.0, 33.0)
+#define SMAA_SEARCHTEX_PACKED_SIZE float2(64.0, 16.0)
 #define SMAA_CORNER_ROUNDING_NORM (float(SMAA_CORNER_ROUNDING) / 100.0)
 
 //-----------------------------------------------------------------------------
@@ -1002,17 +993,22 @@ float2 SMAACalculateDiagWeights(SMAATexture2D(edgesTex), SMAATexture2D(areaTex),
  * crossing edges are active.
  */
 float SMAASearchLength(SMAATexture2D(searchTex), float2 e, float offset) {
-    // We have cropped the texture, so we need to unpack the coordinates:
-    float2 ratio = float2(66.0 / 64.0, 33.0 / 16.0);
-
     // The texture is flipped vertically, with left and right cases taking half
     // of the space horizontally:
-    float2 scale = ratio * float2(0.5, -1.0);
+    float2 scale = SMAA_SEARCHTEX_SIZE * float2(0.5, -1.0);
+    float2 bias = SMAA_SEARCHTEX_SIZE * float2(offset, 1.0);
 
-    // We need to offset the coordinates, depending on left/right cases:
-    float2 bias = ratio * float2(offset, 1.0);
+    // Scale and bias to access texel centers:
+    scale += float2(-1.0,  1.0);
+    bias  += float2( 0.5, -0.5);
 
-    return SMAA_SEARCHTEX_SELECT(SMAASampleLevelZeroPoint(searchTex, mad(scale, e, bias)));
+    // Convert from pixel coordinates to texcoords:
+    // (We use SMAA_SEARCHTEX_PACKED_SIZE because the texture is cropped)
+    scale *= 1.0 / SMAA_SEARCHTEX_PACKED_SIZE;
+    bias *= 1.0 / SMAA_SEARCHTEX_PACKED_SIZE;
+
+    // Lookup the search texture:
+    return SMAA_SEARCHTEX_SELECT(SMAASampleLevelZero(searchTex, mad(scale, e, bias)));
 }
 
 /**
