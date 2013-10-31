@@ -117,17 +117,26 @@ D3DXMATRIX prevViewProj, currViewProj;
 struct MSAAMode {
     wstring name;
     DXGI_SAMPLE_DESC desc;
+    UINT vendor;
 };
 MSAAMode msaaModes[] = {
-    {L"MSAA 1x",   {1,  0}},
-    {L"MSAA 2x",   {2,  0}},
-    {L"MSAA 4x",   {4,  0}},
-    {L"CSAA 8x",   {4,  8}},
-    {L"CSAA 8xQ",  {8,  8}},
-    {L"CSAA 16x",  {4, 16}},
-    {L"CSAA 16xQ", {8, 16}}
+    {L"SMAA 1x",    {1,  0}, 0x0000}, // MODE_SMAA_1X
+    {L"SMAA T2x",   {1,  0}, 0x0000}, // MODE_SMAA_T2X
+    {L"SMAA S2x",   {2,  0}, 0x0000}, // MODE_SMAA_S2X
+    {L"SMAA 4x",    {2,  0}, 0x0000}, // MODE_SMAA_4X
+    {L"MSAA 1x",    {1,  0}, 0x0000},
+    {L"MSAA 2x",    {2,  0}, 0x0000},
+    {L"MSAA 4x",    {4,  0}, 0x0000},
+    {L"MSAA 8x",    {8,  0}, 0x0000},
+    {L"CSAA 8x",    {4,  8}, 0x10DE},
+    {L"CSAA 8xQ",   {8,  8}, 0x10DE},
+    {L"CSAA 16x",   {4, 16}, 0x10DE},
+    {L"CSAA 16xQ",  {8, 16}, 0x10DE},
+    {L"EQAA 2f4x",  {2,  4}, 0x1002},
+    {L"EQAA 4f8x",  {4,  8}, 0x1002},
+    {L"EQAA 4f16x", {4, 16}, 0x1002},
+    {L"EQAA 8f16x", {8, 16}, 0x1002}
 };
-vector<MSAAMode> supportedMsaaModes;
 
 struct {
     float threshold;
@@ -244,21 +253,21 @@ HRESULT loadMesh(CDXUTSDKMesh &mesh, const wstring &name, const wstring &path) {
 
 void setModeControls() {
     SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_AA_MODE)->GetSelectedData()));
-    bool isMsaa = mode >= 10;
-    bool isTemporalMode = !isMsaa && mode != SMAA::MODE_SMAA_1X;
+    bool isSMAA = mode <= SMAA::MODE_SMAA_COUNT;
+    bool isTemporalMode = mode == SMAA::MODE_SMAA_T2X || mode == SMAA::MODE_SMAA_4X;
 
-    hud.GetComboBox(IDC_VIEW_MODE)->SetEnabled(!isMsaa);
-    hud.GetComboBox(IDC_PRESET)->SetEnabled(!isMsaa);
-    hud.GetComboBox(IDC_DETECTION_MODE)->SetEnabled(!isMsaa);
-    hud.GetCheckBox(IDC_ANTIALIASING)->SetEnabled(!isMsaa);
-    hud.GetCheckBox(IDC_PREDICATION)->SetEnabled(!isMsaa && inputDepthSRV != nullptr);
-    hud.GetCheckBox(IDC_REPROJECTION)->SetEnabled(!isMsaa && isTemporalMode);
-    hud.GetComboBox(IDC_LOCK_FRAMERATE)->SetEnabled(!isMsaa);
-    hud.GetCheckBox(IDC_PROFILE)->SetEnabled(!isMsaa && hud.GetComboBox(IDC_LOCK_FRAMERATE)->GetSelectedIndex() == 0);
-    hud.GetSlider(IDC_THRESHOLD)->SetEnabled(!isMsaa);
-    hud.GetSlider(IDC_MAX_SEARCH_STEPS)->SetEnabled(!isMsaa);
-    hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG)->SetEnabled(!isMsaa);
-    hud.GetSlider(IDC_CORNER_ROUNDING)->SetEnabled(!isMsaa);
+    hud.GetComboBox(IDC_VIEW_MODE)->SetEnabled(isSMAA);
+    hud.GetComboBox(IDC_PRESET)->SetEnabled(isSMAA);
+    hud.GetComboBox(IDC_DETECTION_MODE)->SetEnabled(isSMAA);
+    hud.GetCheckBox(IDC_ANTIALIASING)->SetEnabled(isSMAA);
+    hud.GetCheckBox(IDC_PREDICATION)->SetEnabled(isSMAA && inputDepthSRV != nullptr);
+    hud.GetCheckBox(IDC_REPROJECTION)->SetEnabled(isSMAA && isTemporalMode);
+    hud.GetComboBox(IDC_LOCK_FRAMERATE)->SetEnabled(isSMAA);
+    hud.GetCheckBox(IDC_PROFILE)->SetEnabled(isSMAA && hud.GetComboBox(IDC_LOCK_FRAMERATE)->GetSelectedIndex() == 0);
+    hud.GetSlider(IDC_THRESHOLD)->SetEnabled(isSMAA);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS)->SetEnabled(isSMAA);
+    hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG)->SetEnabled(isSMAA);
+    hud.GetSlider(IDC_CORNER_ROUNDING)->SetEnabled(isSMAA);
 
     hud.GetCheckBox(IDC_SHADING)->SetEnabled(hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() == 0);
 }
@@ -334,19 +343,16 @@ HRESULT initSimpleEffect(ID3D10Device *device) {
 void buildModesComboBox() {
     hud.GetComboBox(IDC_AA_MODE)->RemoveAllItems();
 
-    hud.GetComboBox(IDC_AA_MODE)->AddItem(L"SMAA 1x", (LPVOID) SMAA::MODE_SMAA_1X);
-    hud.GetComboBox(IDC_AA_MODE)->AddItem(L"SMAA T2x", (LPVOID) SMAA::MODE_SMAA_T2X);
-    hud.GetComboBox(IDC_AA_MODE)->AddItem(L"SMAA S2x", (LPVOID) SMAA::MODE_SMAA_S2X);
-    hud.GetComboBox(IDC_AA_MODE)->AddItem(L"SMAA 4x", (LPVOID) SMAA::MODE_SMAA_4X);
+    DXGI_ADAPTER_DESC adapterDesc;
+    DXUTGetDXGIAdapter()->GetDesc(&adapterDesc);
 
-    supportedMsaaModes.clear();
     for(int i = 0; i < sizeof(msaaModes) / sizeof(MSAAMode); i++){
         ID3D10Device *device = DXUTGetD3D10Device();
         UINT quality;
         device->CheckMultisampleQualityLevels(DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, msaaModes[i].desc.Count, &quality);
-        if (quality > msaaModes[i].desc.Quality) {
-            hud.GetComboBox(IDC_AA_MODE)->AddItem(msaaModes[i].name.c_str(), (void *) (10 + i));
-            supportedMsaaModes.push_back(msaaModes[i]);
+        bool matchesVendor = msaaModes[i].vendor == 0x0 || adapterDesc.VendorId == msaaModes[i].vendor;
+        if (matchesVendor && quality > msaaModes[i].desc.Quality) {
+            hud.GetComboBox(IDC_AA_MODE)->AddItem(msaaModes[i].name.c_str(), (void *) i);
         }
     }
 
@@ -471,14 +477,8 @@ HRESULT CALLBACK onResizedSwapChain(ID3D10Device *device, IDXGISwapChain *swapCh
 
     initSMAA(device, desc);
 
-    DXGI_SAMPLE_DESC sampleDesc;
     int mode = int(hud.GetComboBox(IDC_AA_MODE)->GetSelectedData());
-    if (mode > 10) // Then, it's a MSAA mode:
-        sampleDesc = supportedMsaaModes[mode - 10].desc;
-    else if (mode == SMAA::MODE_SMAA_S2X || mode == SMAA::MODE_SMAA_4X)
-        sampleDesc = msaaModes[1].desc;
-    else // Then, we are going to use SMAA 1x or SMAA T2x:
-        sampleDesc = NoMSAA();
+    DXGI_SAMPLE_DESC sampleDesc = msaaModes[mode].desc;
 
     depthStencil = new DepthStencil(device, desc->Width, desc->Height,  DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS, sampleDesc);
     depthStencil1x = new DepthStencil(device, desc->Width, desc->Height,  DXGI_FORMAT_R24G8_TYPELESS, DXGI_FORMAT_D24_UNORM_S8_UINT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS);

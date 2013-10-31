@@ -46,9 +46,9 @@ class SMAA {
     public:
         class ExternalStorage;
 
-        enum Mode { MODE_SMAA_1X, MODE_SMAA_T2X, MODE_SMAA_S2X, MODE_SMAA_4X };
-        enum Preset { PRESET_LOW, PRESET_MEDIUM, PRESET_HIGH, PRESET_ULTRA, PRESET_CUSTOM };
-        enum Input { INPUT_LUMA, INPUT_COLOR, INPUT_DEPTH };
+        enum Mode { MODE_SMAA_1X, MODE_SMAA_T2X, MODE_SMAA_S2X, MODE_SMAA_4X, MODE_SMAA_COUNT=MODE_SMAA_4X };
+        enum Preset { PRESET_LOW, PRESET_MEDIUM, PRESET_HIGH, PRESET_ULTRA, PRESET_CUSTOM, PRESET_COUNT=PRESET_CUSTOM };
+        enum Input { INPUT_LUMA, INPUT_COLOR, INPUT_DEPTH, INPUT_COUNT=INPUT_DEPTH };
 
         /**
          * By default, two render targets will be created for storing
