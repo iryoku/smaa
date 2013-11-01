@@ -55,7 +55,7 @@ enum IDC {
     IDC_SECONDARY_AA_MODE,
     IDC_PRESET,
     IDC_DETECTION_MODE,
-    IDC_ANTIALIASING,
+    IDC_SMAA_FILTERING,
     IDC_PREDICATION,
     IDC_REPROJECTION,
     IDC_LOCK_FRAMERATE,
@@ -278,7 +278,7 @@ void setModeControls() {
     hud.GetComboBox(IDC_VIEW_MODE)->SetEnabled(isSMAA);
     hud.GetComboBox(IDC_PRESET)->SetEnabled(isSMAA);
     hud.GetComboBox(IDC_DETECTION_MODE)->SetEnabled(isSMAA);
-    hud.GetCheckBox(IDC_ANTIALIASING)->SetEnabled(isSMAA);
+    hud.GetCheckBox(IDC_SMAA_FILTERING)->SetEnabled(isSMAA);
     hud.GetCheckBox(IDC_PREDICATION)->SetEnabled(isSMAA && inputDepthSRV != nullptr);
     hud.GetCheckBox(IDC_REPROJECTION)->SetEnabled(isSMAA && isTemporalMode);
     hud.GetCheckBox(IDC_PROFILE)->SetEnabled(isSMAA && hud.GetComboBox(IDC_LOCK_FRAMERATE)->GetSelectedIndex() == 0);
@@ -630,8 +630,8 @@ void renderScene(ID3D10Device *device, RenderTargetCollection &rtc, int mode) {
     device->IASetInputLayout(vertexLayout);
 
     // Fetch SMAA parameters:
-    bool smaaEnabled = hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked() &&
-                       hud.GetCheckBox(IDC_ANTIALIASING)->GetEnabled() &&
+    bool smaaEnabled = hud.GetCheckBox(IDC_SMAA_FILTERING)->GetChecked() &&
+                       hud.GetCheckBox(IDC_SMAA_FILTERING)->GetEnabled() &&
                        mode <= SMAA::MODE_SMAA_COUNT;
 
     // Render the grid:
@@ -699,8 +699,8 @@ void runSMAA(ID3D10Device *device, RenderTargetCollection &rtc, SMAA::Mode mode)
 
 
 void runAA(ID3D10Device *device, RenderTargetCollection &rtc, int mode) {
-    bool smaaEnabled = hud.GetCheckBox(IDC_ANTIALIASING)->GetChecked() &&
-                       hud.GetCheckBox(IDC_ANTIALIASING)->GetEnabled() &&
+    bool smaaEnabled = hud.GetCheckBox(IDC_SMAA_FILTERING)->GetChecked() &&
+                       hud.GetCheckBox(IDC_SMAA_FILTERING)->GetEnabled() &&
                        mode <= SMAA::MODE_SMAA_COUNT;
 
     if (smaaEnabled) {
@@ -852,7 +852,7 @@ void drawHud(float elapsedTime) {
             const DXGI_SURFACE_DESC *desc = DXUTGetDXGIBackBufferSurfaceDesc();
             txtHelper->SetInsertionPos(2, desc->Height - 15);
             txtHelper->DrawTextLine(msaaModes[int(hud.GetComboBox(IDC_PRIMARY_AA_MODE)->GetSelectedData())].name.c_str());
-            txtHelper->SetInsertionPos(desc->Width - 60, desc->Height - 15);
+            txtHelper->SetInsertionPos(desc->Width - 70, desc->Height - 15);
             txtHelper->DrawTextLine(msaaModes[int(hud.GetComboBox(IDC_SECONDARY_AA_MODE)->GetSelectedData())].name.c_str());
         }
 
@@ -1097,7 +1097,7 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
         case IDC_VIEW_MODE:
             if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
                 if (int(hud.GetComboBox(IDC_VIEW_MODE)->GetSelectedData()) > 0) {
-                    hud.GetCheckBox(IDC_ANTIALIASING)->SetChecked(true);
+                    hud.GetCheckBox(IDC_SMAA_FILTERING)->SetChecked(true);
                 }
             }
             break;
@@ -1120,7 +1120,7 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 initSMAA(DXUTGetD3D10Device(), DXUTGetDXGIBackBufferSurfaceDesc());
             }
             break;
-        case IDC_ANTIALIASING:
+        case IDC_SMAA_FILTERING:
             if (event == EVENT_CHECKBOX_CHANGED) {
                 timer->reset();
                 hud.GetComboBox(IDC_VIEW_MODE)->SetSelectedByIndex(0);
@@ -1264,7 +1264,7 @@ void initApp() {
 
     hud.AddComboBox(IDC_DETECTION_MODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
 
-    hud.AddCheckBox(IDC_ANTIALIASING, L"Enable SMAA", 35, iY += 24, HUD_WIDTH, 22, true, 'Z');
+    hud.AddCheckBox(IDC_SMAA_FILTERING, L"SMAA Filtering", 35, iY += 24, HUD_WIDTH, 22, true, 'Z');
     hud.AddCheckBox(IDC_PREDICATION, L"Predicated Tresholding", 35, iY += 24, HUD_WIDTH, 22, false);
     hud.AddCheckBox(IDC_REPROJECTION, L"Temporal Reprojection", 35, iY += 24, HUD_WIDTH, 22, true);
 
