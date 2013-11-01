@@ -274,6 +274,7 @@ void setModeControls() {
     SMAA::Mode mode = SMAA::Mode(int(hud.GetComboBox(IDC_PRIMARY_AA_MODE)->GetSelectedData()));
     bool isSMAA = mode <= SMAA::MODE_SMAA_COUNT;
     bool isTemporalMode = mode == SMAA::MODE_SMAA_T2X || mode == SMAA::MODE_SMAA_4X;
+    bool isComparisonMode = hud.GetCheckBox(IDC_COMPARISON_SPLITSCREEN)->GetEnabled() && hud.GetCheckBox(IDC_COMPARISON_SPLITSCREEN)->GetChecked();
 
     hud.GetComboBox(IDC_VIEW_MODE)->SetEnabled(isSMAA);
     hud.GetComboBox(IDC_PRESET)->SetEnabled(isSMAA);
@@ -281,13 +282,15 @@ void setModeControls() {
     hud.GetCheckBox(IDC_SMAA_FILTERING)->SetEnabled(isSMAA);
     hud.GetCheckBox(IDC_PREDICATION)->SetEnabled(isSMAA && inputDepthSRV != nullptr);
     hud.GetCheckBox(IDC_REPROJECTION)->SetEnabled(isSMAA && isTemporalMode);
-    hud.GetCheckBox(IDC_PROFILE)->SetEnabled(isSMAA && hud.GetComboBox(IDC_LOCK_FRAMERATE)->GetSelectedIndex() == 0);
+    hud.GetCheckBox(IDC_PROFILE)->SetEnabled(isSMAA && hud.GetComboBox(IDC_LOCK_FRAMERATE)->GetSelectedIndex() == 0 && !isComparisonMode);
     hud.GetSlider(IDC_THRESHOLD)->SetEnabled(isSMAA);
     hud.GetSlider(IDC_MAX_SEARCH_STEPS)->SetEnabled(isSMAA);
     hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG)->SetEnabled(isSMAA);
     hud.GetSlider(IDC_CORNER_ROUNDING)->SetEnabled(isSMAA);
 
     hud.GetCheckBox(IDC_SHADING)->SetEnabled(hud.GetComboBox(IDC_INPUT)->GetSelectedIndex() == 0);
+
+    hud.GetComboBox(IDC_SECONDARY_AA_MODE)->SetEnabled(isComparisonMode);
 }
 
 
@@ -1102,8 +1105,9 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
             }
             break;
         case IDC_PRIMARY_AA_MODE:
-        case IDC_SECONDARY_AA_MODE: {
-            if (event == EVENT_COMBOBOX_SELECTION_CHANGED) {
+        case IDC_SECONDARY_AA_MODE:
+        case IDC_COMPARISON_SPLITSCREEN: {
+            if (event == EVENT_COMBOBOX_SELECTION_CHANGED || event == EVENT_CHECKBOX_CHANGED) {
                 setModeControls();
 
                 onReleasingSwapChain(nullptr);
@@ -1111,6 +1115,9 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
 
                 // Refill the temporal buffer:
                 onFrameRender(DXUTGetD3D10Device(), DXUTGetTime(), DXUTGetElapsedTime(), nullptr);
+
+                timer->reset();
+                timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetEnabled() && hud.GetCheckBox(IDC_PROFILE)->GetChecked());
             }
             break;
         }
@@ -1150,18 +1157,6 @@ void CALLBACK onGUIEvent(UINT event, int id, CDXUTControl *control, void *contex
                 timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetEnabled() && hud.GetCheckBox(IDC_PROFILE)->GetChecked());
             }
             break;
-        case IDC_COMPARISON_SPLITSCREEN: {
-            if (event == EVENT_CHECKBOX_CHANGED) {
-                hud.GetComboBox(IDC_SECONDARY_AA_MODE)->SetEnabled(hud.GetCheckBox(IDC_COMPARISON_SPLITSCREEN)->GetChecked());
-
-                onReleasingSwapChain(nullptr);
-                onResizedSwapChain(DXUTGetD3D10Device(), DXUTGetDXGISwapChain(), DXUTGetDXGIBackBufferSurfaceDesc(), nullptr);
-
-                // Refill the temporal buffer:
-                onFrameRender(DXUTGetD3D10Device(), DXUTGetTime(), DXUTGetElapsedTime(), nullptr);
-            }
-            break;
-        }
         case IDC_THRESHOLD:
             if (event == EVENT_SLIDER_VALUE_CHANGED) {
                 CDXUTSlider *slider = (CDXUTSlider *) control;
