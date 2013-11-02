@@ -77,9 +77,9 @@ CD3DSettingsDlg settingsDialog;
 CDXUTDialog hud;
 
 Timer *timer = nullptr;
-ID3DX10Font *font = nullptr;
 ID3DX10Sprite *sprite = nullptr;
-CDXUTTextHelper *txtHelper = nullptr;
+ID3DX10Font *font[2] = { nullptr, nullptr };
+CDXUTTextHelper *txtHelper[2] = { nullptr, nullptr };
 
 SMAA *smaa = nullptr;
 
@@ -395,11 +395,15 @@ HRESULT CALLBACK onCreateDevice(ID3D10Device *device, const DXGI_SURFACE_DESC *d
     V_RETURN(dialogResourceManager.OnD3D10CreateDevice(device));
     V_RETURN(settingsDialog.OnD3D10CreateDevice(device));
 
+    V_RETURN(D3DX10CreateSprite(device, 512, &sprite));
     V_RETURN(D3DX10CreateFont(device, 15, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
                               OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                              L"Arial", &font));
-    V_RETURN(D3DX10CreateSprite(device, 512, &sprite));
-    txtHelper = new CDXUTTextHelper(nullptr, nullptr, font, sprite, 15);
+                              L"Arial", &font[0]));
+    V_RETURN(D3DX10CreateFont(device, 30, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
+                              OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                              L"Arial", &font[1]));
+    txtHelper[0] = new CDXUTTextHelper(nullptr, nullptr, font[0], sprite, 15);
+    txtHelper[1] = new CDXUTTextHelper(nullptr, nullptr, font[1], sprite, 30);
 
     timer = new Timer(device);
     timer->setEnabled(hud.GetCheckBox(IDC_PROFILE)->GetEnabled() && hud.GetCheckBox(IDC_PROFILE)->GetChecked());
@@ -431,9 +435,11 @@ void CALLBACK onDestroyDevice(void *context) {
     settingsDialog.OnD3D10DestroyDevice();
     DXUTGetGlobalResourceCache().OnDestroyDevice();
 
-    SAFE_RELEASE(font);
     SAFE_RELEASE(sprite);
-    SAFE_DELETE(txtHelper);
+    for (int i = 0; i < 2; i++) {
+        SAFE_RELEASE(font[i]);
+        SAFE_DELETE(txtHelper[i]);
+    }
 
     SAFE_DELETE(timer);
 
@@ -826,40 +832,41 @@ void drawHud(float elapsedTime) {
     if (showHud) {
         V(hud.OnRender(elapsedTime));
 
-        txtHelper->Begin();
+        txtHelper[0]->Begin();
 
-        txtHelper->SetInsertionPos(2, 0);
-        txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 1.0f, 1.0f, 1.0f));
-        txtHelper->DrawTextLine(DXUTGetFrameStats(DXUTIsVsyncEnabled()));
-        txtHelper->DrawTextLine(DXUTGetDeviceStats());
-        txtHelper->DrawTextLine(L"Press 'tab' to toogle the HUD, 'a' and 'd' to quickly cycle through the images");
+        txtHelper[0]->SetInsertionPos(2, 0);
+        txtHelper[0]->SetForegroundColor(D3DXCOLOR(1.0f, 1.0f, 1.0f, 1.0f));
+        txtHelper[0]->DrawTextLine(DXUTGetFrameStats(DXUTIsVsyncEnabled()));
+        txtHelper[0]->DrawTextLine(DXUTGetDeviceStats());
+        txtHelper[0]->DrawTextLine(L"Press 'tab' to toogle the HUD, 'a' and 'd' to quickly cycle through the images");
 
-        txtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 0.5f, 0.0f, 1.0f));
+        txtHelper[0]->SetForegroundColor(D3DXCOLOR(1.0f, 0.5f, 0.0f, 1.0f));
         if (timer->isEnabled()) {
             wstringstream s;
             s << setprecision(2) << std::fixed;
             s << *timer;
-            txtHelper->DrawTextLine(s.str().c_str());
+            txtHelper[0]->DrawTextLine(s.str().c_str());
         }
 
         wstringstream s;
         if (recPlayState == RECPLAY_RECORDING) {
             s << setprecision(2) << std::fixed << L"Recording: " << (DXUTGetTime() - recPlayTime);
-            txtHelper->DrawTextLine(s.str().c_str());
+            txtHelper[0]->DrawTextLine(s.str().c_str());
         } else if (recPlayState == RECPLAY_PLAYING) {
             s << setprecision(2) << std::fixed << L"Playing: " << (DXUTGetTime() - recPlayTime);
-            txtHelper->DrawTextLine(s.str().c_str());
+            txtHelper[0]->DrawTextLine(s.str().c_str());
         }
+        txtHelper[0]->End();
+    }
 
-        if (isSplitScreenEnabled()) {
-            const DXGI_SURFACE_DESC *desc = DXUTGetDXGIBackBufferSurfaceDesc();
-            txtHelper->SetInsertionPos(2, desc->Height - 15);
-            txtHelper->DrawTextLine(msaaModes[int(hud.GetComboBox(IDC_PRIMARY_AA_MODE)->GetSelectedData())].name.c_str());
-            txtHelper->SetInsertionPos(desc->Width - 70, desc->Height - 15);
-            txtHelper->DrawTextLine(msaaModes[int(hud.GetComboBox(IDC_SECONDARY_AA_MODE)->GetSelectedData())].name.c_str());
-        }
-
-        txtHelper->End();
+    if (isSplitScreenEnabled()) {
+        const DXGI_SURFACE_DESC *desc = DXUTGetDXGIBackBufferSurfaceDesc();
+        txtHelper[1]->Begin();
+        txtHelper[1]->SetInsertionPos(2, desc->Height - 30);
+        txtHelper[1]->DrawTextLine(msaaModes[int(hud.GetComboBox(IDC_PRIMARY_AA_MODE)->GetSelectedData())].name.c_str());
+        txtHelper[1]->SetInsertionPos(desc->Width - 140, desc->Height - 30);
+        txtHelper[1]->DrawTextLine(msaaModes[int(hud.GetComboBox(IDC_SECONDARY_AA_MODE)->GetSelectedData())].name.c_str());
+        txtHelper[1]->End();
     }
 }
 
@@ -1230,7 +1237,7 @@ void initApp() {
     hud.AddButton(IDC_CHANGE_DEVICE, L"Change device", 35, iY += 24, HUD_WIDTH, 22, VK_F2);
     hud.AddButton(IDC_LOAD_IMAGE, L"Load image", 35, iY += 24, HUD_WIDTH, 22);
 
-    iY += 24;
+    iY += 20;
 
     hud.AddComboBox(IDC_INPUT, 35, iY += 24, HUD_WIDTH, 22, 0, false);
     buildInputComboBox();
@@ -1244,7 +1251,7 @@ void initApp() {
     hud.GetComboBox(IDC_VIEW_MODE)->AddItem(L"View edges", (LPVOID) 1);
     hud.GetComboBox(IDC_VIEW_MODE)->AddItem(L"View weights", (LPVOID) 2);
 
-    iY += 24;
+    iY += 20;
 
     hud.AddComboBox(IDC_PRIMARY_AA_MODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
     hud.GetComboBox(IDC_PRIMARY_AA_MODE)->SetDropHeight(120);
@@ -1263,7 +1270,7 @@ void initApp() {
     hud.AddCheckBox(IDC_PREDICATION, L"Predicated Tresholding", 35, iY += 24, HUD_WIDTH, 22, false);
     hud.AddCheckBox(IDC_REPROJECTION, L"Temporal Reprojection", 35, iY += 24, HUD_WIDTH, 22, true);
 
-    iY += 24;
+    iY += 20;
 
     hud.AddComboBox(IDC_LOCK_FRAMERATE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
     hud.GetComboBox(IDC_LOCK_FRAMERATE)->AddItem(L"Unlock Framerate", (LPVOID) 0);
@@ -1275,14 +1282,14 @@ void initApp() {
     hud.AddCheckBox(IDC_SHADING, L"Shading", 35, iY += 24, HUD_WIDTH, 22, false, 'S');
     hud.AddCheckBox(IDC_PROFILE, L"Profile", 35, iY += 24, HUD_WIDTH, 22, false, 'X');
 
-    iY += 24;
+    iY += 20;
 
     hud.AddComboBox(IDC_SECONDARY_AA_MODE, 35, iY += 24, HUD_WIDTH, 22, 0, false);
     hud.GetComboBox(IDC_SECONDARY_AA_MODE)->SetDropHeight(120);
     hud.GetComboBox(IDC_SECONDARY_AA_MODE)->SetEnabled(false);
     hud.AddCheckBox(IDC_COMPARISON_SPLITSCREEN, L"Comparison Splitscreen", 35, iY += 24, HUD_WIDTH, 22, false);
 
-    iY += 24;
+    iY += 20;
 
     wstringstream s;
     s << L"Threshold: " << commandlineOptions.threshold;
