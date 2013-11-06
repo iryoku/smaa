@@ -640,7 +640,6 @@ void renderScene(ID3D10Device *device, RenderTargetCollection &rtc, int mode) {
 
     // Fetch SMAA parameters:
     bool smaaEnabled = hud.GetCheckBox(IDC_SMAA_FILTERING)->GetChecked() &&
-                       hud.GetCheckBox(IDC_SMAA_FILTERING)->GetEnabled() &&
                        mode <= SMAA::MODE_SMAA_COUNT;
 
     // Render the grid:
@@ -709,7 +708,6 @@ void runSMAA(ID3D10Device *device, RenderTargetCollection &rtc, SMAA::Mode mode)
 
 void runAA(ID3D10Device *device, RenderTargetCollection &rtc, int mode) {
     bool smaaEnabled = hud.GetCheckBox(IDC_SMAA_FILTERING)->GetChecked() &&
-                       hud.GetCheckBox(IDC_SMAA_FILTERING)->GetEnabled() &&
                        mode <= SMAA::MODE_SMAA_COUNT;
 
     if (smaaEnabled) {

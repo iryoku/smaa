@@ -247,7 +247,9 @@
  *
  * 2. A shader must be run to output each subsample into a separate buffer
  *    (DX10 is required). You can use SMAASeparate for this purpose, or just do
- *    it in an existing pass (for example, in the tone mapping pass).
+ *    it in an existing pass (for example, in the tone mapping pass, which has
+ *    the advantage of feeding tone mapped subsamples to SMAA, which will yield
+ *    better results).
  *
  * 3. The full SMAA 1x pipeline must be run for each separated buffer, storing
  *    the results in the final buffer. The second run should alpha blend with
@@ -1348,7 +1350,7 @@ void SMAASeparatePS(float4 position,
                     float2 texcoord,
                     out float4 target0,
                     out float4 target1,
-                    uniform SMAATexture2DMS2(colorTexMS)) {
+                    SMAATexture2DMS2(colorTexMS)) {
     int2 pos = int2(position.xy);
     target0 = SMAALoad(colorTexMS, pos, 0);
     target1 = SMAALoad(colorTexMS, pos, 1);
