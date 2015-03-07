@@ -643,7 +643,7 @@ void SMAAMovc(bool4 cond, inout float4 variable, float4 value) {
  * Edge Detection Vertex Shader
  */
 void SMAAEdgeDetectionVS(float2 texcoord,
-                         out float4 offset[3]) {
+                         inout float4 offset[3]) {
     offset[0] = mad(SMAA_RT_METRICS.xyxy, float4(-1.0, 0.0, 0.0, -1.0), texcoord.xyxy);
     offset[1] = mad(SMAA_RT_METRICS.xyxy, float4( 1.0, 0.0, 0.0,  1.0), texcoord.xyxy);
     offset[2] = mad(SMAA_RT_METRICS.xyxy, float4(-2.0, 0.0, 0.0, -2.0), texcoord.xyxy);
@@ -654,7 +654,7 @@ void SMAAEdgeDetectionVS(float2 texcoord,
  */
 void SMAABlendingWeightCalculationVS(float2 texcoord,
                                      out float2 pixcoord,
-                                     out float4 offset[3]) {
+                                     inout float4 offset[3]) {
     pixcoord = texcoord * SMAA_RT_METRICS.zw;
 
     // We will use these offsets for the searches later on (see @PSEUDO_GATHER4):
