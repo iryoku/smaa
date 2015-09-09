@@ -44,7 +44,31 @@
 
 class SMAA {
     public:
-        class ExternalStorage;
+        /**
+         * @EXTERNAL_STORAGE
+         *
+         * If you have one or two spare render targets of the same size as the
+         * backbuffer, you may want to pass them to SMAA::SMAA() using a
+         * ExternalStorage object. You may pass one or the two, depending on
+         * what you have available.
+         *
+         * A non-sRGB RG buffer (at least) is expected for storing edges.
+         * A non-sRGB RGBA buffer is expected for the blending weights.
+         */
+        class ExternalStorage {
+            public:
+                ExternalStorage(ID3D10ShaderResourceView *edgesSRV=nullptr,
+                                ID3D10RenderTargetView *edgesRTV=nullptr,
+                                ID3D10ShaderResourceView *weightsSRV=nullptr,
+                                ID3D10RenderTargetView *weightsRTV=nullptr)
+                    : edgesSRV(edgesSRV),
+                      edgesRTV(edgesRTV), 
+                      weightsSRV(weightsSRV),
+                      weightsRTV(weightsRTV) {}
+
+            ID3D10ShaderResourceView *edgesSRV, *weightsSRV;
+            ID3D10RenderTargetView *edgesRTV, *weightsRTV;
+        };
 
         enum Mode { MODE_SMAA_1X, MODE_SMAA_T2X, MODE_SMAA_S2X, MODE_SMAA_4X, MODE_SMAA_COUNT=MODE_SMAA_4X };
         enum Preset { PRESET_LOW, PRESET_MEDIUM, PRESET_HIGH, PRESET_ULTRA, PRESET_CUSTOM, PRESET_COUNT=PRESET_CUSTOM };
@@ -169,31 +193,6 @@ class SMAA {
         void nextFrame();
         int getFrameIndex() const { return frameIndex; }
 
-        /**
-         * @EXTERNAL_STORAGE
-         *
-         * If you have one or two spare render targets of the same size as the
-         * backbuffer, you may want to pass them to SMAA::SMAA() using a
-         * ExternalStorage object. You may pass one or the two, depending on
-         * what you have available.
-         *
-         * A non-sRGB RG buffer (at least) is expected for storing edges.
-         * A non-sRGB RGBA buffer is expected for the blending weights.
-         */
-        class ExternalStorage {
-            public:
-                ExternalStorage(ID3D10ShaderResourceView *edgesSRV=nullptr,
-                                ID3D10RenderTargetView *edgesRTV=nullptr,
-                                ID3D10ShaderResourceView *weightsSRV=nullptr,
-                                ID3D10RenderTargetView *weightsRTV=nullptr)
-                    : edgesSRV(edgesSRV),
-                      edgesRTV(edgesRTV), 
-                      weightsSRV(weightsSRV),
-                      weightsRTV(weightsRTV) {}
-
-            ID3D10ShaderResourceView *edgesSRV, *weightsSRV;
-            ID3D10RenderTargetView *edgesRTV, *weightsRTV;
-        };
 
     private:
         /**

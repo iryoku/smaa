@@ -29,7 +29,7 @@
 #include "DXUT.h"
 #include "DXUTgui.h"
 #include "DXUTmisc.h"
-#include "DXUTSettingsDlg.h"
+#include "DXUTsettingsdlg.h"
 #include "SDKmisc.h"
 
 #include "SMAA.h"
@@ -474,21 +474,24 @@ void initApp() {
     hud.GetStatic(IDC_THRESHOLD_LABEL)->SetVisible(false);
     hud.GetSlider(IDC_THRESHOLD)->SetVisible(false);
 
-    s = wstringstream();
+    s.clear();
+    s.str(L"");
     s << L"Max Search Steps: " << commandlineOptions.searchSteps;
     hud.AddStatic(IDC_MAX_SEARCH_STEPS_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
     hud.AddSlider(IDC_MAX_SEARCH_STEPS, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.searchSteps / 112.0f));
     hud.GetStatic(IDC_MAX_SEARCH_STEPS_LABEL)->SetVisible(false);
     hud.GetSlider(IDC_MAX_SEARCH_STEPS)->SetVisible(false);
 
-    s = wstringstream();
+    s.clear();
+    s.str(L"");
     s << L"Max Diag. Search Steps: " << commandlineOptions.diagSearchSteps;
     hud.AddStatic(IDC_MAX_SEARCH_STEPS_DIAG_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
     hud.AddSlider(IDC_MAX_SEARCH_STEPS_DIAG, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.diagSearchSteps / 20.0f));
     hud.GetStatic(IDC_MAX_SEARCH_STEPS_DIAG_LABEL)->SetVisible(false);
     hud.GetSlider(IDC_MAX_SEARCH_STEPS_DIAG)->SetVisible(false);
 
-    s = wstringstream();
+    s.clear();
+    s.str(L"");
     s << L"Corner Rounding: " << commandlineOptions.cornerRounding;
     hud.AddStatic(IDC_CORNER_ROUNDING_LABEL, s.str().c_str(), 35, iY += 24, HUD_WIDTH, 22);
     hud.AddSlider(IDC_CORNER_ROUNDING, 35, iY += 24, HUD_WIDTH, 22, 0, 100, int(100.0f * commandlineOptions.cornerRounding / 100.0f));

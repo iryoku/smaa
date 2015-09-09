@@ -18,3 +18,14 @@ Demo/DX10/Demo.vcxproj.user
 
 Scripts/*.pyc
 Scripts/*.tga
+
+*~
+*.d
+*.o
+
+mingw/dxsdkver.h
+mingw/d3d*.h
+mingw/D3DX10math.inl
+mingw/dxerr.h
+mingw/xinput.h
+mingw/*.exe

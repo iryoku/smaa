@@ -1,10 +1,10 @@
 1 ICON "Icon.ico"
 	
-SMAA.fx RCDATA Shaders\SMAA.fx
-SMAA.hlsl RCDATA "..\\..\\SMAA.hlsl"
+SMAA.fx RCDATA "Shaders/SMAA.fx"
+SMAA.hlsl RCDATA "../../SMAA.hlsl"
 
-AreaTexDX9.dds RCDATA "..\\..\\Textures\\AreaTexDX9.dds"
-SearchTex.dds RCDATA "..\\..\\Textures\\SearchTex.dds"
+AreaTexDX9.dds RCDATA "../../Textures/AreaTexDX9.dds"
+SearchTex.dds RCDATA "../../Textures/SearchTex.dds"
 
-Unigine02.png RCDATA "..\\Media\\Unigine02.png"
-Unigine02.dds RCDATA "..\\Media\\Unigine02.dds"
+Unigine02.png RCDATA "../Media/Unigine02.png"
+Unigine02.dds RCDATA "../Media/Unigine02.dds"

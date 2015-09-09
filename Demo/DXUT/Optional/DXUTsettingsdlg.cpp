@@ -7,7 +7,7 @@
 //--------------------------------------------------------------------------------------
 #include "DXUT.h"
 #include "DXUTgui.h"
-#include "DXUTsettingsDlg.h"
+#include "DXUTsettingsdlg.h"
 #undef min // use __min instead
 #undef max // use __max instead
 

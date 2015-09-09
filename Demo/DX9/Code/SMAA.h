@@ -38,7 +38,23 @@
 
 class SMAA {
     public:
-        class ExternalStorage;
+        /**
+         * This class allows to pass spare storage buffers to the SMAA class.
+         */
+        class ExternalStorage {
+            public:
+                ExternalStorage(IDirect3DTexture9 *edgeTex=nullptr,
+                                IDirect3DSurface9 *edgeSurface=nullptr,
+                                IDirect3DTexture9 *blendTex=nullptr,
+                                IDirect3DSurface9 *blendSurface=nullptr)
+                    : edgeTex(edgeTex),
+                      edgeSurface(edgeSurface), 
+                      blendTex(blendTex),
+                      blendSurface(blendSurface) {}
+
+            IDirect3DTexture9 *edgeTex, *blendTex;
+            IDirect3DSurface9 *edgeSurface, *blendSurface;
+        };
 
         enum Preset { PRESET_LOW, PRESET_MEDIUM, PRESET_HIGH, PRESET_ULTRA, PRESET_CUSTOM };
         enum Input { INPUT_LUMA, INPUT_COLOR, INPUT_DEPTH };
@@ -109,23 +125,6 @@ class SMAA {
         float getCornerRounding() const { return cornerRounding; }
         void setCornerRounding(float cornerRounding) { this->cornerRounding = cornerRounding; }
 
-        /**
-         * This class allows to pass spare storage buffers to the SMAA class.
-         */
-        class ExternalStorage {
-            public:
-                ExternalStorage(IDirect3DTexture9 *edgeTex=nullptr,
-                                IDirect3DSurface9 *edgeSurface=nullptr,
-                                IDirect3DTexture9 *blendTex=nullptr,
-                                IDirect3DSurface9 *blendSurface=nullptr)
-                    : edgeTex(edgeTex),
-                      edgeSurface(edgeSurface), 
-                      blendTex(blendTex),
-                      blendSurface(blendSurface) {}
-
-            IDirect3DTexture9 *edgeTex, *blendTex;
-            IDirect3DSurface9 *edgeSurface, *blendSurface;
-        };
 
     private:
         void loadAreaTex();

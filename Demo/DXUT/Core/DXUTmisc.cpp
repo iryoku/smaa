@@ -5,7 +5,7 @@
 //
 // Copyright (c) Microsoft Corporation. All rights reserved
 //--------------------------------------------------------------------------------------
-#include "dxut.h"
+#include "DXUT.h"
 #include <xinput.h>
 #define DXUT_GAMEPAD_TRIGGER_THRESHOLD      30
 #undef min // use __min instead
@@ -907,7 +907,7 @@ void WINAPI DXUTTraceDecl( D3DVERTEXELEMENT9 decl[MAX_FVF_DECL_SIZE] )
     DXUTOutputDebugString( L"decl[%d]=D3DDECL_END\n", iDecl );
 }
 
-#define TRACE_ID(iD) case iD: return L#iD;
+#define TRACE_ID(iD) case iD: return L ## #iD;
 
 //--------------------------------------------------------------------------------------
 WCHAR* WINAPI DXUTTraceWindowsMessage( UINT uMsg )

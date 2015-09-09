@@ -5,7 +5,7 @@
 //--------------------------------------------------------------------------------------
 #include "DXUT.h"
 #include "DXUTgui.h"
-#include "DXUTsettingsDlg.h"
+#include "DXUTsettingsdlg.h"
 #include "DXUTres.h"
 #include "DXUTgui.h"
 #include "DXUTguiIME.h"

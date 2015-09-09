@@ -9,8 +9,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
 #include "DXUT.h"
-#include "SDKMesh.h"
-#include "SDKMisc.h"
+#include "SDKmesh.h"
+#include "SDKmisc.h"
 
 //--------------------------------------------------------------------------------------
 void CDXUTSDKMesh::LoadMaterials( ID3D10Device* pd3dDevice, SDKMESH_MATERIAL* pMaterials, UINT numMaterials,
@@ -430,18 +430,22 @@ HRESULT CDXUTSDKMesh::CreateFromMemory( ID3D10Device* pDev10,
         m_pMeshArray[i].pFrameInfluences = ( UINT* )( m_pStaticMeshData + m_pMeshArray[i].FrameInfluenceOffset );
     }
 
+    // Setup buffer data pointer
+    BYTE* pBufferData = pData + m_pMeshHeader->HeaderSize + m_pMeshHeader->NonBufferDataSize;
+
+    // Get the start of the buffer data
+    UINT64 BufferDataStart = m_pMeshHeader->HeaderSize + m_pMeshHeader->NonBufferDataSize;
+
+    SDKMESH_SUBSET* pSubset = NULL;
+    SDKMESH_MESH* currentMesh = &m_pMeshArray[0];
+    int tris = 0;
+
     // error condition
     if( m_pMeshHeader->Version != SDKMESH_FILE_VERSION )
     {
         hr = E_NOINTERFACE;
         goto Error;
     }
-
-    // Setup buffer data pointer
-    BYTE* pBufferData = pData + m_pMeshHeader->HeaderSize + m_pMeshHeader->NonBufferDataSize;
-
-    // Get the start of the buffer data
-    UINT64 BufferDataStart = m_pMeshHeader->HeaderSize + m_pMeshHeader->NonBufferDataSize;
 
     // Create Adjacency Indices
     if( pDev10 && bCreateAdjacencyIndices )
@@ -495,12 +499,9 @@ HRESULT CDXUTSDKMesh::CreateFromMemory( ID3D10Device* pDev10,
 
     hr = S_OK;
 
-    SDKMESH_SUBSET* pSubset = NULL;
     D3D10_PRIMITIVE_TOPOLOGY PrimType;
 
     // update bounding volume 
-    SDKMESH_MESH* currentMesh = &m_pMeshArray[0];
-    int tris = 0;
     for (UINT meshi=0; meshi < m_pMeshHeader->NumMeshes; ++meshi) {
         lower.x = FLT_MAX; lower.y = FLT_MAX; lower.z = FLT_MAX;
         upper.x = -FLT_MAX; upper.y = -FLT_MAX; upper.z = -FLT_MAX;
@@ -1195,6 +1196,7 @@ HRESULT CDXUTSDKMesh::LoadAnimation( WCHAR* szFileName )
     /////////////////////////
     // Header
     SDKANIMATION_FILE_HEADER fileheader;
+    UINT64 BaseOffset = sizeof( SDKANIMATION_FILE_HEADER );
     if( !ReadFile( hFile, &fileheader, sizeof( SDKANIMATION_FILE_HEADER ), &dwBytesRead, NULL ) )
         goto Error;
 
@@ -1218,7 +1220,6 @@ HRESULT CDXUTSDKMesh::LoadAnimation( WCHAR* szFileName )
     m_pAnimationHeader = ( SDKANIMATION_FILE_HEADER* )m_pAnimationData;
     m_pAnimationFrameData = ( SDKANIMATION_FRAME_DATA* )( m_pAnimationData + m_pAnimationHeader->AnimationDataOffset );
 
-    UINT64 BaseOffset = sizeof( SDKANIMATION_FILE_HEADER );
     for( UINT i = 0; i < m_pAnimationHeader->NumFrames; i++ )
     {
         m_pAnimationFrameData[i].pAnimationData = ( SDKANIMATION_DATA* )( m_pAnimationData +

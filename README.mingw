@@ -1,0 +1,28 @@
+MinGW build instructions
+------------------------
+
+Copy the following files from Microsoft DirectX SDK to /mingw
+
+d3d10.h
+d3d10sdklayers.h
+d3dx10async.h
+d3dx10core.h
+d3dx10.h
+d3dx10math.h
+D3DX10math.inl
+d3dx10mesh.h
+d3dx10tex.h
+dxerr.h
+dxsdkver.h
+xinput.h
+
+If cross-compiling on Linux make sure case is correct. You might also have to edit some of the files to fix case in includes.
+
+To build:
+cd mingw
+make
+
+The build defaults to DX10 version. Copy /mingw/example.mk to /mingw/local.mk and edit that to make changes. You can override specific settings by including only the changed lines in local.mk.
+If building natively on Windows (instead of cross-compiling) you need to set
+CC:=gcc
+CXX:=g++
