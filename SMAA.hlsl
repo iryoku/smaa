@@ -50,7 +50,7 @@
  *
  * The shader has three passes, chained together as follows:
  *
- *                           |input|------------------ï¿½
+ *                           |input|------------------·
  *                              v                     |
  *                    [ SMAA*EdgeDetection ]          |
  *                              v                     |
@@ -60,7 +60,7 @@
  *                              v                     |
  *                          |blendTex|                |
  *                              v                     |
- *                [ SMAANeighborhoodBlending ] <------ï¿½
+ *                [ SMAANeighborhoodBlending ] <------·
  *                              v
  *                           |output|
  *
@@ -560,12 +560,12 @@ SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; Addres
 #ifdef SMAA_GLSL_SEPARATE_SAMPLERS
 #define SMAATexture2D(tex) texture2D tex
 #define SMAATexturePass2D(tex) tex
-#define SMAASampleLevelZero(tex, coord) textureLod(sampler2D(tex, SMAALinearSampler), coord, 0.0)
-#define SMAASampleLevelZeroPoint(tex, coord) textureLod(sampler2D(tex, SMAAPointSampler), coord, 0.0)
-#define SMAASampleLevelZeroOffset(tex, coord, offset) textureLodOffset(sampler2D(tex, SMAALinearSampler), coord, 0.0, offset)
-#define SMAASample(tex, coord) texture(sampler2D(tex, SMAALinearSampler), coord)
-#define SMAASamplePoint(tex, coord) texture(sampler2D(tex, SMAAPointSampler), coord) //TODO
-#define SMAASampleOffset(tex, coord, offset) texture(sampler2D(tex, SMAALinearSampler), coord, offset)
+#define SMAASampleLevelZero(tex, coord) textureLod(sampler2D(tex, SMAA_LINEAR_SAMPLER), coord, 0.0)
+#define SMAASampleLevelZeroPoint(tex, coord) textureLod(sampler2D(tex, SMAA_POINT_SAMPLER), coord, 0.0)
+#define SMAASampleLevelZeroOffset(tex, coord, offset) textureLodOffset(sampler2D(tex, SMAA_LINEAR_SAMPLER), coord, 0.0, offset)
+#define SMAASample(tex, coord) texture(sampler2D(tex, SMAA_LINEAR_SAMPLER), coord)
+#define SMAASamplePoint(tex, coord) texture(sampler2D(tex, SMAA_POINT_SAMPLER), coord)
+#define SMAASampleOffset(tex, coord, offset) texture(sampler2D(tex, SMAA_LINEAR_SAMPLER), coord, offset)
 #else
 #define SMAATexture2D(tex) sampler2D tex
 #define SMAATexturePass2D(tex) tex
@@ -583,7 +583,7 @@ SamplerState PointSampler { Filter = MIN_MAG_MIP_POINT; AddressU = Clamp; Addres
 #if defined(SMAA_GLSL_4)
 #define mad(a, b, c) fma(a, b, c)
 #ifdef SMAA_GLSL_SEPARATE_SAMPLERS
-#define SMAAGather(tex, coord) textureGather(sampler2D(tex, SMAALinearSampler), coord)
+#define SMAAGather(tex, coord) textureGather(sampler2D(tex, SMAA_LINEAR_SAMPLER), coord)
 #else
 #define SMAAGather(tex, coord) textureGather(tex, coord)
 #endif
